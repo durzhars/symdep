@@ -37,19 +37,35 @@ LDFLAGS ?=
 
 SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/cli/cli.c \
-       $(SRC_DIR)/cli/cmd_dispatch.c \
+       $(SRC_DIR)/cli/dispatch/dispatch_core.c \
+       $(SRC_DIR)/cli/dispatch/cmd_stow_ops.c \
+       $(SRC_DIR)/cli/dispatch/cmd_pkg_ops.c \
+       $(SRC_DIR)/cli/dispatch/cmd_deps_ops.c \
+       $(SRC_DIR)/cli/dispatch/cmd_ignore_ops.c \
+       $(SRC_DIR)/cli/dispatch/cmd_config_ops.c \
        $(SRC_DIR)/cli/cmd_table.c \
        $(SRC_DIR)/cli/help.c \
        $(SRC_DIR)/core/checker.c \
-       $(SRC_DIR)/core/config.c \
-       $(SRC_DIR)/core/ignore.c \
+       $(SRC_DIR)/core/config/config_file.c \
+       $(SRC_DIR)/core/config/config_ops.c \
+       $(SRC_DIR)/core/config/config_active.c \
+       $(SRC_DIR)/core/ignore/ignore_file.c \
+       $(SRC_DIR)/core/ignore/ignore_patterns.c \
+       $(SRC_DIR)/core/ignore/ignore_show.c \
        $(SRC_DIR)/core/manifest.c \
        $(SRC_DIR)/core/registry.c \
        $(SRC_DIR)/core/scanner.c \
-       $(SRC_DIR)/core/linker.c \
+       $(SRC_DIR)/core/linker/linker_context.c \
+       $(SRC_DIR)/core/linker/linker_walk.c \
+       $(SRC_DIR)/core/linker/linker_conflicts.c \
+       $(SRC_DIR)/core/linker/linker_status.c \
+       $(SRC_DIR)/core/linker/linker_ops.c \
        $(SRC_DIR)/core/file_collector.c \
        $(SRC_DIR)/utils/env.c \
-       $(SRC_DIR)/utils/fs.c \
+       $(SRC_DIR)/utils/fs/fs_check.c \
+       $(SRC_DIR)/utils/fs/fs_symlink.c \
+       $(SRC_DIR)/utils/fs/fs_walk.c \
+       $(SRC_DIR)/utils/fs/fs_resource.c \
        $(SRC_DIR)/utils/logger.c \
        $(SRC_DIR)/utils/mem.c \
        $(SRC_DIR)/utils/path.c \

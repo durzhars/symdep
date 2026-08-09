@@ -18,10 +18,6 @@
 
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
-#ifndef STR
-#define XSTR(s) #s
-#define STR(s) XSTR(s)
-#endif
 
 #include "cli/help.h"
 #include "utils/defs.h"

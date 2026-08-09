@@ -67,7 +67,7 @@ void test_get_active_dotfiles_dir_cascade(void);
 void test_config_sanity_checks(void);
 void test_config_save_disclaimer(void);
 
-/* Prototypes from test_stow.c */
+/* Prototypes from test_linker.c */
 void test_stowignore(void);
 void test_dry_run_stow(void);
 void test_symlink_health_check(void);
@@ -105,7 +105,7 @@ void test_check_package_dependencies(void);
 
 int main(void)
 {
-    printf("\n=== Running Dotfiles Stow Manager C Unit Tests ===\n\n");
+    printf("\n=== Running Symlink & Dependency Manager (symdep) C Unit Tests ===\n\n");
 
     // test_utils.c
     RUN_TEST(test_trim_whitespace);

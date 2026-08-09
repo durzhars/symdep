@@ -22,7 +22,7 @@
 
 #include "../test_framework.h"
 #include "core/ignore.h"
-#include "core/stowignore.h"
+#include "core/file_collector.h"
 
 void test_ignore_init_and_clear(void)
 {
@@ -34,30 +34,36 @@ void test_ignore_init_and_clear(void)
     snprintf(pkg_dir, sizeof(pkg_dir), "%s/mypkg", tmp_dir);
     ASSERT(mkdir(pkg_dir, 0755) == 0, "Should create package directory");
 
-    // 1. Initialize root .stowignore
+    // 1. Initialize root ignore file
     ignore_init(tmp_dir, NULL, 0);
     char root_ignore[PATH_MAX];
-    snprintf(root_ignore, sizeof(root_ignore), "%s/.stowignore", tmp_dir);
-    ASSERT(file_exists(root_ignore), "Root .stowignore should exist after ignore_init");
+    snprintf(root_ignore, sizeof(root_ignore), "%s/.symignore", tmp_dir);
+    if (!file_exists(root_ignore)) {
+        snprintf(root_ignore, sizeof(root_ignore), "%s/.stowignore", tmp_dir);
+    }
+    ASSERT(file_exists(root_ignore), "Root ignore file should exist after ignore_init");
 
-    // Re-init root .stowignore (should warn, not overwrite)
+    // Re-init root ignore file (should warn, not overwrite)
     ignore_init(tmp_dir, NULL, 0);
-    ASSERT(file_exists(root_ignore), "Root .stowignore should still exist");
+    ASSERT(file_exists(root_ignore), "Root ignore file should still exist");
 
-    // 2. Initialize package .stowignore
+    // 2. Initialize package ignore file
     const char *pkgs[] = {"mypkg"};
     ignore_init(tmp_dir, pkgs, 1);
     char pkg_ignore[PATH_MAX];
-    snprintf(pkg_ignore, sizeof(pkg_ignore), "%s/.stowignore", pkg_dir);
-    ASSERT(file_exists(pkg_ignore), "Package .stowignore should exist after ignore_init");
+    snprintf(pkg_ignore, sizeof(pkg_ignore), "%s/.symignore", pkg_dir);
+    if (!file_exists(pkg_ignore)) {
+        snprintf(pkg_ignore, sizeof(pkg_ignore), "%s/.stowignore", pkg_dir);
+    }
+    ASSERT(file_exists(pkg_ignore), "Package ignore file should exist after ignore_init");
 
-    // 3. Clear package .stowignore
+    // 3. Clear package ignore file
     ignore_clear(tmp_dir, pkgs, 1);
-    ASSERT(!file_exists(pkg_ignore), "Package .stowignore should be deleted after ignore_clear");
+    ASSERT(!file_exists(pkg_ignore), "Package ignore file should be deleted after ignore_clear");
 
-    // 4. Clear root .stowignore
+    // 4. Clear root ignore file
     ignore_clear(tmp_dir, NULL, 0);
-    ASSERT(!file_exists(root_ignore), "Root .stowignore should be deleted after ignore_clear");
+    ASSERT(!file_exists(root_ignore), "Root ignore file should be deleted after ignore_clear");
 
     // Clear non-existent file gracefully
     ignore_clear(tmp_dir, pkgs, 1);
@@ -75,13 +81,16 @@ void test_ignore_add_and_remove_patterns(void)
     snprintf(pkg_dir, sizeof(pkg_dir), "%s/testpkg", tmp_dir);
     ASSERT(mkdir(pkg_dir, 0755) == 0, "Should create testpkg directory");
 
-    // 1. Add patterns to package .stowignore (should auto-init if not exists)
+    // 1. Add patterns to package ignore file (should auto-init if not exists)
     const char *add_pats[] = {"*.tmp", "cache/", "build.log"};
     ignore_add_patterns(tmp_dir, "testpkg", add_pats, 3);
 
     char pkg_ignore[PATH_MAX];
-    snprintf(pkg_ignore, sizeof(pkg_ignore), "%s/.stowignore", pkg_dir);
-    ASSERT(file_exists(pkg_ignore), ".stowignore should be created automatically");
+    snprintf(pkg_ignore, sizeof(pkg_ignore), "%s/.symignore", pkg_dir);
+    if (!file_exists(pkg_ignore)) {
+        snprintf(pkg_ignore, sizeof(pkg_ignore), "%s/.stowignore", pkg_dir);
+    }
+    ASSERT(file_exists(pkg_ignore), "Ignore file should be created automatically");
 
     StringArray raw_patterns;
     str_array_init(&raw_patterns);
@@ -101,7 +110,7 @@ void test_ignore_add_and_remove_patterns(void)
             tmp_count++;
         }
     }
-    ASSERT(tmp_count == 1, "*.tmp should not be duplicated in .stowignore");
+    ASSERT(tmp_count == 1, "*.tmp should not be duplicated in ignore file");
     str_array_free(&raw_patterns);
 
     // 3. Remove patterns
@@ -114,12 +123,15 @@ void test_ignore_add_and_remove_patterns(void)
     ASSERT(!str_array_contains(&raw_patterns, "cache/"), "cache/ should be removed");
     str_array_free(&raw_patterns);
 
-    // 4. Add patterns to global .stowignore
+    // 4. Add patterns to global ignore file
     const char *global_pats[] = {"*.bak"};
     ignore_add_patterns(tmp_dir, NULL, global_pats, 1);
     char root_ignore[PATH_MAX];
-    snprintf(root_ignore, sizeof(root_ignore), "%s/.stowignore", tmp_dir);
-    ASSERT(file_exists(root_ignore), "Global .stowignore should be created");
+    snprintf(root_ignore, sizeof(root_ignore), "%s/.symignore", tmp_dir);
+    if (!file_exists(root_ignore)) {
+        snprintf(root_ignore, sizeof(root_ignore), "%s/.stowignore", tmp_dir);
+    }
+    ASSERT(file_exists(root_ignore), "Global ignore file should be created");
 
     str_array_init(&raw_patterns);
     parse_stowignore_raw(tmp_dir, &raw_patterns);

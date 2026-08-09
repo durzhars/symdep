@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -38,15 +38,15 @@ void test_config_system(void)
 
     Config cfg;
     config_init(&cfg);
-    str_array_append(&cfg.dotfiles_dirs, tmp_dir);
+    str_array_append(&cfg.source_dirs, tmp_dir);
     config_save(&cfg);
     config_free(&cfg);
 
     Config loaded;
     config_init(&loaded);
     ASSERT(config_load(&loaded), "Should load config file");
-    ASSERT(str_array_contains(&loaded.dotfiles_dirs, tmp_dir),
-           "Config should contain saved dotfiles_dir");
+    ASSERT(str_array_contains(&loaded.source_dirs, tmp_dir),
+           "Config should contain saved source_dir");
     config_free(&loaded);
 
     if (old_xdg_buf[0] != '\0') {
@@ -73,34 +73,34 @@ void test_config_add_remove_dotfiles_dir(void)
 
     char dir_a[PATH_MAX];
     char dir_b[PATH_MAX];
-    snprintf(dir_a, sizeof(dir_a), "%s/dotfiles_a", tmp_dir);
-    snprintf(dir_b, sizeof(dir_b), "%s/dotfiles_b", tmp_dir);
-    ASSERT(mkdir(dir_a, 0755) == 0, "Should create dotfiles_a");
-    ASSERT(mkdir(dir_b, 0755) == 0, "Should create dotfiles_b");
+    snprintf(dir_a, sizeof(dir_a), "%s/source_a", tmp_dir);
+    snprintf(dir_b, sizeof(dir_b), "%s/source_b", tmp_dir);
+    ASSERT(mkdir(dir_a, 0755) == 0, "Should create source_a");
+    ASSERT(mkdir(dir_b, 0755) == 0, "Should create source_b");
 
     // Add valid directory
-    config_add_dotfiles_dir(dir_a);
+    config_add_source_dir(dir_a);
 
     Config cfg;
     config_init(&cfg);
     ASSERT(config_load(&cfg), "Config should load");
-    ASSERT(str_array_contains(&cfg.dotfiles_dirs, dir_a), "Config should contain dir_a");
+    ASSERT(str_array_contains(&cfg.source_dirs, dir_a), "Config should contain dir_a");
     config_free(&cfg);
 
-    config_add_dotfiles_dir(dir_b);
+    config_add_source_dir(dir_b);
     config_init(&cfg);
     config_load(&cfg);
-    ASSERT(str_array_contains(&cfg.dotfiles_dirs, dir_b), "Config should contain dir_b");
+    ASSERT(str_array_contains(&cfg.source_dirs, dir_b), "Config should contain dir_b");
 
     // Duplicate addition handling
-    config_add_dotfiles_dir(dir_a);
+    config_add_source_dir(dir_a);
     config_free(&cfg);
 
     config_init(&cfg);
     config_load(&cfg);
     size_t count_a = 0;
-    for (size_t i = 0; i < cfg.dotfiles_dirs.count; i++) {
-        if (strcmp(cfg.dotfiles_dirs.items[i], dir_a) == 0) {
+    for (size_t i = 0; i < cfg.source_dirs.count; i++) {
+        if (strcmp(cfg.source_dirs.items[i], dir_a) == 0) {
             count_a++;
         }
     }
@@ -108,18 +108,18 @@ void test_config_add_remove_dotfiles_dir(void)
     config_free(&cfg);
 
     // Remove path
-    config_remove_dotfiles_dir(dir_a);
+    config_remove_source_dir(dir_a);
     config_init(&cfg);
     config_load(&cfg);
-    ASSERT(!str_array_contains(&cfg.dotfiles_dirs, dir_a), "Config should no longer contain dir_a");
-    ASSERT(str_array_contains(&cfg.dotfiles_dirs, dir_b), "Config should still contain dir_b");
+    ASSERT(!str_array_contains(&cfg.source_dirs, dir_a), "Config should no longer contain dir_a");
+    ASSERT(str_array_contains(&cfg.source_dirs, dir_b), "Config should still contain dir_b");
     config_free(&cfg);
 
     // Remove non-registered path
-    config_remove_dotfiles_dir("/nonexistent/path/for/test");
+    config_remove_source_dir("/nonexistent/path/for/test");
     config_init(&cfg);
     config_load(&cfg);
-    ASSERT(cfg.dotfiles_dirs.count == 1,
+    ASSERT(cfg.source_dirs.count == 1,
            "Config count should remain 1 after removing non-registered path");
     config_free(&cfg);
 
@@ -140,13 +140,13 @@ void test_get_active_dotfiles_dir_cascade(void)
            "Should create temporary directory for cascade test");
 
     // Save environment state
-    const char *old_stow_dir = getenv("STOW_DOTFILES_DIR");
+    const char *old_stow_dir = getenv("SYMDEP_SOURCE_DIR");
     char old_stow_buf[PATH_MAX] = {0};
     if (old_stow_dir) {
         snprintf(old_stow_buf, sizeof(old_stow_buf), "%s", old_stow_dir);
     }
 
-    const char *old_dot_dir = getenv("DOTFILES_DIR");
+    const char *old_dot_dir = getenv("SOURCE_DIR");
     char old_dot_buf[PATH_MAX] = {0};
     if (old_dot_dir) {
         snprintf(old_dot_buf, sizeof(old_dot_buf), "%s", old_dot_dir);
@@ -163,53 +163,57 @@ void test_get_active_dotfiles_dir_cascade(void)
     char cli_dir[PATH_MAX];
     char env_dir[PATH_MAX];
     char cfg_dir[PATH_MAX];
-    snprintf(cli_dir, sizeof(cli_dir), "%s/cli_dotfiles", tmp_dir);
-    snprintf(env_dir, sizeof(env_dir), "%s/env_dotfiles", tmp_dir);
-    snprintf(cfg_dir, sizeof(cfg_dir), "%s/cfg_dotfiles", tmp_dir);
+    snprintf(cli_dir, sizeof(cli_dir), "%s/cli_source", tmp_dir);
+    snprintf(env_dir, sizeof(env_dir), "%s/env_source", tmp_dir);
+    snprintf(cfg_dir, sizeof(cfg_dir), "%s/cfg_source", tmp_dir);
 
-    ASSERT(mkdir(cli_dir, 0755) == 0, "Should create cli_dotfiles");
-    ASSERT(mkdir(env_dir, 0755) == 0, "Should create env_dotfiles");
-    ASSERT(mkdir(cfg_dir, 0755) == 0, "Should create cfg_dotfiles");
+    ASSERT(mkdir(cli_dir, 0755) == 0, "Should create cli_source");
+    ASSERT(mkdir(env_dir, 0755) == 0, "Should create env_source");
+    ASSERT(mkdir(cfg_dir, 0755) == 0, "Should create cfg_source");
 
     // Setup config file to contain cfg_dir
-    config_add_dotfiles_dir(cfg_dir);
-    setenv("STOW_DOTFILES_DIR", env_dir, 1);
+    config_add_source_dir(cfg_dir);
+    setenv("SYMDEP_SOURCE_DIR", env_dir, 1);
 
     char buf[PATH_MAX];
 
     // Priority 1: CLI override > ENV > Config
-    get_active_dotfiles_dir(cli_dir, buf, sizeof(buf));
+    get_active_source_dir(cli_dir, buf, sizeof(buf));
     ASSERT_STR_EQ(buf, cli_dir);
 
     // Priority 2: ENV > Config (CLI is NULL)
-    get_active_dotfiles_dir(NULL, buf, sizeof(buf));
+    get_active_source_dir(NULL, buf, sizeof(buf));
     ASSERT_STR_EQ(buf, env_dir);
 
     // Priority 3: Config file (CLI is NULL, ENV is unset)
+    unsetenv("SYMDEP_SOURCE_DIR");
+    unsetenv("SOURCE_DIR");
     unsetenv("STOW_DOTFILES_DIR");
     unsetenv("DOTFILES_DIR");
-    get_active_dotfiles_dir(NULL, buf, sizeof(buf));
+    get_active_source_dir(NULL, buf, sizeof(buf));
     ASSERT_STR_EQ(buf, cfg_dir);
 
     // Priority 4: Fallback CWD (CLI NULL, ENV unset, Config empty)
     char cfg_file[PATH_MAX];
+    snprintf(cfg_file, sizeof(cfg_file), "%s/symdep/config", tmp_dir);
+    remove(cfg_file);
     snprintf(cfg_file, sizeof(cfg_file), "%s/stow-manager/config", tmp_dir);
     remove(cfg_file);
 
-    get_active_dotfiles_dir(NULL, buf, sizeof(buf));
-    ASSERT(strlen(buf) > 0, "Fallback active dotfiles dir should not be empty");
+    get_active_source_dir(NULL, buf, sizeof(buf));
+    ASSERT(strlen(buf) > 0, "Fallback active source dir should not be empty");
 
     // Restore environment
     if (old_stow_buf[0] != '\0') {
-        setenv("STOW_DOTFILES_DIR", old_stow_buf, 1);
+        setenv("SYMDEP_SOURCE_DIR", old_stow_buf, 1);
     } else {
-        unsetenv("STOW_DOTFILES_DIR");
+        unsetenv("SYMDEP_SOURCE_DIR");
     }
 
     if (old_dot_buf[0] != '\0') {
-        setenv("DOTFILES_DIR", old_dot_buf, 1);
+        setenv("SOURCE_DIR", old_dot_buf, 1);
     } else {
-        unsetenv("DOTFILES_DIR");
+        unsetenv("SOURCE_DIR");
     }
 
     if (old_xdg_buf[0] != '\0') {
@@ -259,11 +263,14 @@ void test_config_save_disclaimer(void)
 
     Config cfg;
     config_init(&cfg);
-    str_array_append(&cfg.dotfiles_dirs, tmp_dir);
+    str_array_append(&cfg.source_dirs, tmp_dir);
     config_save(&cfg);
 
     char cfg_path[PATH_MAX];
-    snprintf(cfg_path, sizeof(cfg_path), "%s/stow-manager/config", tmp_dir);
+    snprintf(cfg_path, sizeof(cfg_path), "%s/symdep/config", tmp_dir);
+    if (!file_exists(cfg_path)) {
+        snprintf(cfg_path, sizeof(cfg_path), "%s/stow-manager/config", tmp_dir);
+    }
 
     FILE *fp = fopen(cfg_path, "r");
     ASSERT(fp != NULL, "Saved config file should exist");
@@ -272,7 +279,7 @@ void test_config_save_disclaimer(void)
     fread(buffer, 1, sizeof(buffer) - 1, fp);
     fclose(fp);
 
-    ASSERT(strstr(buffer, "Stow Manager Configuration (Auto-Generated)") != NULL,
+    ASSERT(strstr(buffer, "Configuration (Auto-Generated)") != NULL,
            "Config file should contain auto-generated disclaimer header");
 
     config_free(&cfg);
@@ -284,3 +291,4 @@ void test_config_save_disclaimer(void)
 
     cleanup_test_dir(tmp_dir);
 }
+

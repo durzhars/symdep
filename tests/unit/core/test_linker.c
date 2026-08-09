@@ -22,9 +22,9 @@
 
 #include "../test_framework.h"
 #include "core/checker.h"
+#include "core/file_collector.h"
+#include "core/linker.h"
 #include "core/manifest.h"
-#include "core/stow.h"
-#include "core/stowignore.h"
 #include "utils/fs.h"
 
 void test_stowignore(void)

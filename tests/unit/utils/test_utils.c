@@ -21,7 +21,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "../test_framework.h"
-#include "core/stowignore.h"
+#include "core/file_collector.h"
 #include "utils/defs.h"
 #include "utils/env.h"
 #include "utils/fs.h"

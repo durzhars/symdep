@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -48,7 +48,7 @@ void test_dispatch_command_routes(void)
     CliOptions opts = {.auto_install = false,
                        .dry_run = true, // Use dry_run for safe execution testing
                        .save_flag = false,
-                       .cli_dotfiles_dir = tmp_dotfiles,
+                       .cli_source_dir = tmp_dotfiles,
                        .cli_target_dir = tmp_target};
 
     StringArray args;
@@ -106,3 +106,4 @@ void test_dispatch_command_routes(void)
     cleanup_test_dir(tmp_dotfiles);
     cleanup_test_dir(tmp_target);
 }
+

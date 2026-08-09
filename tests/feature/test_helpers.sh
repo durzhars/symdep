@@ -26,10 +26,10 @@ TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-# Locate compiled stow-manager binary
+# Locate compiled symdep binary
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-STOW_BIN="${STOW_BIN:-$PROJECT_ROOT/bin/stow-manager}"
+STOW_BIN="${STOW_BIN:-$PROJECT_ROOT/bin/symdep}"
 
 if [ ! -x "$STOW_BIN" ]; then
     echo -e "${COLOR_RED}Error: Binary '$STOW_BIN' not found or not executable.${COLOR_RESET}" >&2
@@ -57,6 +57,7 @@ setup_sandbox() {
     export HOME="$MOCK_HOME"
     export XDG_CONFIG_HOME="$MOCK_CONFIG"
     export STOW_DOTFILES_DIR="$MOCK_DOTFILES"
+    export SYMDEP_SOURCE_DIR="$MOCK_DOTFILES"
 }
 
 cleanup_sandbox() {

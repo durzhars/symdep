@@ -121,6 +121,110 @@ void get_active_target_dir(const char *cli_override, char *buf, size_t buf_size)
     }
 }
 
+void get_active_config_dirs(const char *cli_source_override,
+                            const char *cli_target_override,
+                            char *src_buf,
+                            size_t src_size,
+                            char *tgt_buf,
+                            size_t tgt_size)
+{
+    Config cfg;
+    bool cfg_loaded = false;
+
+    // 1. Resolve Source Dir
+    if (cli_source_override && strlen(cli_source_override) > 0) {
+        expand_tilde_path(cli_source_override, src_buf, src_size);
+        normalize_path(src_buf);
+    } else {
+        static const char *const env_src_vars[] = {
+            "SYMDEP_SOURCE_DIR", "SOURCE_DIR", "STOW_DOTFILES_DIR", "DOTFILES_DIR"
+        };
+        const char *env_dir = getenv_first(env_src_vars, 4);
+
+        if (env_dir) {
+            expand_tilde_path(env_dir, src_buf, src_size);
+            normalize_path(src_buf);
+        } else {
+            char cwd[STOW_PATH_LARGE];
+            bool found_reg = false;
+            if (getcwd(cwd, sizeof(cwd))) {
+                const char *candidates[] = {
+                    "symdep.registry", ".symdepregistry", "stow.registry", ".stowregistry"
+                };
+                char test_reg[STOW_PATH_LARGE];
+                for (size_t i = 0; i < 4; i++) {
+                    join_path(test_reg, sizeof(test_reg), cwd, candidates[i]);
+                    if (file_exists(test_reg)) {
+                        snprintf(src_buf, src_size, "%s", cwd);
+                        found_reg = true;
+                        break;
+                    }
+                }
+            }
+            if (!found_reg) {
+                if (!cfg_loaded) {
+                    config_load_active(&cfg);
+                    cfg_loaded = true;
+                }
+                if (cfg.source_dirs.count > 0) {
+                    snprintf(src_buf, src_size, "%s", cfg.source_dirs.items[0]);
+                } else {
+                    get_dotfiles_dir(src_buf, src_size);
+                }
+            }
+        }
+    }
+
+    PathSanityResult src_sanity = verify_path_sanity(src_buf);
+    if (src_sanity != PATH_VALID) {
+        if (cfg_loaded) config_free(&cfg);
+        log_error("Fatal: Source directory error: %s. Exiting.", path_sanity_strerror(src_sanity, src_buf));
+        exit(EXIT_FAILURE);
+    }
+
+    // 2. Resolve Target Dir
+    if (cli_target_override && strlen(cli_target_override) > 0) {
+        expand_tilde_path(cli_target_override, tgt_buf, tgt_size);
+        normalize_path(tgt_buf);
+    } else {
+        static const char *const env_tgt_vars[] = {
+            "SYMDEP_TARGET_DIR", "STOW_TARGET_DIR", "TARGET_DIR"
+        };
+        const char *env_target = getenv_first(env_tgt_vars, 3);
+
+        if (env_target) {
+            expand_tilde_path(env_target, tgt_buf, tgt_size);
+            normalize_path(tgt_buf);
+        } else {
+            if (!cfg_loaded) {
+                config_load_active(&cfg);
+                cfg_loaded = true;
+            }
+            if (cfg.target_dir[0] != '\0') {
+                snprintf(tgt_buf, tgt_size, "%s", cfg.target_dir);
+            } else {
+                const char *env_home = getenv("HOME");
+                if (!env_home || *env_home == '\0') {
+                    if (cfg_loaded) config_free(&cfg);
+                    log_error("Fatal: $HOME environment variable is not set");
+                    exit(EXIT_FAILURE);
+                }
+                snprintf(tgt_buf, tgt_size, "%s", env_home);
+            }
+        }
+    }
+
+    if (cfg_loaded) {
+        config_free(&cfg);
+    }
+
+    PathSanityResult tgt_sanity = verify_path_sanity(tgt_buf);
+    if (tgt_sanity != PATH_VALID) {
+        log_error("Fatal: Target directory error: %s. Exiting.", path_sanity_strerror(tgt_sanity, tgt_buf));
+        exit(EXIT_FAILURE);
+    }
+}
+
 void get_active_target_dir_for_pkg(const char *cli_override,
                                    const char *source_dir,
                                    const char *pkg_name,

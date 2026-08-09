@@ -42,6 +42,12 @@ void config_show(void);
 
 void get_active_source_dir(const char *cli_override, char *buf, size_t buf_size);
 void get_active_target_dir(const char *cli_override, char *buf, size_t buf_size);
+void get_active_config_dirs(const char *cli_source_override,
+                            const char *cli_target_override,
+                            char *src_buf,
+                            size_t src_size,
+                            char *tgt_buf,
+                            size_t tgt_size);
 void get_active_target_dir_for_pkg(const char *cli_override,
                                    const char *source_dir,
                                    const char *pkg_name,

@@ -121,9 +121,12 @@ int dispatch_command(const StringArray *args, const CliOptions *opts)
             char global_target_dir[STOW_PATH_LARGE] = {0};
 
             if (strcmp(route->group, "config") != 0 && strcmp(route->group, "help") != 0) {
-                get_active_source_dir(opts->cli_source_dir, source_dir, sizeof(source_dir));
-                get_active_target_dir(
-                    opts->cli_target_dir, global_target_dir, sizeof(global_target_dir));
+                get_active_config_dirs(opts->cli_source_dir,
+                                       opts->cli_target_dir,
+                                       source_dir,
+                                       sizeof(source_dir),
+                                       global_target_dir,
+                                       sizeof(global_target_dir));
             }
 
             CommandContext ctx = {.opts = opts,
@@ -143,8 +146,12 @@ int dispatch_command(const StringArray *args, const CliOptions *opts)
 
     char source_dir[STOW_PATH_LARGE] = {0};
     char global_target_dir[STOW_PATH_LARGE] = {0};
-    get_active_source_dir(opts->cli_source_dir, source_dir, sizeof(source_dir));
-    get_active_target_dir(opts->cli_target_dir, global_target_dir, sizeof(global_target_dir));
+    get_active_config_dirs(opts->cli_source_dir,
+                           opts->cli_target_dir,
+                           source_dir,
+                           sizeof(source_dir),
+                           global_target_dir,
+                           sizeof(global_target_dir));
 
     bool all_valid = true;
     for (size_t i = 0; i < args->count; i++) {

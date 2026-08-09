@@ -33,14 +33,12 @@ static FILE *try_open_resource(const char *base_dir, const char *app, const char
     if (!base_dir || *base_dir == '\0') {
         return NULL;
     }
-    char p[STOW_PATH_LARGE];
-    join_path(p, sizeof(p), base_dir, app);
     char full_p[STOW_PATH_LARGE];
-    join_path(full_p, sizeof(full_p), p, filename);
-    if (file_exists(full_p)) {
-        return fopen(full_p, "r");
+    int len = snprintf(full_p, sizeof(full_p), "%s/%s/%s", base_dir, app, filename);
+    if (len <= 0 || (size_t)len >= sizeof(full_p)) {
+        return NULL;
     }
-    return NULL;
+    return fopen(full_p, "r");
 }
 
 FILE *open_resource_file(const char *filename)

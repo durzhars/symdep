@@ -250,7 +250,7 @@ void get_distro_id(char *buf, size_t buf_size)
 
 bool is_executable_in_path(const char *executable)
 {
-    if (!executable || strlen(executable) == 0) {
+    if (!executable || *executable == '\0') {
         return false;
     }
 
@@ -259,27 +259,35 @@ bool is_executable_in_path(const char *executable)
     }
 
     const char *path_env = getenv("PATH");
-    if (!path_env) {
+    if (!path_env || *path_env == '\0') {
         return false;
     }
 
-    StringArray path_dirs;
-    str_array_init(&path_dirs);
-    str_split_delim(path_env, ":", &path_dirs);
-
-    bool found = false;
     char full_path[STOW_PATH_LARGE];
+    size_t exe_len = strlen(executable);
+    const char *p = path_env;
 
-    for (size_t i = 0; i < path_dirs.count; i++) {
-        snprintf(full_path, sizeof(full_path), "%s/%s", path_dirs.items[i], executable);
-        if (access(full_path, X_OK) == 0) {
-            found = true;
+    while (*p != '\0') {
+        const char *next = strchr(p, ':');
+        size_t dir_len = next ? (size_t)(next - p) : strlen(p);
+
+        if (dir_len > 0 && dir_len + 1 + exe_len < sizeof(full_path)) {
+            memcpy(full_path, p, dir_len);
+            full_path[dir_len] = '/';
+            memcpy(full_path + dir_len + 1, executable, exe_len + 1);
+
+            if (access(full_path, X_OK) == 0) {
+                return true;
+            }
+        }
+
+        if (!next) {
             break;
         }
+        p = next + 1;
     }
 
-    str_array_free(&path_dirs);
-    return found;
+    return false;
 }
 
 int run_system_cmd(const char *cmd)

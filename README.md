@@ -1,11 +1,11 @@
-# Dotfiles Stow Manager (`stow-manager`)
+# Symlink & Dependency Manager (`symdep`)
 
 [![ISO C17](https://img.shields.io/badge/C-ISO%20C17-blue.svg)](https://en.wikipedia.org/wiki/C17_(C_standard_revision))
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-A high-performance, zero-dependency, ISO C17 framework manager and dependency resolver for GNU Stow dotfiles packages.
+A high-performance, zero-dependency symlink manager and package dependency resolver written in C.
 
-`stow-manager` automates dotfiles package deployment, cross-distro package manager dependency installation (`pacman`, `apt`, `dnf`, `apk`, `brew`), mutual exclusion conflicts (e.g. `terminal` vs `headless`), GNU Stow directory symlink folding collisions, multi-repository management, and broken/orphan symlink integrity checking.
+`symdep` automates source package deployment, cross-distro package manager dependency installation (`pacman`, `apt`, `dnf`, `apk`, `brew`), mutual exclusion conflicts (e.g. `terminal` vs `headless`), directory symlink folding collisions, multi-repository management, and broken/orphan symlink integrity checking.
 
 ---
 
@@ -14,22 +14,22 @@ A high-performance, zero-dependency, ISO C17 framework manager and dependency re
 - [Features](#features)
 - [Architecture & Resolution Order](#architecture--resolution-order)
   - [Target Directory Precedence](#target-directory-precedence)
-  - [Dotfiles Repository Precedence](#dotfiles-repository-precedence)
+  - [Source Repository Precedence](#source-repository-precedence)
 - [Build & Installation](#build--installation)
   - [Standard Build Commands](#standard-build-commands)
   - [Advanced Clang Optimization & Diagnostic Profiles](#advanced-clang-optimization--diagnostic-profiles)
 - [Command Line Reference](#command-line-reference)
   - [Global Options](#global-options)
-  - [Stow & Deployment Commands](#stow--deployment-commands)
+  - [Symlink & Deployment Commands](#symlink--deployment-commands)
   - [Package Management (`pkg`)](#package-management-pkg)
   - [Dependency Management (`deps`)](#dependency-management-deps)
   - [File Filtering (`ignore`)](#file-filtering-ignore)
   - [Diagnostics & Repair (`check`)](#diagnostics--repair-check)
   - [Configuration (`config`)](#configuration-config)
 - [Configuration & Manifest File Formats](#configuration--manifest-file-formats)
-  - [Package Manifest (`.stowdeps`)](#package-manifest-stowdeps)
-  - [Ignore Rules (`.stowignore`)](#ignore-rules-stowignore)
-  - [Tool Registry (`stow.registry`)](#tool-registry-stowregistry)
+  - [Package Manifest (`.symdeps`)](#package-manifest-symdeps)
+  - [Ignore Rules (`.symignore`)](#ignore-rules-symignore)
+  - [Tool Registry (`symdep.registry`)](#tool-registry-symdepregistry)
 - [Environment Variables](#environment-variables)
 - [License](#license)
 
@@ -37,14 +37,14 @@ A high-performance, zero-dependency, ISO C17 framework manager and dependency re
 
 ## Features
 
-- **Zero-Dependency ISO C17**: Lightweight, high-performance native binary compiled with `-std=c17` and zero third-party library dependencies.
-- **Symlink Unfolding & Collision Prevention (`fix-conflicts`)**: Automatically detects and unfolds directory symlinks in target directories to prevent GNU Stow directory folding collisions.
-- **Dependency & Plugin Resolution (`deps`, `scan`)**: Auto-detects missing tools across Linux and macOS package managers (`pacman`, `apt`, `dnf`, `apk`, `brew`) and shell plugins (`stow.registry`).
-- **Automated Dependency Scanner (`scan`)**: Recursively scans package scripts and configs for shebang interpreters and command invocations to auto-generate `.stowdeps` manifests.
-- **Conflict & Mutual Exclusion Management**: Auto-unstows conflicting dotfile packages (defined in `.stowdeps` `CONFLICTS` or detected dynamically when target paths collide) prior to stowing.
+- **Zero-Dependency Standalone ISO C17**: Lightweight, high-performance C binary compiled with `-std=c17`. Manages symlinks directly with zero external tool dependencies.
+- **Symlink Unfolding & Collision Prevention (`fix`)**: Automatically detects and unfolds directory symlinks in target directories to prevent directory folding collisions.
+- **Dependency & Plugin Resolution (`deps`, `scan`)**: Auto-detects missing tools across Linux and macOS package managers (`pacman`, `apt`, `dnf`, `apk`, `brew`) and shell plugins (`symdep.registry`).
+- **Automated Dependency Scanner (`scan`)**: Recursively scans package scripts and configs for shebang interpreters and command invocations to auto-generate `.symdeps` manifests.
+- **Conflict & Mutual Exclusion Management**: Auto-unlinks conflicting source packages (defined in `.symdeps` `CONFLICTS` or detected dynamically when target paths collide) prior to linking.
 - **Standardized Command Namespaces**: Intuitive CRUD command namespaces for package management (`pkg`), dependencies (`deps`), file filtering (`ignore`), and system settings (`config`).
-- **Multi-Repository & Per-Package Target Configuration**: Manage multiple dotfiles repositories simultaneously and assign custom target directories per package (e.g., `/etc` or custom system paths).
-- **Global & Package File Filtering (`ignore`)**: Manage `.stowignore` glob patterns at repository root or package level with inheritance and redundant pattern detection.
+- **Multi-Repository & Per-Package Target Configuration**: Manage multiple source repositories simultaneously and assign custom target directories per package (e.g., `/etc` or custom system paths).
+- **Global & Package File Filtering (`ignore`)**: Manage `.symignore` glob patterns at repository root or package level with inheritance and redundant pattern detection.
 - **Symlink Health & Integrity Audit (`check-symlinks`)**: Scans repository for broken symlinks and target home for unmanaged orphan symlinks.
 - **Safety & Signal Cleanups**: Built-in signal handlers (`SIGINT`/`Ctrl+C`) perform atomic temp directory cleanups on unexpected exits.
 - **Performance Profiling (`-p`, `--profile`)**: High-precision nanosecond execution profiling for benchmarking deployment steps.
@@ -55,22 +55,22 @@ A high-performance, zero-dependency, ISO C17 framework manager and dependency re
 
 ### Target Directory Precedence
 
-When resolving the target destination for symlink deployment, `stow-manager` checks sources in the following strict order of precedence:
+When resolving the target destination for symlink deployment, `symdep` checks sources in the following strict order of precedence:
 
 1. **CLI Flag**: `-t, --target-dir <path>`
-2. **Package Manifest**: `TARGET="/path"` entry in `.stowdeps` (when evaluating a specific package)
-3. **Environment Variable**: `STOW_TARGET_DIR` or `TARGET_DIR`
-4. **Configuration File**: `TARGET_DIR` set via `stow-manager config set target <path>`
+2. **Package Manifest**: `TARGET="/path"` entry in `.symdeps` (when evaluating a specific package)
+3. **Environment Variable**: `SYMDEP_TARGET_DIR` or `TARGET_DIR`
+4. **Configuration File**: `TARGET_DIR` set via `symdep config set target <path>`
 5. **Fallback Environment**: `$HOME`
 
-### Dotfiles Repository Precedence
+### Source Repository Precedence
 
-When locating the active dotfiles repository directory:
+When locating the active source repository directory:
 
-1. **CLI Flag**: `-d, --dotfiles-dir <path>`
-2. **Environment Variable**: `STOW_DOTFILES_DIR` or `DOTFILES_DIR`
-3. **Working Directory Marker**: Current working directory if `stow.registry` or `.stowregistry` is present
-4. **Configuration File**: Primary entry in `DOTFILES_DIRS` set via `stow-manager config set dotfiles <path>`
+1. **CLI Flag**: `-d, --source-dir <path>` (aliases: `--src-dir`, `--dotfiles-dir`)
+2. **Environment Variable**: `SYMDEP_SOURCE_DIR` or `SOURCE_DIR`
+3. **Working Directory Marker**: Current working directory if `symdep.registry` or `.symdepregistry` is present
+4. **Configuration File**: Primary entry in `SOURCE_DIRS` set via `symdep config set source <path>`
 5. **Fallback Environment**: Current working directory (`getcwd`)
 
 ---
@@ -80,7 +80,7 @@ When locating the active dotfiles repository directory:
 ### Standard Build Commands
 
 ```bash
-# Build release binary (bin/stow-manager)
+# Build release binary (bin/symdep)
 make
 
 # Run unit test suite (bin/test_runner)
@@ -140,36 +140,39 @@ make format-check
 
 | Flag | Description |
 | :--- | :--- |
-| `-d, --dotfiles-dir <path>` | Set dotfiles repository directory for current command (e.g., `-d ~/dotfiles`). |
+| `-d, --source-dir <path>` | Set source repository directory for current command (aliases: `--src-dir`, `--dotfiles-dir`). |
 | `-t, --target-dir <path>` | Set target home directory for current command (e.g., `-t ~/`). |
 | `-y, --install` | Auto-confirm installation of missing required dependencies & optional plugins without prompting. |
 | `-n, --dry-run` | Preview disk changes, symlink creations, backups, and actions without modifying disk. |
 | `-s, --save` | Save command-line directory overrides (`-d`/`-t`) directly to user configuration file. |
-| `-p, --profile` | Enable nanosecond execution performance profiler logging (also enabled via `PROFILE=1`). |
+| `-p, --profile` | Enable nanosecond execution performance profiler logging (also enabled via `SYMDEP_PROFILE=1`). |
 | `-h, --help` | Display comprehensive help manual. |
 
 ---
 
-### Stow & Deployment Commands
+### Symlink & Deployment Commands
 
 ```bash
-# Stow one or multiple packages (with automatic dependency & conflict handling)
-stow-manager stow <pkg...>
+# Link / deploy one or multiple packages (with automatic dependency & conflict handling)
+symdep link <pkg...>
+# Aliases: stow, deploy
 
-# Short invocation (omitting 'stow' keyword defaults to stowing valid packages)
-stow-manager <pkg...>
+# Short invocation (omitting command keyword defaults to linking valid packages)
+symdep <pkg...>
 
-# Unstow one or multiple packages
-stow-manager unstow <pkg...>
+# Unlink / remove symlinks for one or multiple packages
+symdep unlink <pkg...>
+# Alias: unstow
 
-# Restow (unstow then stow) one or multiple packages
-stow-manager restow <pkg...>
+# Relink (unlink & link) one or multiple packages
+symdep relink <pkg...>
+# Alias: restow
 
-# Stow all packages present in dotfiles repository
-stow-manager all
+# Link all packages present in source repository
+symdep all
 
 # Preview pending symlink creations, backups, and missing dependencies (dry-run)
-stow-manager diff [pkg...]
+symdep diff [pkg...]
 ```
 
 ---
@@ -179,16 +182,16 @@ stow-manager diff [pkg...]
 Namespace: `pkg` (aliases: `package`). Supports both space-separated (`pkg create`) and colon-separated (`pkg:create`) syntaxes.
 
 ```bash
-# Scaffold a new package directory & initialize a default .stowdeps manifest
-stow-manager pkg create <name>
+# Scaffold a new package directory & initialize a default .symdeps manifest
+symdep pkg create <name>
 # Aliases: pkg:create, package:create, make:pkg
 
-# Safely unstow and remove package directory from disk
-stow-manager pkg remove <name...>
-# Aliases: pkg:remove, package:remove, pkg:rm
+# Safely unlink and remove package directory from disk
+symdep pkg remove <name...>
+# Aliases: pkg:remove, package:remove, pkg:rm, remove
 
-# List all packages with active stowed status ([STOWED], [PARTIAL], [UNSTOWED])
-stow-manager pkg list
+# List all packages with active symlink status ([LINKED], [PARTIAL], [UNLINKED])
+symdep pkg list
 # Aliases: pkg:list, package:list, pkg:show, list
 ```
 
@@ -199,57 +202,57 @@ stow-manager pkg list
 Namespace: `deps`. Supports both space-separated (`deps add`) and colon-separated (`deps:add`) syntaxes.
 
 ```bash
-# Add a dependency or conflict entry to package .stowdeps manifest
-stow-manager deps add <pkg> <dep> [--required | --optional | --conflict]
+# Add a dependency or conflict entry to package .symdeps manifest
+symdep deps add <pkg> <dep> [--required | --optional | --conflict]
 # Aliases: deps:add (default classification: --optional)
 
 # Edit existing dependency classification
-stow-manager deps edit <pkg> <dep> <type>
+symdep deps edit <pkg> <dep> <type>
 # Aliases: deps:edit, deps:set (type: --required, --optional, or --conflict)
 
 # Remove a dependency or conflict entry from package manifest
-stow-manager deps remove <pkg> <dep>
+symdep deps remove <pkg> <dep>
 # Aliases: deps:remove, deps:rm
 
-# Display raw .stowdeps manifest contents for a package
-stow-manager deps show <pkg>
+# Display raw .symdeps manifest contents for a package
+symdep deps show <pkg>
 # Aliases: deps:show, deps:list
 
 # Set per-package target directory override in package manifest
-stow-manager deps target <pkg> <path>
+symdep deps target <pkg> <path>
 # Aliases: deps:target
 
 # Recursively scan package scripts/configs to auto-detect missing tools & plugins
-stow-manager scan [pkg...]
+symdep scan [pkg...]
 ```
 
 ---
 
 ### File Filtering (`ignore`)
 
-Namespace: `ignore`. Manages `.stowignore` files at repository root (global) or inside individual packages.
+Namespace: `ignore`. Manages `.symignore` files at repository root (global) or inside individual packages.
 
 ```bash
-# Scaffold global or package-level .stowignore template
-stow-manager ignore init [pkg...]
+# Scaffold global or package-level .symignore template
+symdep ignore init [pkg...]
 # Aliases: ignore:init, ignore:create
 
-# Append glob pattern(s) to package or global (-g) .stowignore
-stow-manager ignore add [pkg] <pattern...>
-stow-manager ignore add -g <pattern...>
+# Append glob pattern(s) to package or global (-g) .symignore
+symdep ignore add [pkg] <pattern...>
+symdep ignore add -g <pattern...>
 # Aliases: ignore:add
 
-# Remove glob pattern(s) from package or global (-g) .stowignore
-stow-manager ignore remove [pkg] <pattern...>
-stow-manager ignore remove -g <pattern...>
+# Remove glob pattern(s) from package or global (-g) .symignore
+symdep ignore remove [pkg] <pattern...>
+symdep ignore remove -g <pattern...>
 # Aliases: ignore:remove, ignore:rm, ignore:delete
 
-# Purge .stowignore file(s) for package(s) or repository root
-stow-manager ignore clear [pkg...]
+# Purge .symignore file(s) for package(s) or repository root
+symdep ignore clear [pkg...]
 # Aliases: ignore:clear, ignore:purge
 
-# Display active .stowignore rules (indicates redundant package rules covered globally)
-stow-manager ignore show [pkg...]
+# Display active .symignore rules (indicates redundant package rules covered globally)
+symdep ignore show [pkg...]
 # Aliases: ignore:show, ignore:list
 ```
 
@@ -259,39 +262,39 @@ stow-manager ignore show [pkg...]
 
 ```bash
 # Verify required/optional tools, plugins, and symlink integrity for packages
-stow-manager check [pkg...]
+symdep check [pkg...]
 
 # Scan repository & target home for broken symlinks and unmanaged orphan symlinks
-stow-manager check-symlinks
-# Alias: stow-manager check symlinks
+symdep check-symlinks
+# Alias: symdep check symlinks
 
-# Unfold directory symlinks in target into real directories to resolve Stow folding collisions
-stow-manager fix-conflicts
-# Alias: stow-manager fix
+# Unfold directory symlinks in target into real directories to resolve folding collisions
+symdep fix-conflicts
+# Alias: symdep fix
 ```
 
 ---
 
 ### Configuration (`config`)
 
-Namespace: `config`. Manages global settings in `~/.config/stow-manager/config`.
+Namespace: `config`. Manages global settings in `~/.config/symdep/config`.
 
 ```bash
-# Display active configuration, dotfiles repositories, and target directory
-stow-manager config show
+# Display active configuration, source repositories, and target directory
+symdep config show
 # Aliases: config:show, config:list, config:get
 
-# Set primary dotfiles repository or default target directory
-stow-manager config set target <path>
-stow-manager config set dotfiles <path>
+# Set primary source repository or default target directory
+symdep config set target <path>
+symdep config set source <path>
 # Aliases: config:set, config:target
 
-# Add an additional dotfiles repository directory (multi-repository setup)
-stow-manager config add <path>
+# Add an additional source repository directory (multi-repository setup)
+symdep config add <path>
 # Aliases: config:add
 
-# Remove a dotfiles repository directory from configuration
-stow-manager config remove <path>
+# Remove a source repository directory from configuration
+symdep config remove <path>
 # Aliases: config:remove, config:rm
 ```
 
@@ -299,9 +302,9 @@ stow-manager config remove <path>
 
 ## Configuration & Manifest File Formats
 
-### Package Manifest (`.stowdeps`)
+### Package Manifest (`.symdeps`)
 
-Located inside individual package directories (e.g. `~/dotfiles/hyprland/.stowdeps`).
+Located inside individual package directories (e.g. `~/src/hyprland/.symdeps`). Legacy `.stowdeps` files are supported as fallbacks.
 
 ```ini
 # Package Dependency Manifest for 'hyprland'
@@ -314,32 +317,32 @@ CONFLICTS="sway"
 - **`TARGET`**: Custom destination target path for this package.
 - **`REQUIRED`**: Space-separated list of required CLI executables/tools.
 - **`OPTIONAL`**: Space-separated list of optional plugins or secondary utilities.
-- **`CONFLICTS`**: Space-separated list of packages that must be unstowed before stowing this package.
+- **`CONFLICTS`**: Space-separated list of packages that must be unlinked before linking this package.
 
 ---
 
-### Ignore Rules (`.stowignore`)
+### Ignore Rules (`.symignore`)
 
-Follows standard glob pattern rules. Global `.stowignore` resides at repository root; package `.stowignore` resides inside package directories.
+Follows standard glob pattern rules. Global `.symignore` resides at repository root; package `.symignore` resides inside package directories. Legacy `.stowignore` files are supported as fallbacks.
 
 ```gitignore
 # Global or package-level ignore patterns
 *.zwc
 *.pyc
-*.stow_backup_*
+*.symdep_backup_*
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
 ```
 
-Default ignored patterns (mirrors GNU Stow default ignore list): `.stowdeps`, `.stowignore`, `.git`, `.gitignore`, `.gitattributes`, `.gitmodules`, `.DS_Store`, `CVS`, `.svn`, `.hg`, `README*`, `LICENSE*`, `COPYING*`, `*~`, `#*#`, `.#*`.
+Default ignored patterns: `.symdeps`, `.symignore`, `.stowdeps`, `.stowignore`, `.git`, `.gitignore`, `.gitattributes`, `.gitmodules`, `.DS_Store`, `CVS`, `.svn`, `.hg`, `README*`, `LICENSE*`, `COPYING*`, `*~`, `#*#`, `.#*`.
 
 ---
 
-### Tool Registry (`stow.registry`)
+### Tool Registry (`symdep.registry`)
 
-Optionally placed in dotfiles repository root (`stow.registry` or `.stowregistry`) to map tool names to distro package manager names and shell plugin locations.
+Optionally placed in source repository root (`symdep.registry` or `.symdepregistry`, fallback `stow.registry`) to map tool names to distro package manager names and shell plugin locations.
 
 ```ini
 # Distro package name overrides (tool@distro=package_name)
@@ -359,12 +362,12 @@ bat=bat|batcat
 
 | Variable | Description |
 | :--- | :--- |
-| `STOW_DOTFILES_DIR` / `DOTFILES_DIR` | Override active dotfiles repository directory path. |
-| `STOW_TARGET_DIR` / `TARGET_DIR` | Override target destination home directory path. |
-| `PROFILE` / `STOW_PROFILE` | Set to non-empty string to enable execution profiling. |
+| `SYMDEP_SOURCE_DIR` / `SOURCE_DIR` / `DOTFILES_DIR` | Override active source repository directory path. |
+| `SYMDEP_TARGET_DIR` / `TARGET_DIR` | Override target destination home directory path. |
+| `SYMDEP_PROFILE` / `PROFILE` | Set to non-empty string to enable execution profiling. |
 | `HOME` | Default target home directory when no override is configured. |
-| `XDG_CONFIG_HOME` | Primary directory for `stow-manager/config` (`~/.config`). |
-| `XDG_CONFIG_DIRS` | System-wide search directories for `stow-manager/config`. |
+| `XDG_CONFIG_HOME` | Primary directory for `symdep/config` (`~/.config`). |
+| `XDG_CONFIG_DIRS` | System-wide search directories for `symdep/config`. |
 | `NO_COLOR` | Disable ANSI color codes in terminal help output. |
 
 ---
@@ -372,3 +375,4 @@ bat=bat|batcat
 ## License
 
 Licensed under the [GNU General Public License v3.0](LICENSE).
+

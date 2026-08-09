@@ -1,12 +1,12 @@
-# Dotfiles Stow Manager (`stow-manager`)
+# Symlink & Dependency Manager (`symdep`)
 
-**Usage**: `stow-manager [options] <command> [arguments]`
+**Usage**: `symdep [options] <command> [arguments]`
 
-High-performance dotfiles framework & Stow package manager made with C. Auto-resolves package dependencies, mutual exclusion conflicts, directory symlink folding collisions, and multi-repository setups.
+A high-performance, zero-dependency symlink manager and package dependency resolver written in C.
 
 ## Global Options
 
-- **`-d, --dotfiles-dir`** `<path>`                    Set dotfiles repository directory for current command (e.g. `-d ~/dotfiles`)
+- **`-d, --source-dir`** `<path>`                    Set source repository directory for current command (aliases: `--src-dir`, `--dotfiles-dir`) (e.g. `-d ~/src`)
 - **`-t, --target-dir`** `<path>`                      Set target home directory for current command (e.g. `-t ~/`)
 - **`-y, --install`**                                  Auto-confirm installation of missing required dependencies & optional plugins
 - **`-n, --dry-run`**                                  Dry-run mode (preview disk changes, symlink creations & backups without modifying disk)
@@ -16,42 +16,42 @@ High-performance dotfiles framework & Stow package manager made with C. Auto-res
 
 ## Configuration Commands (`config:*`)
 
-- **`config show`**                                    Display active configuration, dotfiles repositories & target directory
-- **`config set [target|dotfiles]`** `<path>`          Set primary dotfiles repository or target home directory
-- **`config add`** `<path>`                            Add an additional dotfiles repository directory (multi-repo mode)
-- **`config remove`** `<path>`                         Remove a dotfiles repository directory from config
+- **`config show`**                                    Display active configuration, source repositories & target directory
+- **`config set [target|source]`** `<path>`            Set primary source repository or target home directory
+- **`config add`** `<path>`                            Add an additional source repository directory (multi-repo mode)
+- **`config remove`** `<path>`                         Remove a source repository directory from config
 
 ## Package Management Commands (`pkg:*`)
 
-- **`pkg create`** `<name>`                            Scaffold a new Stow package directory & initialize `.stowdeps` manifest (aliases: `pkg:create`, `package:create`, `make:pkg`)
-- **`pkg remove`** `<name...>`                         Safely unstow and remove one or multiple Stow package directories (aliases: `pkg:remove`, `package:remove`, `pkg:rm`)
-- **`pkg list`**                                       List all packages with status: `[STOWED]`, `[PARTIAL]`, or `[UNSTOWED]` (aliases: `pkg:list`, `package:list`, `pkg:show`, `list`)
+- **`pkg create`** `<name>`                            Scaffold a new package directory & initialize `.symdeps` manifest (aliases: `pkg:create`, `package:create`, `make:pkg`)
+- **`pkg remove`** `<name...>`                         Safely unlink and remove one or multiple package directories (aliases: `pkg:remove`, `package:remove`, `pkg:rm`, `remove`)
+- **`pkg list`**                                       List all packages with status: `[LINKED]`, `[PARTIAL]`, or `[UNLINKED]` (aliases: `pkg:list`, `package:list`, `pkg:show`, `list`)
 
 ## Dependency & Manifest Commands (`deps:*`)
 
-- **`deps add`** `<pkg> <dep> [--type]`                Add dependency/conflict to `.stowdeps` (`--required`, `--optional`, `--conflict`)
+- **`deps add`** `<pkg> <dep> [--type]`                Add dependency/conflict to `.symdeps` (`--required`, `--optional`, `--conflict`)
 - **`deps edit`** `<pkg> <dep> <type>`                 Edit existing dependency classification (`--required`, `--optional`, `--conflict`)
-- **`deps remove`** `<pkg> <dep>`                        Remove a dependency or conflict entry from package `.stowdeps`
-- **`deps show`** `<pkg>`                              Display raw `.stowdeps` manifest contents for a package
-- **`deps target`** `<pkg> <path>`                     Set per-package target directory in `.stowdeps` manifest
+- **`deps remove`** `<pkg> <dep>`                        Remove a dependency or conflict entry from package `.symdeps` (alias: `deps rm`)
+- **`deps show`** `<pkg>`                              Display raw `.symdeps` manifest contents for a package
+- **`deps target`** `<pkg> <path>`                     Set per-package target directory in `.symdeps` manifest
 - **`scan`** `[pkg...]`                                Recursively scan package scripts/configs to auto-detect required tools & plugins
 
 ## File Filtering Commands (`ignore:*`)
 
-- **`ignore init`** `[pkg...]`                         Scaffold global or package-level `.stowignore` template
-- **`ignore add`** `[pkg] <pat...>`                    Append glob pattern(s) to package or global (`-g`) `.stowignore`
-- **`ignore remove`** `[pkg] <pat...>`                 Remove glob pattern(s) from `.stowignore` (`-g` for global)
-- **`ignore clear`** `[pkg...]`                        Purge `.stowignore` file(s) for package(s) or repo root
-- **`ignore show`** `[pkg...]`                         Display active `.stowignore` patterns
+- **`ignore init`** `[pkg...]`                         Scaffold global or package-level `.symignore` template
+- **`ignore add`** `[pkg] <pat...>`                    Append glob pattern(s) to package or global (`-g`) `.symignore`
+- **`ignore remove`** `[pkg] <pat...>`                 Remove glob pattern(s) from `.symignore` (`-g` for global)
+- **`ignore clear`** `[pkg...]`                        Purge `.symignore` file(s) for package(s) or repo root
+- **`ignore show`** `[pkg...]`                         Display active `.symignore` patterns (alias: `ignore list`)
 
-## Stow & Deployment Commands
+## Symlink & Deployment Commands
 
-- **`stow`** `<pkg...>`                                Stow one or multiple packages with automatic conflict & dependency resolution
-- **`unstow`** `<pkg...>`                              Unstow one or multiple packages from target directory
-- **`restow`** `<pkg...>`                              Restow (unstow & stow) one or multiple packages
-- **`all`**                                            Stow all packages present in dotfiles repository
+- **`link`** `<pkg...>`                                Link / deploy one or multiple packages (aliases: `stow`, `deploy`)
+- **`unlink`** `<pkg...>`                              Unlink / remove symlinks for one or multiple packages (alias: `unstow`)
+- **`relink`** `<pkg...>`                              Relink (unlink & link) one or multiple packages (alias: `restow`)
+- **`all`**                                            Link all packages present in source repository
 - **`diff`** `[pkg...]`                                Preview symlink creations, conflict backups, and missing dependencies (dry-run)
-- **`fix-conflicts`**                                  Unfold directory symlinks in target into real directories to resolve folding collisions (alias: `fix`)
+- **`fix`**                                            Unfold directory symlinks in target to resolve collisions (alias: `fix-conflicts`)
 - **`check`** `[pkg...]`                               Verify required/optional tools, plugins, and symlink integrity for packages
 - **`check-symlinks`**                                 Scan repository & target home for broken symlinks and unmanaged orphan symlinks
 - **`help`**                                           Display this help manual
@@ -59,16 +59,17 @@ High-performance dotfiles framework & Stow package manager made with C. Auto-res
 ## Workflow Examples
 
 - **Scaffold & Configure Package**:
-  `stow-manager pkg create hyprland`
-  `stow-manager deps add hyprland waybar --required`
-  `stow-manager deps add hyprland rofi --optional`
+  `symdep pkg create hyprland`
+  `symdep deps add hyprland waybar --required`
+  `symdep deps add hyprland rofi --optional`
 
-- **Stow Package with Auto-Install**:
-  `stow-manager -y stow hyprland`
+- **Link Package with Auto-Install**:
+  `symdep -y link hyprland`
 
-- **Preview Stow Changes (Dry-Run)**:
-  `stow-manager -n stow terminal`
+- **Preview Link Changes (Dry-Run)**:
+  `symdep -n link terminal`
 
-- **Unstow & Delete Package**:
-  `stow-manager pkg remove hyprland`
+- **Unlink & Delete Package**:
+  `symdep pkg remove hyprland`
+
 

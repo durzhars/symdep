@@ -1,4 +1,6 @@
-# Default Stow Manager ignore patterns (mirrors GNU Stow default ignore list)
+# Default Symlink Manager ignore patterns (mirrors GNU Stow default ignore list)
+.symdeps
+.symignore
 .stowdeps
 .stowignore
 .git
@@ -19,3 +21,4 @@ COPYING*
 *~
 #*#
 .#*
+

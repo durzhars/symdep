@@ -51,39 +51,56 @@ FILE *open_resource_file(const char *filename)
     StringArray search_paths;
     str_array_init(&search_paths);
 
+    // 1. CWD project resources
+    char p_res[PATH_MAX * 2];
+    snprintf(p_res, sizeof(p_res), "resources/%s", filename);
+    str_array_append(&search_paths, p_res);
+
+    // 2. XDG data home (symdep)
     char data_home[PATH_MAX];
     if (get_xdg_data_home(data_home, sizeof(data_home))) {
         char p[PATH_MAX * 2];
-        snprintf(p, sizeof(p), "%s/stow-manager/%s", data_home, filename);
+        snprintf(p, sizeof(p), "%s/symdep/%s", data_home, filename);
         str_array_append(&search_paths, p);
     }
 
+    // 3. XDG config home (symdep)
     char config_home[PATH_MAX];
     if (get_xdg_config_home(config_home, sizeof(config_home))) {
         char p[PATH_MAX * 2];
-        snprintf(p, sizeof(p), "%s/stow-manager/%s", config_home, filename);
+        snprintf(p, sizeof(p), "%s/symdep/%s", config_home, filename);
         str_array_append(&search_paths, p);
     }
 
+    // 4. XDG data dirs (symdep)
     StringArray data_dirs;
     str_array_init(&data_dirs);
     get_xdg_data_dirs(&data_dirs);
     for (size_t i = 0; i < data_dirs.count; i++) {
         char p[PATH_MAX * 2];
-        snprintf(p, sizeof(p), "%s/stow-manager/%s", data_dirs.items[i], filename);
+        snprintf(p, sizeof(p), "%s/symdep/%s", data_dirs.items[i], filename);
         str_array_append(&search_paths, p);
     }
     str_array_free(&data_dirs);
 
 #ifdef DATADIR
+    // 5. System DATADIR (symdep)
     char p3[PATH_MAX * 2];
-    snprintf(p3, sizeof(p3), "%s/stow-manager/%s", STR(DATADIR), filename);
+    snprintf(p3, sizeof(p3), "%s/symdep/%s", STR(DATADIR), filename);
     str_array_append(&search_paths, p3);
 #endif
 
-    char p_res[PATH_MAX * 2];
-    snprintf(p_res, sizeof(p_res), "resources/%s", filename);
-    str_array_append(&search_paths, p_res);
+    // 6. Legacy fallback (stow-manager)
+    if (get_xdg_data_home(data_home, sizeof(data_home))) {
+        char p[PATH_MAX * 2];
+        snprintf(p, sizeof(p), "%s/stow-manager/%s", data_home, filename);
+        str_array_append(&search_paths, p);
+    }
+    if (get_xdg_config_home(config_home, sizeof(config_home))) {
+        char p[PATH_MAX * 2];
+        snprintf(p, sizeof(p), "%s/stow-manager/%s", config_home, filename);
+        str_array_append(&search_paths, p);
+    }
 
     FILE *fp = NULL;
     for (size_t i = 0; i < search_paths.count; i++) {

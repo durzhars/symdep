@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef STOW_CLI_H
-#define STOW_CLI_H
+#ifndef SYMDEP_CLI_H
+#define SYMDEP_CLI_H
 
 #include <stdbool.h>
 
@@ -28,10 +28,11 @@ typedef struct {
     bool dry_run;
     bool save_flag;
     bool profile;
-    const char *cli_dotfiles_dir;
+    const char *cli_source_dir;
     const char *cli_target_dir;
 } CliOptions;
 
 int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *positional_args);
 
-#endif /* STOW_CLI_H */
+#endif /* SYMDEP_CLI_H */
+

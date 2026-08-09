@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,25 +16,26 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef STOW_IGNORE_H
-#define STOW_IGNORE_H
+#ifndef SYMDEP_IGNORE_H
+#define SYMDEP_IGNORE_H
 
 #include <stdbool.h>
 #include <stddef.h>
 
 // Batch operations taking pointer slices directly from ctx->args
-void ignore_init(const char *dotfiles_dir, const char *const *pkgs, size_t count);
-void ignore_clear(const char *dotfiles_dir, const char *const *pkgs, size_t count);
-void ignore_show(const char *dotfiles_dir, const char *const *pkgs, size_t count);
+void ignore_init(const char *source_dir, const char *const *pkgs, size_t count);
+void ignore_clear(const char *source_dir, const char *const *pkgs, size_t count);
+void ignore_show(const char *source_dir, const char *const *pkgs, size_t count);
 
 // Pattern operations
-void ignore_add_patterns(const char *dotfiles_dir,
+void ignore_add_patterns(const char *source_dir,
                          const char *pkg_name,
                          const char *const *patterns,
                          size_t count);
-void ignore_remove_patterns(const char *dotfiles_dir,
+void ignore_remove_patterns(const char *source_dir,
                             const char *pkg_name,
                             const char *const *patterns,
                             size_t count);
 
-#endif /* STOW_IGNORE_H */
+#endif /* SYMDEP_IGNORE_H */
+

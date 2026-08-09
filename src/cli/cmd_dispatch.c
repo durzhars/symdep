@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -29,17 +29,17 @@
 #include "core/checker.h"
 #include "core/config.h"
 #include "core/ignore.h"
+#include "core/linker.h"
 #include "core/manifest.h"
 #include "core/registry.h"
 #include "core/scanner.h"
-#include "core/stow.h"
 
 #include "utils/defs.h"
 #include "utils/fs.h"
 #include "utils/logger.h"
 #include "utils/path.h"
 
-typedef int (*PackageActionFn)(const char *dotfiles_dir,
+typedef int (*PackageActionFn)(const char *source_dir,
                                const char *target_dir,
                                const char *pkg_name,
                                const CommandContext *ctx);
@@ -51,8 +51,8 @@ static int foreach_package(const CommandContext *ctx, PackageActionFn action)
         const char *pkg_name = ctx->args->items[i];
         char target_dir[PATH_MAX * 2];
         get_active_target_dir_for_pkg(
-            ctx->opts->cli_target_dir, ctx->dotfiles_dir, pkg_name, target_dir, sizeof(target_dir));
-        int res = action(ctx->dotfiles_dir, target_dir, pkg_name, ctx);
+            ctx->opts->cli_target_dir, ctx->source_dir, pkg_name, target_dir, sizeof(target_dir));
+        int res = action(ctx->source_dir, target_dir, pkg_name, ctx);
         if (res != 0) {
             status = res;
         }
@@ -91,7 +91,7 @@ static bool parse_ignore_args(const CommandContext *ctx,
 
     if (!force_global) {
         char candidate_pkg[PATH_MAX * 2];
-        join_path(candidate_pkg, sizeof(candidate_pkg), ctx->dotfiles_dir, first_arg);
+        join_path(candidate_pkg, sizeof(candidate_pkg), ctx->source_dir, first_arg);
 
         if (is_dir(candidate_pkg)) {
             if (ctx->args->count > pattern_start + 1) {
@@ -102,8 +102,8 @@ static bool parse_ignore_args(const CommandContext *ctx,
                     (ctx->arg_offset >= 2) ? ctx->args->items[1] : ctx->args->items[0];
 
                 log_error("Package '%s' specified, but no patterns provided!", first_arg);
-                log_info("Hint: Use 'stow-manager %s %s %s <pattern...>' or "
-                         "'stow-manager ignore -g %s'",
+                log_info("Hint: Use 'symdep %s %s %s <pattern...>' or "
+                         "'symdep ignore -g %s'",
                          (ctx->arg_offset >= 2) ? "ignore" : "",
                          action_cmd,
                          first_arg,
@@ -124,33 +124,33 @@ static bool parse_ignore_args(const CommandContext *ctx,
 
 /* Package Action Callbacks */
 static int
-action_stow(const char *dotfiles, const char *target, const char *pkg, const CommandContext *ctx)
+action_stow(const char *source, const char *target, const char *pkg, const CommandContext *ctx)
 {
-    return stow_package(dotfiles, target, pkg, ctx->opts->auto_install, ctx->opts->dry_run);
+    return link_package(source, target, pkg, ctx->opts->auto_install, ctx->opts->dry_run);
 }
 
 static int
-action_unstow(const char *dotfiles, const char *target, const char *pkg, const CommandContext *ctx)
+action_unstow(const char *source, const char *target, const char *pkg, const CommandContext *ctx)
 {
-    return unstow_package(dotfiles, target, pkg, ctx->opts->dry_run);
+    return unlink_package(source, target, pkg, ctx->opts->dry_run);
 }
 
 static int
-action_restow(const char *dotfiles, const char *target, const char *pkg, const CommandContext *ctx)
+action_restow(const char *source, const char *target, const char *pkg, const CommandContext *ctx)
 {
-    return restow_package(dotfiles, target, pkg, ctx->opts->auto_install, ctx->opts->dry_run);
+    return relink_package(source, target, pkg, ctx->opts->auto_install, ctx->opts->dry_run);
 }
 
 static int
-action_diff(const char *dotfiles, const char *target, const char *pkg, const CommandContext *ctx)
+action_diff(const char *source, const char *target, const char *pkg, const CommandContext *ctx)
 {
-    return stow_package(dotfiles, target, pkg, ctx->opts->auto_install, true);
+    return link_package(source, target, pkg, ctx->opts->auto_install, true);
 }
 
 static int
-action_remove(const char *dotfiles, const char *target, const char *pkg, const CommandContext *ctx)
+action_remove(const char *source, const char *target, const char *pkg, const CommandContext *ctx)
 {
-    package_remove(dotfiles, target, pkg, ctx->opts->dry_run);
+    package_remove(source, target, pkg, ctx->opts->dry_run);
     return 0;
 }
 
@@ -171,8 +171,8 @@ int cmd_restow(const CommandContext *ctx)
 
 int cmd_all(const CommandContext *ctx)
 {
-    stow_all_packages(
-        ctx->dotfiles_dir, ctx->global_target_dir, ctx->opts->auto_install, ctx->opts->dry_run);
+    link_all_packages(
+        ctx->source_dir, ctx->global_target_dir, ctx->opts->auto_install, ctx->opts->dry_run);
     return 0;
 }
 
@@ -181,7 +181,7 @@ int cmd_diff(const CommandContext *ctx)
     if (ctx->args->count > ctx->arg_offset) {
         return foreach_package(ctx, action_diff);
     }
-    stow_all_packages(ctx->dotfiles_dir, ctx->global_target_dir, ctx->opts->auto_install, true);
+    link_all_packages(ctx->source_dir, ctx->global_target_dir, ctx->opts->auto_install, true);
     return 0;
 }
 
@@ -189,14 +189,14 @@ int cmd_scan(const CommandContext *ctx)
 {
     if (ctx->args->count > ctx->arg_offset) {
         for (size_t i = ctx->arg_offset; i < ctx->args->count; i++) {
-            scan_package(ctx->dotfiles_dir, ctx->args->items[i]);
+            scan_package(ctx->source_dir, ctx->args->items[i]);
         }
     } else {
         StringArray pkgs;
         str_array_init(&pkgs);
-        get_all_packages(ctx->dotfiles_dir, &pkgs);
+        get_all_packages(ctx->source_dir, &pkgs);
         for (size_t i = 0; i < pkgs.count; i++) {
-            scan_package(ctx->dotfiles_dir, pkgs.items[i]);
+            scan_package(ctx->source_dir, pkgs.items[i]);
         }
         str_array_free(&pkgs);
     }
@@ -207,34 +207,34 @@ int cmd_check(const CommandContext *ctx)
 {
     if (ctx->args->count > ctx->arg_offset &&
         strcmp(ctx->args->items[ctx->arg_offset], "symlinks") == 0) {
-        check_symlink_health(ctx->dotfiles_dir, ctx->global_target_dir);
+        check_symlink_health(ctx->source_dir, ctx->global_target_dir);
         return 0;
     }
 
     if (ctx->args->count > ctx->arg_offset) {
         for (size_t i = ctx->arg_offset; i < ctx->args->count; i++) {
-            check_package_dependencies(ctx->dotfiles_dir,
+            check_package_dependencies(ctx->source_dir,
                                        ctx->args->items[i],
                                        ctx->opts->auto_install,
                                        ctx->opts->dry_run);
         }
     } else {
         check_package_dependencies(
-            ctx->dotfiles_dir, NULL, ctx->opts->auto_install, ctx->opts->dry_run);
+            ctx->source_dir, NULL, ctx->opts->auto_install, ctx->opts->dry_run);
     }
-    check_symlink_health(ctx->dotfiles_dir, ctx->global_target_dir);
+    check_symlink_health(ctx->source_dir, ctx->global_target_dir);
     return 0;
 }
 
 int cmd_check_symlinks(const CommandContext *ctx)
 {
-    check_symlink_health(ctx->dotfiles_dir, ctx->global_target_dir);
+    check_symlink_health(ctx->source_dir, ctx->global_target_dir);
     return 0;
 }
 
 int cmd_fix_conflicts(const CommandContext *ctx)
 {
-    unfold_directory_symlinks(ctx->global_target_dir, ctx->dotfiles_dir, NULL, ctx->opts->dry_run);
+    unfold_directory_symlinks(ctx->global_target_dir, ctx->source_dir, NULL, ctx->opts->dry_run);
     return 0;
 }
 
@@ -243,7 +243,7 @@ int cmd_pkg_create(const CommandContext *ctx)
     const char *pkg = ctx->args->items[ctx->arg_offset];
     PackageManifest manifest;
     manifest_init(&manifest, pkg);
-    manifest_save(&manifest, ctx->dotfiles_dir);
+    manifest_save(&manifest, ctx->source_dir);
     log_success("Created package directory & manifest for '%s'.", pkg);
     manifest_free(&manifest);
     return 0;
@@ -256,7 +256,7 @@ int cmd_pkg_remove(const CommandContext *ctx)
 
 int cmd_pkg_list(const CommandContext *ctx)
 {
-    list_packages_status(ctx->dotfiles_dir, ctx->global_target_dir);
+    list_packages_status(ctx->source_dir, ctx->global_target_dir);
     return 0;
 }
 
@@ -267,13 +267,13 @@ int cmd_deps_add(const CommandContext *ctx)
     const char *type = (ctx->args->count > ctx->arg_offset + 2)
                            ? ctx->args->items[ctx->arg_offset + 2]
                            : "--optional";
-    manifest_add_dep(ctx->dotfiles_dir, pkg, dep, type);
+    manifest_add_dep(ctx->source_dir, pkg, dep, type);
     return 0;
 }
 
 int cmd_deps_edit(const CommandContext *ctx)
 {
-    manifest_edit_dep(ctx->dotfiles_dir,
+    manifest_edit_dep(ctx->source_dir,
                       ctx->args->items[ctx->arg_offset],
                       ctx->args->items[ctx->arg_offset + 1],
                       ctx->args->items[ctx->arg_offset + 2]);
@@ -282,7 +282,7 @@ int cmd_deps_edit(const CommandContext *ctx)
 
 int cmd_deps_remove(const CommandContext *ctx)
 {
-    manifest_remove_dep(ctx->dotfiles_dir,
+    manifest_remove_dep(ctx->source_dir,
                         ctx->args->items[ctx->arg_offset],
                         ctx->args->items[ctx->arg_offset + 1]);
     return 0;
@@ -290,13 +290,13 @@ int cmd_deps_remove(const CommandContext *ctx)
 
 int cmd_deps_show(const CommandContext *ctx)
 {
-    manifest_show(ctx->dotfiles_dir, ctx->args->items[ctx->arg_offset]);
+    manifest_show(ctx->source_dir, ctx->args->items[ctx->arg_offset]);
     return 0;
 }
 
 int cmd_deps_target(const CommandContext *ctx)
 {
-    manifest_set_target(ctx->dotfiles_dir,
+    manifest_set_target(ctx->source_dir,
                         ctx->args->items[ctx->arg_offset],
                         ctx->args->items[ctx->arg_offset + 1]);
     return 0;
@@ -307,7 +307,7 @@ int cmd_ignore_init(const CommandContext *ctx)
     size_t count = ctx->args->count - ctx->arg_offset;
     const char *const *pkgs =
         (count > 0) ? (const char *const *)&ctx->args->items[ctx->arg_offset] : NULL;
-    ignore_init(ctx->dotfiles_dir, pkgs, count);
+    ignore_init(ctx->source_dir, pkgs, count);
     return 0;
 }
 
@@ -319,11 +319,11 @@ int cmd_ignore_add(const CommandContext *ctx)
 
     if (!parse_ignore_args(ctx, &pkg, &patterns, &count)) {
         if (!pkg)
-            log_error("Usage: stow-manager ignore add [pkg] <pattern...>");
+            log_error("Usage: symdep ignore add [pkg] <pattern...>");
         return 1;
     }
 
-    ignore_add_patterns(ctx->dotfiles_dir, pkg, patterns, count);
+    ignore_add_patterns(ctx->source_dir, pkg, patterns, count);
     return 0;
 }
 
@@ -335,11 +335,11 @@ int cmd_ignore_remove(const CommandContext *ctx)
 
     if (!parse_ignore_args(ctx, &pkg, &patterns, &count)) {
         if (!pkg)
-            log_error("Usage: stow-manager ignore remove [pkg] <pattern...>");
+            log_error("Usage: symdep ignore remove [pkg] <pattern...>");
         return 1;
     }
 
-    ignore_remove_patterns(ctx->dotfiles_dir, pkg, patterns, count);
+    ignore_remove_patterns(ctx->source_dir, pkg, patterns, count);
     return 0;
 }
 
@@ -348,7 +348,7 @@ int cmd_ignore_clear(const CommandContext *ctx)
     size_t count = ctx->args->count - ctx->arg_offset;
     const char *const *pkgs =
         (count > 0) ? (const char *const *)&ctx->args->items[ctx->arg_offset] : NULL;
-    ignore_clear(ctx->dotfiles_dir, pkgs, count);
+    ignore_clear(ctx->source_dir, pkgs, count);
     return 0;
 }
 
@@ -357,7 +357,7 @@ int cmd_ignore_show(const CommandContext *ctx)
     size_t count = ctx->args->count - ctx->arg_offset;
     const char *const *pkgs =
         (count > 0) ? (const char *const *)&ctx->args->items[ctx->arg_offset] : NULL;
-    ignore_show(ctx->dotfiles_dir, pkgs, count);
+    ignore_show(ctx->source_dir, pkgs, count);
     return 0;
 }
 
@@ -376,20 +376,20 @@ int cmd_config_set(const CommandContext *ctx)
     if (strcmp(key, "target") == 0) {
         config_set_target_dir(val);
     } else {
-        config_set_dotfiles_dir(val);
+        config_set_source_dir(val);
     }
     return 0;
 }
 
 int cmd_config_add(const CommandContext *ctx)
 {
-    config_add_dotfiles_dir(ctx->args->items[ctx->arg_offset]);
+    config_add_source_dir(ctx->args->items[ctx->arg_offset]);
     return 0;
 }
 
 int cmd_config_remove(const CommandContext *ctx)
 {
-    config_remove_dotfiles_dir(ctx->args->items[ctx->arg_offset]);
+    config_remove_source_dir(ctx->args->items[ctx->arg_offset]);
     return 0;
 }
 
@@ -427,7 +427,7 @@ static void print_group_usage_help(const char *group)
             if (ROUTE_TABLE[i].usage) {
                 printf("    %s%s%s\n", COLOR_CYAN, ROUTE_TABLE[i].usage, COLOR_RESET);
             } else {
-                printf("    %sstow-manager %s %s%s\n",
+                printf("    %ssymdep %s %s%s\n",
                        COLOR_CYAN,
                        group,
                        ROUTE_TABLE[i].subcommand,
@@ -458,9 +458,22 @@ int dispatch_command(const StringArray *args, const CliOptions *opts)
         // Check group / subcommand space-separated matching
         if (strcmp(token1, route->group) == 0) {
             if (route->subcommand != NULL) {
-                if (token2 && strcmp(token2, route->subcommand) == 0) {
-                    matched = true;
-                    consumed_tokens = 2;
+                if (token2) {
+                    if (strcmp(token2, route->subcommand) == 0) {
+                        matched = true;
+                        consumed_tokens = 2;
+                    } else if (route->aliases) {
+                        char combined[256];
+                        snprintf(combined, sizeof(combined), "%s:%s", route->group, token2);
+                        for (size_t a = 0; route->aliases[a] != NULL; a++) {
+                            if (strcmp(token2, route->aliases[a]) == 0 ||
+                                strcmp(combined, route->aliases[a]) == 0) {
+                                matched = true;
+                                consumed_tokens = 2;
+                                break;
+                            }
+                        }
+                    }
                 }
             } else {
                 matched = true;
@@ -485,17 +498,17 @@ int dispatch_command(const StringArray *args, const CliOptions *opts)
                 return 1;
             }
 
-            char dotfiles_dir[PATH_MAX * 2] = {0};
+            char source_dir[PATH_MAX * 2] = {0};
             char global_target_dir[PATH_MAX * 2] = {0};
 
             if (strcmp(route->group, "config") != 0 && strcmp(route->group, "help") != 0) {
-                get_active_dotfiles_dir(opts->cli_dotfiles_dir, dotfiles_dir, sizeof(dotfiles_dir));
+                get_active_source_dir(opts->cli_source_dir, source_dir, sizeof(source_dir));
                 get_active_target_dir(
                     opts->cli_target_dir, global_target_dir, sizeof(global_target_dir));
             }
 
             CommandContext ctx = {.opts = opts,
-                                  .dotfiles_dir = dotfiles_dir,
+                                  .source_dir = source_dir,
                                   .global_target_dir = global_target_dir,
                                   .args = args,
                                   .arg_offset = consumed_tokens};
@@ -509,15 +522,15 @@ int dispatch_command(const StringArray *args, const CliOptions *opts)
         return 1;
     }
 
-    char dotfiles_dir[PATH_MAX * 2] = {0};
+    char source_dir[PATH_MAX * 2] = {0};
     char global_target_dir[PATH_MAX * 2] = {0};
-    get_active_dotfiles_dir(opts->cli_dotfiles_dir, dotfiles_dir, sizeof(dotfiles_dir));
+    get_active_source_dir(opts->cli_source_dir, source_dir, sizeof(source_dir));
     get_active_target_dir(opts->cli_target_dir, global_target_dir, sizeof(global_target_dir));
 
     bool all_valid = true;
     for (size_t i = 0; i < args->count; i++) {
         char full_pkg_path[PATH_MAX * 2];
-        join_path(full_pkg_path, sizeof(full_pkg_path), dotfiles_dir, args->items[i]);
+        join_path(full_pkg_path, sizeof(full_pkg_path), source_dir, args->items[i]);
         if (!is_dir(full_pkg_path)) {
             all_valid = false;
             break;
@@ -526,7 +539,7 @@ int dispatch_command(const StringArray *args, const CliOptions *opts)
 
     if (all_valid) {
         CommandContext ctx = {.opts = opts,
-                              .dotfiles_dir = dotfiles_dir,
+                              .source_dir = source_dir,
                               .global_target_dir = global_target_dir,
                               .args = args,
                               .arg_offset = 0};
@@ -537,3 +550,4 @@ int dispatch_command(const StringArray *args, const CliOptions *opts)
     print_general_help_hint();
     return 1;
 }
+

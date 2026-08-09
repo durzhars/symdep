@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -21,9 +21,10 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "core/checker.h"
+#include "core/file_collector.h"
+#include "core/linker.h"
 #include "core/manifest.h"
 #include "core/registry.h"
-#include "core/stow.h"
 
 #include "utils/defs.h"
 #include "utils/env.h"
@@ -44,7 +45,7 @@ static void flush_stdin(void)
     }
 }
 
-static void build_install_command(const char *dotfiles_dir,
+static void build_install_command(const char *source_dir,
                                   const char *distro,
                                   const StringArray *pkgs,
                                   char *cmd,
@@ -55,7 +56,7 @@ static void build_install_command(const char *dotfiles_dir,
     for (size_t i = 0; i < pkgs->count; i++) {
         char distro_pkg[256];
         registry_get_distro_pkg(
-            dotfiles_dir, pkgs->items[i], distro, distro_pkg, sizeof(distro_pkg));
+            source_dir, pkgs->items[i], distro, distro_pkg, sizeof(distro_pkg));
         char escaped_pkg[512];
         escape_shell_arg(distro_pkg, escaped_pkg, sizeof(escaped_pkg));
         int written = snprintf(pkg_list + offset,
@@ -96,7 +97,7 @@ static void build_install_command(const char *dotfiles_dir,
     }
 }
 
-static void handle_missing_dependencies(const char *dotfiles_dir,
+static void handle_missing_dependencies(const char *source_dir,
                                         const char *distro,
                                         const StringArray *missing_pkgs,
                                         bool is_required,
@@ -114,7 +115,7 @@ static void handle_missing_dependencies(const char *dotfiles_dir,
     }
 
     char install_cmd[4096];
-    build_install_command(dotfiles_dir, distro, missing_pkgs, install_cmd, sizeof(install_cmd));
+    build_install_command(source_dir, distro, missing_pkgs, install_cmd, sizeof(install_cmd));
     printf("%sInstallation Command (%s):%s %s%s%s\n\n",
            COLOR_BOLD,
            distro,
@@ -144,7 +145,7 @@ static void handle_missing_dependencies(const char *dotfiles_dir,
     }
 }
 
-void check_package_dependencies(const char *dotfiles_dir,
+void check_package_dependencies(const char *source_dir,
                                 const char *target_pkg,
                                 bool auto_install,
                                 bool dry_run)
@@ -154,7 +155,7 @@ void check_package_dependencies(const char *dotfiles_dir,
 
     StringArray all_pkgs;
     str_array_init(&all_pkgs);
-    get_all_packages(dotfiles_dir, &all_pkgs);
+    get_all_packages(source_dir, &all_pkgs);
 
     StringArray missing_req;
     StringArray missing_opt;
@@ -174,7 +175,7 @@ void check_package_dependencies(const char *dotfiles_dir,
 
         PackageManifest manifest;
         manifest_init(&manifest, pkg_name);
-        manifest_load(&manifest, dotfiles_dir);
+        manifest_load(&manifest, source_dir);
 
         printf("%sPackage [%s]:%s\n", COLOR_BOLD, pkg_name, COLOR_RESET);
 
@@ -182,7 +183,7 @@ void check_package_dependencies(const char *dotfiles_dir,
         if (manifest.required.count > 0) {
             for (size_t r = 0; r < manifest.required.count; r++) {
                 const char *tool = manifest.required.items[r];
-                if (is_tool_installed_dynamic(dotfiles_dir, tool)) {
+                if (is_tool_installed_dynamic(source_dir, tool)) {
                     printf("    %s✓%s %s\n", COLOR_GREEN, COLOR_RESET, tool);
                 } else {
                     printf("    %s✗%s %s %s(REQUIRED MISSING)%s\n",
@@ -204,7 +205,7 @@ void check_package_dependencies(const char *dotfiles_dir,
         if (manifest.optional.count > 0) {
             for (size_t o = 0; o < manifest.optional.count; o++) {
                 const char *tool = manifest.optional.items[o];
-                if (is_tool_installed_dynamic(dotfiles_dir, tool)) {
+                if (is_tool_installed_dynamic(source_dir, tool)) {
                     printf("    %s✓%s %s\n", COLOR_GREEN, COLOR_RESET, tool);
                 } else {
                     printf("    %s⚡%s %s %s(optional missing)%s\n",
@@ -226,8 +227,8 @@ void check_package_dependencies(const char *dotfiles_dir,
         manifest_free(&manifest);
     }
 
-    handle_missing_dependencies(dotfiles_dir, distro, &missing_req, true, auto_install, dry_run);
-    handle_missing_dependencies(dotfiles_dir, distro, &missing_opt, false, auto_install, dry_run);
+    handle_missing_dependencies(source_dir, distro, &missing_req, true, auto_install, dry_run);
+    handle_missing_dependencies(source_dir, distro, &missing_opt, false, auto_install, dry_run);
 
     if (missing_req.count == 0 && missing_opt.count == 0) {
         log_success("All required dependencies and optional plugins are installed!");
@@ -239,7 +240,7 @@ void check_package_dependencies(const char *dotfiles_dir,
 }
 
 typedef struct {
-    const char *dotfiles_dir;
+    const char *source_dir;
     size_t broken_count;
 } ScanBrokenContext;
 
@@ -259,7 +260,7 @@ static void scan_broken_cb(const char *symlink_path, void *user_data)
 }
 
 typedef struct {
-    const char *dotfiles_dir;
+    const char *source_dir;
     size_t orphan_count;
 } ScanOrphanContext;
 
@@ -267,8 +268,8 @@ static void scan_orphan_cb(const char *symlink_path, void *user_data)
 {
     ScanOrphanContext *ctx = (ScanOrphanContext *)user_data;
     char *target = read_symlink_target(symlink_path);
-    if (target && is_path_prefix(target, ctx->dotfiles_dir)) {
-        const char *rel = target + strlen(ctx->dotfiles_dir);
+    if (target && is_path_prefix(target, ctx->source_dir)) {
+        const char *rel = target + strlen(ctx->source_dir);
         if (*rel == '/') {
             rel++;
         }
@@ -280,7 +281,7 @@ static void scan_orphan_cb(const char *symlink_path, void *user_data)
                 strncpy(pkg_name, rel, pkg_len);
                 pkg_name[pkg_len] = '\0';
                 char pkg_dir[PATH_MAX * 2];
-                join_path(pkg_dir, sizeof(pkg_dir), ctx->dotfiles_dir, pkg_name);
+                join_path(pkg_dir, sizeof(pkg_dir), ctx->source_dir, pkg_name);
                 if (!is_dir(pkg_dir) || !file_exists(target)) {
                     log_warn("Unmanaged / Orphan symlink: %s -> %s (target file does not exist)",
                              symlink_path,
@@ -295,33 +296,34 @@ static void scan_orphan_cb(const char *symlink_path, void *user_data)
     }
 }
 
-void check_symlink_health(const char *dotfiles_dir, const char *target_dir)
+void check_symlink_health(const char *source_dir, const char *target_dir)
 {
     printf("\n%s%s=== Scanning Symlink Health & Integrity ===%s\n\n",
            COLOR_CYAN,
            COLOR_BOLD,
            COLOR_RESET);
 
-    log_info("1. Scanning repo directory '%s' for broken symlinks...", dotfiles_dir);
-    ScanBrokenContext broken_ctx = {dotfiles_dir, 0};
-    walk_dir_symlinks(dotfiles_dir, 1, 6, scan_broken_cb, &broken_ctx);
+    log_info("1. Scanning repo directory '%s' for broken symlinks...", source_dir);
+    ScanBrokenContext broken_ctx = {source_dir, 0};
+    walk_dir_symlinks(source_dir, 1, 6, scan_broken_cb, &broken_ctx);
 
     if (broken_ctx.broken_count == 0) {
-        log_success("No broken symlinks found inside dotfiles repo!");
+        log_success("No broken symlinks found inside source repo!");
     } else {
-        log_error("Found %zu broken symlink(s) inside dotfiles repo!", broken_ctx.broken_count);
+        log_error("Found %zu broken symlink(s) inside source repo!", broken_ctx.broken_count);
     }
 
     printf("\n");
     log_info("2. Scanning target directory '%s' for unmanaged/orphan symlinks...", target_dir);
-    ScanOrphanContext orphan_ctx = {dotfiles_dir, 0};
-    walk_target_dir_symlinks_targeted(target_dir, dotfiles_dir, NULL, scan_orphan_cb, &orphan_ctx);
+    ScanOrphanContext orphan_ctx = {source_dir, 0};
+    walk_target_dir_symlinks_targeted(target_dir, source_dir, NULL, scan_orphan_cb, &orphan_ctx);
 
     if (orphan_ctx.orphan_count == 0) {
-        log_success("No unmanaged / orphan symlinks pointing to dotfiles repo!");
+        log_success("No unmanaged / orphan symlinks pointing to source repo!");
     } else {
         log_warn("Found %zu unmanaged / orphan symlink(s) in target directory!",
                  orphan_ctx.orphan_count);
     }
     printf("\n");
 }
+

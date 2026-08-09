@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef MANIFEST_H
-#define MANIFEST_H
+#ifndef SYMDEP_MANIFEST_H
+#define SYMDEP_MANIFEST_H
 
 #include "utils/str.h"
 
@@ -30,25 +30,26 @@ typedef struct {
 } PackageManifest;
 
 void manifest_init(PackageManifest *manifest, const char *pkg_name);
-bool manifest_load(PackageManifest *manifest, const char *dotfiles_dir);
-bool manifest_save(const PackageManifest *manifest, const char *dotfiles_dir);
+bool manifest_load(PackageManifest *manifest, const char *source_dir);
+bool manifest_save(const PackageManifest *manifest, const char *source_dir);
 void manifest_free(PackageManifest *manifest);
 
-void manifest_add_dep(const char *dotfiles_dir,
+void manifest_add_dep(const char *source_dir,
                       const char *pkg_name,
                       const char *dep,
                       const char *type);
-void manifest_edit_dep(const char *dotfiles_dir,
+void manifest_edit_dep(const char *source_dir,
                        const char *pkg_name,
                        const char *dep,
                        const char *new_type);
-void manifest_remove_dep(const char *dotfiles_dir, const char *pkg_name, const char *dep);
-void manifest_set_target(const char *dotfiles_dir, const char *pkg_name, const char *target_path);
-void manifest_show(const char *dotfiles_dir, const char *pkg_name);
+void manifest_remove_dep(const char *source_dir, const char *pkg_name, const char *dep);
+void manifest_set_target(const char *source_dir, const char *pkg_name, const char *target_path);
+void manifest_show(const char *source_dir, const char *pkg_name);
 
-void package_remove(const char *dotfiles_dir,
+void package_remove(const char *source_dir,
                     const char *target_dir,
                     const char *pkg_name,
                     bool dry_run);
 
-#endif /* MANIFEST_H */
+#endif /* SYMDEP_MANIFEST_H */
+

@@ -3,7 +3,8 @@
 # Build & Runtime Cache Artifacts
 *.zwc
 *.pyc
-*.stow_backup_*
+*.symdep_backup_*
+
 
 # OS & Editor Metadata
 .DS_Store

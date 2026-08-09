@@ -1,7 +1,7 @@
-# Makefile for Dotfiles Stow Manager (ISO C17)
+# Makefile for Symlink & Dependency Manager (symdep) (ISO C17)
 
 PREFIX ?= /usr/local
-BIN_NAME ?= stow-manager
+BIN_NAME ?= symdep
 EXEC_PREFIX ?= $(PREFIX)
 BINDIR ?= $(EXEC_PREFIX)/bin
 DATAROOTDIR ?= $(PREFIX)/share
@@ -46,8 +46,8 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/core/manifest.c \
        $(SRC_DIR)/core/registry.c \
        $(SRC_DIR)/core/scanner.c \
-       $(SRC_DIR)/core/stow.c \
-       $(SRC_DIR)/core/stowignore.c \
+       $(SRC_DIR)/core/linker.c \
+       $(SRC_DIR)/core/file_collector.c \
        $(SRC_DIR)/utils/env.c \
        $(SRC_DIR)/utils/fs.c \
        $(SRC_DIR)/utils/logger.c \
@@ -122,12 +122,12 @@ build-pgo:
 	$(MAKE) CC=clang CFLAGS="$(CFLAGS) $(CLANG_OPT_FLAGS) -fprofile-instr-generate" LDFLAGS="$(LDFLAGS) $(CLANG_OPT_LDFLAGS) -fprofile-instr-generate" $(TARGET)
 	@echo "=== Stage 2: Collecting execution workload profile ==="
 	-@bash $(TEST_FEATURE_DIR)/run_feature_tests.sh > /dev/null 2>&1
-	@llvm-profdata merge -output=stow_app.profdata default.profraw 2>/dev/null || true
+	@llvm-profdata merge -output=symdep_app.profdata default.profraw 2>/dev/null || true
 	@echo "=== Stage 3: Compiling PGO production binary with profile feedback ==="
 	$(MAKE) clean
 	mkdir -p $(OPT_DIR)
-	$(MAKE) CC=clang CFLAGS="$(CFLAGS) $(CLANG_OPT_FLAGS) -fprofile-instr-use=stow_app.profdata" LDFLAGS="$(LDFLAGS) $(CLANG_OPT_LDFLAGS) -fprofile-instr-use=stow_app.profdata" $(TARGET)
-	@rm -f default.profraw stow_app.profdata
+	$(MAKE) CC=clang CFLAGS="$(CFLAGS) $(CLANG_OPT_FLAGS) -fprofile-instr-use=symdep_app.profdata" LDFLAGS="$(LDFLAGS) $(CLANG_OPT_LDFLAGS) -fprofile-instr-use=symdep_app.profdata" $(TARGET)
+	@rm -f default.profraw symdep_app.profdata
 	@echo "=== PGO build complete ==="
 
 build-size:
@@ -185,10 +185,11 @@ install: $(TARGET)
 	install -d $(DESTDIR)$(DATADIR)/$(BIN_NAME)
 	install -m 644 resources/help.md $(DESTDIR)$(DATADIR)/$(BIN_NAME)/help.md
 	install -m 644 resources/help.txt $(DESTDIR)$(DATADIR)/$(BIN_NAME)/help.txt
-	install -m 644 resources/stowignore.default $(DESTDIR)$(DATADIR)/$(BIN_NAME)/stowignore.default
-	install -m 644 resources/stowignore.template $(DESTDIR)$(DATADIR)/$(BIN_NAME)/stowignore.template
-	install -m 644 resources/stowdeps.template $(DESTDIR)$(DATADIR)/$(BIN_NAME)/stowdeps.template
+	install -m 644 resources/symignore.default $(DESTDIR)$(DATADIR)/$(BIN_NAME)/symignore.default
+	install -m 644 resources/symignore.template $(DESTDIR)$(DATADIR)/$(BIN_NAME)/symignore.template
+	install -m 644 resources/symdeps.template $(DESTDIR)$(DATADIR)/$(BIN_NAME)/symdeps.template
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(BIN_NAME)
 	rm -rf $(DESTDIR)$(DATADIR)/$(BIN_NAME)
+

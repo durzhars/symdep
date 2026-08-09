@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,9 +16,10 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef HELP_H
-#define HELP_H
+#ifndef SYMDEP_HELP_H
+#define SYMDEP_HELP_H
 
 void show_help(void);
 
-#endif /* HELP_H */
+#endif /* SYMDEP_HELP_H */
+

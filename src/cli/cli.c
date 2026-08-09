@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -88,9 +88,17 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
         const char *arg = argv[i];
         const char *next_arg = (i + 1 < argc) ? argv[i + 1] : NULL;
 
-        // 1. Path Options (-d / --dotfiles-dir and -t / --target-dir)
+        // 1. Path Options (-d / --source-dir / --src-dir / --dotfiles-dir and -t / --target-dir)
         int res_d = parse_string_opt(
-            arg, next_arg, "-d", "--dotfiles-dir", &opts->cli_dotfiles_dir, &i, argc);
+            arg, next_arg, "-d", "--source-dir", &opts->cli_source_dir, &i, argc);
+        if (res_d == 0) {
+            res_d = parse_string_opt(
+                arg, next_arg, "-d", "--src-dir", &opts->cli_source_dir, &i, argc);
+        }
+        if (res_d == 0) {
+            res_d = parse_string_opt(
+                arg, next_arg, "-d", "--dotfiles-dir", &opts->cli_source_dir, &i, argc);
+        }
         if (res_d < 0)
             return 1;
         if (res_d > 0)
@@ -110,7 +118,10 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
             continue;
         if (parse_bool_opt(arg, "-s", "--save", &opts->save_flag))
             continue;
-        if (parse_bool_opt(arg, "-p", "--profile", &opts->profile))
+        if (parse_bool_opt(arg, "-p", "--profile", &opts->profile) ||
+            parse_bool_opt(arg, "-p", "--perf", &opts->profile) ||
+            parse_bool_opt(arg, "-p", "--performance", &opts->profile) ||
+            parse_bool_opt(arg, "-p", "--profiler", &opts->profile))
             continue;
 
         if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
@@ -122,7 +133,8 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
         str_array_append(args, arg);
     }
 
-    if (opts->profile || getenv("PROFILE") != NULL || getenv("STOW_PROFILE") != NULL) {
+    if (opts->profile || getenv("PROFILE") != NULL || getenv("SYMDEP_PROFILE") != NULL ||
+        getenv("STOW_PROFILE") != NULL) {
         perf_profiler_set_enabled(true);
     }
 
@@ -134,8 +146,9 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
     // Persist CLI directory overrides when -s / --save is passed
     if (opts->save_flag) {
         persist_dir_override(opts->cli_target_dir, config_set_target_dir, "target");
-        persist_dir_override(opts->cli_dotfiles_dir, config_set_dotfiles_dir, "dotfiles");
+        persist_dir_override(opts->cli_source_dir, config_set_source_dir, "source");
     }
 
     return 0;
 }
+

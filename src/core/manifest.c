@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "core/manifest.h"
-#include "core/stow.h"
+#include "core/linker.h"
 
 #include "utils/defs.h"
 #include "utils/fs.h"
@@ -62,15 +62,20 @@ void manifest_init(PackageManifest *manifest, const char *pkg_name)
     str_array_init(&manifest->conflicts);
 }
 
-bool manifest_load(PackageManifest *manifest, const char *dotfiles_dir)
+bool manifest_load(PackageManifest *manifest, const char *source_dir)
 {
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, manifest->package_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, manifest->package_name);
 
     char path[PATH_MAX * 4];
-    join_path(path, sizeof(path), pkg_dir, ".stowdeps");
+    join_path(path, sizeof(path), pkg_dir, ".symdeps");
 
     FILE *fp = fopen(path, "r");
+    if (!fp) {
+        // Fallback for legacy .stowdeps manifest
+        join_path(path, sizeof(path), pkg_dir, ".stowdeps");
+        fp = fopen(path, "r");
+    }
     if (!fp) {
         return false;
     }
@@ -119,14 +124,14 @@ bool manifest_load(PackageManifest *manifest, const char *dotfiles_dir)
     return true;
 }
 
-bool manifest_save(const PackageManifest *manifest, const char *dotfiles_dir)
+bool manifest_save(const PackageManifest *manifest, const char *source_dir)
 {
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, manifest->package_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, manifest->package_name);
     mkdir_p(pkg_dir, 0755);
 
     char path[PATH_MAX * 4];
-    join_path(path, sizeof(path), pkg_dir, ".stowdeps");
+    join_path(path, sizeof(path), pkg_dir, ".symdeps");
 
     FILE *fp = fopen(path, "w");
     if (!fp) {
@@ -184,18 +189,18 @@ void manifest_free(PackageManifest *manifest)
     str_array_free(&manifest->conflicts);
 }
 
-void manifest_set_target(const char *dotfiles_dir, const char *pkg_name, const char *target_path)
+void manifest_set_target(const char *source_dir, const char *pkg_name, const char *target_path)
 {
     PackageManifest manifest;
     manifest_init(&manifest, pkg_name);
-    manifest_load(&manifest, dotfiles_dir);
+    manifest_load(&manifest, source_dir);
 
     if (manifest.target_path) {
         free(manifest.target_path);
     }
     manifest.target_path = safe_strdup(target_path);
 
-    if (manifest_save(&manifest, dotfiles_dir)) {
+    if (manifest_save(&manifest, source_dir)) {
         log_success("Set target path for package '%s': %s", pkg_name, target_path);
     } else {
         log_error("Failed to save target path for package '%s'", pkg_name);
@@ -220,14 +225,14 @@ static DepType parse_dep_type(const char *type)
     return DEP_TYPE_OPTIONAL;
 }
 
-void manifest_add_dep(const char *dotfiles_dir,
+void manifest_add_dep(const char *source_dir,
                       const char *pkg_name,
                       const char *dep,
                       const char *type)
 {
     PackageManifest manifest;
     manifest_init(&manifest, pkg_name);
-    manifest_load(&manifest, dotfiles_dir);
+    manifest_load(&manifest, source_dir);
 
     DepType dt = parse_dep_type(type);
     if (dt == DEP_TYPE_REQUIRED) {
@@ -247,7 +252,7 @@ void manifest_add_dep(const char *dotfiles_dir,
         }
     }
 
-    manifest_save(&manifest, dotfiles_dir);
+    manifest_save(&manifest, source_dir);
     manifest_free(&manifest);
 }
 
@@ -271,14 +276,14 @@ static void manifest_remove_dep_from_all(PackageManifest *manifest, const char *
     str_array_filter_out(&manifest->conflicts, dep);
 }
 
-void manifest_edit_dep(const char *dotfiles_dir,
+void manifest_edit_dep(const char *source_dir,
                        const char *pkg_name,
                        const char *dep,
                        const char *new_type)
 {
     PackageManifest manifest;
     manifest_init(&manifest, pkg_name);
-    manifest_load(&manifest, dotfiles_dir);
+    manifest_load(&manifest, source_dir);
 
     manifest_remove_dep_from_all(&manifest, dep);
 
@@ -294,36 +299,40 @@ void manifest_edit_dep(const char *dotfiles_dir,
         log_success("Updated '%s' to OPTIONAL for package '%s'.", dep, pkg_name);
     }
 
-    manifest_save(&manifest, dotfiles_dir);
+    manifest_save(&manifest, source_dir);
     manifest_free(&manifest);
 }
 
-void manifest_remove_dep(const char *dotfiles_dir, const char *pkg_name, const char *dep)
+void manifest_remove_dep(const char *source_dir, const char *pkg_name, const char *dep)
 {
     PackageManifest manifest;
     manifest_init(&manifest, pkg_name);
-    manifest_load(&manifest, dotfiles_dir);
+    manifest_load(&manifest, source_dir);
 
     manifest_remove_dep_from_all(&manifest, dep);
 
-    manifest_save(&manifest, dotfiles_dir);
+    manifest_save(&manifest, source_dir);
     log_success("Removed '%s' from package '%s'.", dep, pkg_name);
     manifest_free(&manifest);
 }
 
-void manifest_show(const char *dotfiles_dir, const char *pkg_name)
+void manifest_show(const char *source_dir, const char *pkg_name)
 {
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
     char path[PATH_MAX * 4];
-    join_path(path, sizeof(path), pkg_dir, ".stowdeps");
+    join_path(path, sizeof(path), pkg_dir, ".symdeps");
 
     if (!file_exists(path)) {
-        log_warn("Package '%s' does not have a '.stowdeps' manifest file.", pkg_name);
+        join_path(path, sizeof(path), pkg_dir, ".stowdeps");
+    }
+
+    if (!file_exists(path)) {
+        log_warn("Package '%s' does not have a '.symdeps' manifest file.", pkg_name);
         return;
     }
 
-    printf("\n%s%s=== Manifest [.stowdeps] for '%s' ===%s\n\n",
+    printf("\n%s%s=== Manifest [.symdeps] for '%s' ===%s\n\n",
            COLOR_CYAN,
            COLOR_BOLD,
            pkg_name,
@@ -339,27 +348,27 @@ void manifest_show(const char *dotfiles_dir, const char *pkg_name)
     printf("\n");
 }
 
-void package_remove(const char *dotfiles_dir,
+void package_remove(const char *source_dir,
                     const char *target_dir,
                     const char *pkg_name,
                     bool dry_run)
 {
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!is_dir(pkg_dir)) {
         log_error("Package directory '%s' does not exist.", pkg_dir);
         return;
     }
 
-    StowStatus status = get_package_stow_status(target_dir, dotfiles_dir, pkg_name);
+    StowStatus status = get_package_stow_status(target_dir, source_dir, pkg_name);
     if (status != STOW_STATUS_UNSTOWED) {
         if (dry_run) {
             log_warn("[DRY-RUN] Package '%s' is currently stowed. Would unstow before removing.",
                      pkg_name);
         } else {
             log_warn("Package '%s' is stowed. Unstowing package prior to removal...", pkg_name);
-            unstow_package(dotfiles_dir, target_dir, pkg_name, dry_run);
+            unstow_package(source_dir, target_dir, pkg_name, dry_run);
         }
     }
 
@@ -380,3 +389,4 @@ void package_remove(const char *dotfiles_dir,
         log_error("Failed to remove package directory '%s'.", pkg_dir);
     }
 }
+

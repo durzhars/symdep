@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -20,12 +20,12 @@
 
 #include "utils/defs.h"
 
-#include "core/stow.h"
+#include "core/linker.h"
 
 #include "core/checker.h"
+#include "core/file_collector.h"
 #include "core/manifest.h"
 #include "core/registry.h"
-#include "core/stowignore.h"
 #include "utils/fs.h"
 #include "utils/logger.h"
 #include "utils/path.h"
@@ -90,12 +90,12 @@ static void add_rel_path_and_parents(StrSet *set, const char *rel_path)
 }
 
 void walk_target_dir_symlinks_targeted(const char *target_dir,
-                                       const char *dotfiles_dir,
+                                       const char *source_dir,
                                        const PkgFileList *pkg_files,
                                        WalkSymlinkCallback cb,
                                        void *user_data)
 {
-    if (!target_dir || !dotfiles_dir || !cb) {
+    if (!target_dir || !source_dir || !cb) {
         return;
     }
 
@@ -123,7 +123,7 @@ void walk_target_dir_symlinks_targeted(const char *target_dir,
         closedir(dir);
     }
 
-    // 2. Collect relative paths across target package or all packages in dotfiles_dir
+    // 2. Collect relative paths across target package or all packages in source_dir
     StrSet rel_paths;
     str_set_init(&rel_paths);
 
@@ -134,15 +134,15 @@ void walk_target_dir_symlinks_targeted(const char *target_dir,
     } else {
         StringArray packages;
         str_array_init(&packages);
-        get_all_packages(dotfiles_dir, &packages);
+        get_all_packages(source_dir, &packages);
 
         for (size_t i = 0; i < packages.count; i++) {
             char pkg_dir[PATH_MAX * 2];
-            join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, packages.items[i]);
+            join_path(pkg_dir, sizeof(pkg_dir), source_dir, packages.items[i]);
             if (is_dir(pkg_dir)) {
                 StringArray raw_ignores;
                 str_array_init(&raw_ignores);
-                parse_stowignore_raw(dotfiles_dir, &raw_ignores);
+                parse_stowignore_raw(source_dir, &raw_ignores);
                 parse_stowignore_raw(pkg_dir, &raw_ignores);
 
                 PkgFileList fetched_files;
@@ -205,26 +205,26 @@ static void get_timestamp_str(char *buf, size_t size)
 }
 
 static void
-init_package_ignores(StringArray *raw_ignores, const char *dotfiles_dir, const char *pkg_dir)
+init_package_ignores(StringArray *raw_ignores, const char *source_dir, const char *pkg_dir)
 {
     str_array_init(raw_ignores);
     get_default_stowignore(raw_ignores);
-    parse_stowignore_raw(dotfiles_dir, raw_ignores);
+    parse_stowignore_raw(source_dir, raw_ignores);
     if (pkg_dir && *pkg_dir != '\0') {
         parse_stowignore_raw(pkg_dir, raw_ignores);
     }
 }
 
-// Resolves symlink_path and checks if it points into dotfiles_dir.
+// Resolves symlink_path and checks if it points into source_dir.
 // If so, extracts the owner package name into owner_pkg_buf.
 static bool get_symlink_owner_package(const char *symlink_path,
-                                      const char *dotfiles_dir,
-                                      char *owner_pkg_buf,
-                                      size_t buf_size)
+                                       const char *source_dir,
+                                       char *owner_pkg_buf,
+                                       size_t buf_size)
 {
-    char real_dotfiles[PATH_MAX];
-    if (realpath(dotfiles_dir, real_dotfiles) == NULL) {
-        snprintf(real_dotfiles, sizeof(real_dotfiles), "%s", dotfiles_dir);
+    char real_source[PATH_MAX];
+    if (realpath(source_dir, real_source) == NULL) {
+        snprintf(real_source, sizeof(real_source), "%s", source_dir);
     }
 
     char *target = read_symlink_target(symlink_path);
@@ -233,8 +233,8 @@ static bool get_symlink_owner_package(const char *symlink_path,
     }
 
     bool found = false;
-    if (is_path_prefix(target, real_dotfiles)) {
-        size_t prefix_len = strlen(real_dotfiles);
+    if (is_path_prefix(target, real_source)) {
+        size_t prefix_len = strlen(real_source);
         const char *rel = target + prefix_len;
         while (*rel == '/') {
             rel++;
@@ -259,7 +259,7 @@ static bool get_symlink_owner_package(const char *symlink_path,
 }
 
 typedef struct {
-    const char *dotfiles_dir;
+    const char *source_dir;
     bool dry_run;
     int unfolded_count;
 } UnfoldContext;
@@ -276,7 +276,7 @@ static void unfold_symlink_cb(const char *symlink_path, void *user_data)
         return;
     }
 
-    if (is_path_prefix(target, ctx->dotfiles_dir)) {
+    if (is_path_prefix(target, ctx->source_dir)) {
         if (ctx->dry_run) {
             log_warn("[DRY-RUN] Would unfold directory symlink: %s -> %s", symlink_path, target);
         } else {
@@ -345,19 +345,19 @@ static void unfold_symlink_cb(const char *symlink_path, void *user_data)
 }
 
 void unfold_directory_symlinks(const char *target_dir,
-                               const char *dotfiles_dir,
+                               const char *source_dir,
                                const PkgFileList *pkg_files,
                                bool dry_run)
 {
     if (dry_run) {
-        log_info("[DRY-RUN] Scanning for directory symlinks that cause Stow folding "
+        log_info("[DRY-RUN] Scanning for directory symlinks that cause folding "
                  "conflicts...");
     } else {
-        log_info("Scanning for directory symlinks that cause Stow folding "
+        log_info("Scanning for directory symlinks that cause folding "
                  "conflicts...");
     }
-    UnfoldContext ctx = {dotfiles_dir, dry_run, 0};
-    walk_target_dir_symlinks_targeted(target_dir, dotfiles_dir, pkg_files, unfold_symlink_cb, &ctx);
+    UnfoldContext ctx = {source_dir, dry_run, 0};
+    walk_target_dir_symlinks_targeted(target_dir, source_dir, pkg_files, unfold_symlink_cb, &ctx);
     if (ctx.unfolded_count == 0) {
         log_info("No directory symlinks required unfolding.");
     }
@@ -365,7 +365,7 @@ void unfold_directory_symlinks(const char *target_dir,
 
 typedef struct {
     const char *target_dir;
-    const char *dotfiles_dir;
+    const char *source_dir;
     const char *pkg_name;
     const char *pkg_dir;
     const char *real_pkg_dir;
@@ -401,15 +401,15 @@ static void prepare_conflict_cb(const char *file_path, const char *rel_path, voi
         } else {
             char owner_pkg[256];
             if (get_symlink_owner_package(
-                    target_path, ctx->dotfiles_dir, owner_pkg, sizeof(owner_pkg))) {
+                    target_path, ctx->source_dir, owner_pkg, sizeof(owner_pkg))) {
                 if (ctx->dry_run) {
-                    log_warn("[DRY-RUN] Conflict! Target '%s' is stowed by "
+                    log_warn("[DRY-RUN] Conflict! Target '%s' is linked by "
                              "package '%s'. Would replace with '%s'.",
                              rel_path,
                              owner_pkg,
                              ctx->pkg_name);
                 } else {
-                    log_warn("Conflict! Target '%s' is stowed by package '%s'. "
+                    log_warn("Conflict! Target '%s' is linked by package '%s'. "
                              "Replacing with '%s'...",
                              rel_path,
                              owner_pkg,
@@ -427,7 +427,7 @@ static void prepare_conflict_cb(const char *file_path, const char *rel_path, voi
         char ts[64];
         get_timestamp_str(ts, sizeof(ts));
         char backup_path[PATH_MAX * 3];
-        snprintf(backup_path, sizeof(backup_path), "%s.stow_backup_%s", target_path, ts);
+        snprintf(backup_path, sizeof(backup_path), "%s.symdep_backup_%s", target_path, ts);
 
         if (ctx->dry_run) {
             log_warn("[DRY-RUN] Conflict! Would backup file: %s -> %s", target_path, backup_path);
@@ -441,18 +441,19 @@ static void prepare_conflict_cb(const char *file_path, const char *rel_path, voi
     }
 }
 
+
 typedef struct {
     const char *target_dir;
     const char *pkg_dir;
     const StringArray *raw_ignores;
     int errors;
     size_t created_count;
-} NativeStowContext;
+} NativeLinkContext;
 
-static void native_stow_cb(const char *file_path, const char *rel_path, void *user_data)
+static void native_link_cb(const char *file_path, const char *rel_path, void *user_data)
 {
     (void)file_path;
-    NativeStowContext *ctx = (NativeStowContext *)user_data;
+    NativeLinkContext *ctx = (NativeLinkContext *)user_data;
 
     if (is_path_ignored(rel_path, ctx->raw_ignores)) {
         return;
@@ -478,7 +479,7 @@ static void native_stow_cb(const char *file_path, const char *rel_path, void *us
         char ts[64];
         get_timestamp_str(ts, sizeof(ts));
         char backup_path[PATH_MAX * 3];
-        snprintf(backup_path, sizeof(backup_path), "%s.stow_backup_%s", target_path, ts);
+        snprintf(backup_path, sizeof(backup_path), "%s.symdep_backup_%s", target_path, ts);
 
         char test_path[PATH_MAX * 4];
         snprintf(test_path, sizeof(test_path), "%s", backup_path);
@@ -503,8 +504,20 @@ static void native_stow_cb(const char *file_path, const char *rel_path, void *us
         mkdir_p(parent_dir, 0755);
     }
 
-    if (symlink(pkg_file_path, target_path) == 0) {
-        log_info("LINK: %s => %s", rel_path, pkg_file_path);
+    PerfTimer op_timer = perf_timer_start("symlink");
+    int sym_res = symlink(pkg_file_path, target_path);
+    double op_us = perf_timer_elapsed_us(&op_timer);
+
+    if (sym_res == 0) {
+        if (perf_profiler_is_enabled()) {
+            if (op_us >= 1000.0) {
+                log_info("[PERF] LINK: %s => %s (completed in %.2f ms)", rel_path, pkg_file_path, op_us / 1000.0);
+            } else {
+                log_info("[PERF] LINK: %s => %s (completed in %.0f us)", rel_path, pkg_file_path, op_us);
+            }
+        } else {
+            log_info("LINK: %s => %s", rel_path, pkg_file_path);
+        }
         ctx->created_count++;
     } else {
         log_error(
@@ -521,12 +534,12 @@ typedef struct {
     bool dry_run;
     int errors;
     size_t unlinked_count;
-} NativeUnstowContext;
+} NativeUnlinkContext;
 
-static void native_unstow_cb(const char *file_path, const char *rel_path, void *user_data)
+static void native_unlink_cb(const char *file_path, const char *rel_path, void *user_data)
 {
     (void)file_path;
-    NativeUnstowContext *ctx = (NativeUnstowContext *)user_data;
+    NativeUnlinkContext *ctx = (NativeUnlinkContext *)user_data;
 
     if (is_path_ignored(rel_path, ctx->raw_ignores)) {
         return;
@@ -547,8 +560,20 @@ static void native_unstow_cb(const char *file_path, const char *rel_path, void *
             log_info("[DRY-RUN] Would unlink symlink: %s", target_path);
             ctx->unlinked_count++;
         } else {
-            if (unlink(target_path) == 0) {
-                log_info("UNLINK: %s", rel_path);
+            PerfTimer op_timer = perf_timer_start("unlink");
+            int unl_res = unlink(target_path);
+            double op_us = perf_timer_elapsed_us(&op_timer);
+
+            if (unl_res == 0) {
+                if (perf_profiler_is_enabled()) {
+                    if (op_us >= 1000.0) {
+                        log_info("[PERF] UNLINK: %s (completed in %.2f ms)", rel_path, op_us / 1000.0);
+                    } else {
+                        log_info("[PERF] UNLINK: %s (completed in %.0f us)", rel_path, op_us);
+                    }
+                } else {
+                    log_info("UNLINK: %s", rel_path);
+                }
                 ctx->unlinked_count++;
 
                 char parent[PATH_MAX * 2];
@@ -583,13 +608,13 @@ static void native_unstow_cb(const char *file_path, const char *rel_path, void *
 }
 
 void prepare_target_conflicts(const char *target_dir,
-                              const char *dotfiles_dir,
+                              const char *source_dir,
                               const char *pkg_name,
                               const PkgFileList *pkg_files_param,
                               bool dry_run)
 {
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     char real_pkg_dir[PATH_MAX * 2];
     if (realpath(pkg_dir, real_pkg_dir) == NULL) {
@@ -601,7 +626,7 @@ void prepare_target_conflicts(const char *target_dir,
     }
 
     StringArray raw_ignores;
-    init_package_ignores(&raw_ignores, dotfiles_dir, pkg_dir);
+    init_package_ignores(&raw_ignores, source_dir, pkg_dir);
 
     PkgFileList local_files;
     const PkgFileList *pkg_files = pkg_files_param;
@@ -611,7 +636,7 @@ void prepare_target_conflicts(const char *target_dir,
     }
 
     ConflictContext ctx = {target_dir,
-                           dotfiles_dir,
+                           source_dir,
                            pkg_name,
                            pkg_dir,
                            real_pkg_dir,
@@ -649,12 +674,12 @@ typedef struct {
     const StringArray *raw_ignores;
     size_t total_files;
     size_t stowed_files;
-} CheckStowedStatsContext;
+} CheckLinkedStatsContext;
 
-static void check_stowed_stats_cb(const char *file_path, const char *rel_path, void *user_data)
+static void check_linked_stats_cb(const char *file_path, const char *rel_path, void *user_data)
 {
     (void)file_path;
-    CheckStowedStatsContext *ctx = (CheckStowedStatsContext *)user_data;
+    CheckLinkedStatsContext *ctx = (CheckLinkedStatsContext *)user_data;
 
     ctx->total_files++;
 
@@ -674,14 +699,14 @@ static void check_stowed_stats_cb(const char *file_path, const char *rel_path, v
     }
 }
 
-StowStatus
-get_package_stow_status(const char *target_dir, const char *dotfiles_dir, const char *pkg_name)
+LinkStatus
+get_package_link_status(const char *target_dir, const char *source_dir, const char *pkg_name)
 {
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!is_dir(pkg_dir)) {
-        return STOW_STATUS_UNSTOWED;
+        return LINK_STATUS_UNLINKED;
     }
 
     char real_pkg_dir[PATH_MAX * 2];
@@ -690,35 +715,35 @@ get_package_stow_status(const char *target_dir, const char *dotfiles_dir, const 
     }
 
     StringArray raw_ignores;
-    init_package_ignores(&raw_ignores, dotfiles_dir, pkg_dir);
+    init_package_ignores(&raw_ignores, source_dir, pkg_dir);
 
     PkgFileList pkg_files;
     collect_package_files(pkg_dir, &raw_ignores, &pkg_files);
 
-    CheckStowedStatsContext ctx = {target_dir, pkg_dir, real_pkg_dir, &raw_ignores, 0, 0};
+    CheckLinkedStatsContext ctx = {target_dir, pkg_dir, real_pkg_dir, &raw_ignores, 0, 0};
     for (size_t i = 0; i < pkg_files.count; i++) {
-        check_stowed_stats_cb(pkg_files.entries[i].full_path, pkg_files.entries[i].rel_path, &ctx);
+        check_linked_stats_cb(pkg_files.entries[i].full_path, pkg_files.entries[i].rel_path, &ctx);
     }
 
     pkg_file_list_free(&pkg_files);
     str_array_free(&raw_ignores);
 
     if (ctx.total_files == 0) {
-        return STOW_STATUS_UNSTOWED;
+        return LINK_STATUS_UNLINKED;
     }
     if (ctx.stowed_files == ctx.total_files) {
-        return STOW_STATUS_STOWED;
+        return LINK_STATUS_LINKED;
     }
     if (ctx.stowed_files > 0) {
-        return STOW_STATUS_PARTIAL;
+        return LINK_STATUS_PARTIAL;
     }
-    return STOW_STATUS_UNSTOWED;
+    return LINK_STATUS_UNLINKED;
 }
 
-bool is_package_stowed(const char *target_dir, const char *dotfiles_dir, const char *pkg_name)
+bool is_package_linked(const char *target_dir, const char *source_dir, const char *pkg_name)
 {
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!is_dir(pkg_dir)) {
         return false;
@@ -730,7 +755,7 @@ bool is_package_stowed(const char *target_dir, const char *dotfiles_dir, const c
     }
 
     StringArray raw_ignores;
-    init_package_ignores(&raw_ignores, dotfiles_dir, pkg_dir);
+    init_package_ignores(&raw_ignores, source_dir, pkg_dir);
 
     PkgFileList pkg_files;
     collect_package_files(pkg_dir, &raw_ignores, &pkg_files);
@@ -758,28 +783,28 @@ bool is_package_stowed(const char *target_dir, const char *dotfiles_dir, const c
 }
 
 void handle_mutual_exclusions(const char *target_dir,
-                              const char *dotfiles_dir,
+                              const char *source_dir,
                               const char *pkg_name,
                               bool dry_run)
 {
     PackageManifest manifest;
     manifest_init(&manifest, pkg_name);
-    manifest_load(&manifest, dotfiles_dir);
+    manifest_load(&manifest, source_dir);
 
     for (size_t i = 0; i < manifest.conflicts.count; i++) {
         const char *conflict_pkg = manifest.conflicts.items[i];
-        if (is_package_stowed(target_dir, dotfiles_dir, conflict_pkg)) {
+        if (is_package_linked(target_dir, source_dir, conflict_pkg)) {
             if (dry_run) {
-                log_warn("[DRY-RUN] Would unstow manifest-conflicting package '%s' "
-                         "before stowing '%s'.",
+                log_warn("[DRY-RUN] Would unlink manifest-conflicting package '%s' "
+                         "before linking '%s'.",
                          conflict_pkg,
                          pkg_name);
             } else {
-                log_warn("Unstowing manifest-conflicting package '%s' before "
-                         "stowing '%s'...",
+                log_warn("Unlinking manifest-conflicting package '%s' before "
+                         "linking '%s'...",
                          conflict_pkg,
                          pkg_name);
-                unstow_package(dotfiles_dir, target_dir, conflict_pkg, dry_run);
+                unlink_package(source_dir, target_dir, conflict_pkg, dry_run);
             }
         }
     }
@@ -789,7 +814,7 @@ void handle_mutual_exclusions(const char *target_dir,
 
 typedef struct {
     const char *target_dir;
-    const char *dotfiles_dir;
+    const char *source_dir;
     const char *current_pkg;
     const StringArray *raw_ignores;
     StringArray conflicting_pkgs;
@@ -810,7 +835,7 @@ static void detect_conflicts_cb(const char *file_path, const char *rel_path, voi
     if (is_symlink(target_path)) {
         char owner_pkg[256];
         if (get_symlink_owner_package(
-                target_path, ctx->dotfiles_dir, owner_pkg, sizeof(owner_pkg))) {
+                target_path, ctx->source_dir, owner_pkg, sizeof(owner_pkg))) {
             if (strcmp(owner_pkg, ctx->current_pkg) != 0) {
                 if (!str_array_contains(&ctx->conflicting_pkgs, owner_pkg)) {
                     str_array_append(&ctx->conflicting_pkgs, owner_pkg);
@@ -820,26 +845,26 @@ static void detect_conflicts_cb(const char *file_path, const char *rel_path, voi
     }
 }
 
-// Scans target paths for symlinks belonging to other packages and unstows them
+// Scans target paths for symlinks belonging to other packages and unlinks them
 void handle_dynamic_package_conflicts(const char *target_dir,
-                                      const char *dotfiles_dir,
-                                      const char *pkg_name,
-                                      const PkgFileList *pkg_files_param,
-                                      bool dry_run)
+                                       const char *source_dir,
+                                       const char *pkg_name,
+                                       const PkgFileList *pkg_files_param,
+                                       bool dry_run)
 {
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!is_dir(pkg_dir)) {
         return;
     }
 
     StringArray raw_ignores;
-    init_package_ignores(&raw_ignores, dotfiles_dir, pkg_dir);
+    init_package_ignores(&raw_ignores, source_dir, pkg_dir);
 
     DetectConflictsContext ctx;
     ctx.target_dir = target_dir;
-    ctx.dotfiles_dir = dotfiles_dir;
+    ctx.source_dir = source_dir;
     ctx.current_pkg = pkg_name;
     ctx.raw_ignores = &raw_ignores;
     str_array_init(&ctx.conflicting_pkgs);
@@ -863,7 +888,7 @@ void handle_dynamic_package_conflicts(const char *target_dir,
         const char *conflict_pkg = ctx.conflicting_pkgs.items[i];
         if (dry_run) {
             log_warn("[DRY-RUN] Package conflict detected! Package '%s' collides "
-                     "with stowed package '%s'. Would unstow '%s' before stowing "
+                     "with linked package '%s'. Would unlink '%s' before linking "
                      "'%s'.",
                      pkg_name,
                      conflict_pkg,
@@ -871,12 +896,12 @@ void handle_dynamic_package_conflicts(const char *target_dir,
                      pkg_name);
         } else {
             log_warn("Package conflict detected! Package '%s' collides with "
-                     "stowed package '%s'. Unstowing '%s' before stowing '%s'...",
+                     "linked package '%s'. Unlinking '%s' before linking '%s'...",
                      pkg_name,
                      conflict_pkg,
                      conflict_pkg,
                      pkg_name);
-            unstow_package(dotfiles_dir, target_dir, conflict_pkg, false);
+            unlink_package(source_dir, target_dir, conflict_pkg, false);
         }
     }
 
@@ -884,22 +909,22 @@ void handle_dynamic_package_conflicts(const char *target_dir,
     str_array_free(&raw_ignores);
 }
 
-int stow_package(const char *dotfiles_dir,
+int link_package(const char *source_dir,
                  const char *target_dir,
                  const char *pkg_name,
                  bool auto_install,
                  bool dry_run)
 {
-    PerfTimer t_stow = perf_timer_start("stow_package");
+    PerfTimer t_stow = perf_timer_start("link_package");
 
     if (dry_run) {
-        log_info("[DRY-RUN] Previewing stow operation for package '%s'...", pkg_name);
+        log_info("[DRY-RUN] Previewing link operation for package '%s'...", pkg_name);
     } else {
-        log_info("Stowing package '%s'...", pkg_name);
+        log_info("Linking package '%s'...", pkg_name);
     }
 
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!is_dir(pkg_dir)) {
         log_error("Package directory does not exist: %s", pkg_dir);
@@ -908,16 +933,30 @@ int stow_package(const char *dotfiles_dir,
     }
 
     StringArray raw_ignores;
-    init_package_ignores(&raw_ignores, dotfiles_dir, pkg_dir);
+    init_package_ignores(&raw_ignores, source_dir, pkg_dir);
 
     PkgFileList pkg_files;
     collect_package_files(pkg_dir, &raw_ignores, &pkg_files);
 
-    check_package_dependencies(dotfiles_dir, pkg_name, auto_install, dry_run);
-    handle_mutual_exclusions(target_dir, dotfiles_dir, pkg_name, dry_run);
-    handle_dynamic_package_conflicts(target_dir, dotfiles_dir, pkg_name, &pkg_files, dry_run);
-    unfold_directory_symlinks(target_dir, dotfiles_dir, &pkg_files, dry_run);
-    prepare_target_conflicts(target_dir, dotfiles_dir, pkg_name, &pkg_files, dry_run);
+    PerfTimer t_chk = perf_timer_start("check_package_dependencies");
+    check_package_dependencies(source_dir, pkg_name, auto_install, dry_run);
+    perf_timer_log(&t_chk);
+
+    PerfTimer t_excl = perf_timer_start("handle_mutual_exclusions");
+    handle_mutual_exclusions(target_dir, source_dir, pkg_name, dry_run);
+    perf_timer_log(&t_excl);
+
+    PerfTimer t_conf = perf_timer_start("handle_dynamic_package_conflicts");
+    handle_dynamic_package_conflicts(target_dir, source_dir, pkg_name, &pkg_files, dry_run);
+    perf_timer_log(&t_conf);
+
+    PerfTimer t_unf = perf_timer_start("unfold_directory_symlinks");
+    unfold_directory_symlinks(target_dir, source_dir, &pkg_files, dry_run);
+    perf_timer_log(&t_unf);
+
+    PerfTimer t_prep = perf_timer_start("prepare_target_conflicts");
+    prepare_target_conflicts(target_dir, source_dir, pkg_name, &pkg_files, dry_run);
+    perf_timer_log(&t_prep);
 
     if (dry_run) {
         log_success("[DRY-RUN] Dry run / Diff complete for package '%s'. No changes "
@@ -929,9 +968,9 @@ int stow_package(const char *dotfiles_dir,
         return 0;
     }
 
-    NativeStowContext ctx = {target_dir, pkg_dir, &raw_ignores, 0, 0};
+    NativeLinkContext ctx = {target_dir, pkg_dir, &raw_ignores, 0, 0};
     for (size_t i = 0; i < pkg_files.count; i++) {
-        native_stow_cb(pkg_files.entries[i].full_path, pkg_files.entries[i].rel_path, &ctx);
+        native_link_cb(pkg_files.entries[i].full_path, pkg_files.entries[i].rel_path, &ctx);
     }
 
     pkg_file_list_free(&pkg_files);
@@ -940,27 +979,27 @@ int stow_package(const char *dotfiles_dir,
     perf_timer_log(&t_stow);
 
     if (ctx.errors == 0) {
-        log_success("Successfully stowed package '%s'!", pkg_name);
+        log_success("Successfully linked package '%s'!", pkg_name);
         return 0;
     } else {
-        log_error("Failed to stow package '%s'!", pkg_name);
+        log_error("Failed to link package '%s'!", pkg_name);
         return -1;
     }
 }
 
-int unstow_package(const char *dotfiles_dir,
-                   const char *target_dir,
-                   const char *pkg_name,
-                   bool dry_run)
+int unlink_package(const char *source_dir,
+                    const char *target_dir,
+                    const char *pkg_name,
+                    bool dry_run)
 {
     if (dry_run) {
-        log_info("[DRY-RUN] Previewing unstow operation for package '%s'...", pkg_name);
+        log_info("[DRY-RUN] Previewing unlink operation for package '%s'...", pkg_name);
     } else {
-        log_info("Unstowing package '%s'...", pkg_name);
+        log_info("Unlinking package '%s'...", pkg_name);
     }
 
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!is_dir(pkg_dir)) {
         log_error("Package directory does not exist: %s", pkg_dir);
@@ -973,14 +1012,14 @@ int unstow_package(const char *dotfiles_dir,
     }
 
     StringArray raw_ignores;
-    init_package_ignores(&raw_ignores, dotfiles_dir, pkg_dir);
+    init_package_ignores(&raw_ignores, source_dir, pkg_dir);
 
     PkgFileList pkg_files;
     collect_package_files(pkg_dir, &raw_ignores, &pkg_files);
 
-    NativeUnstowContext ctx = {target_dir, pkg_dir, real_pkg_dir, &raw_ignores, dry_run, 0, 0};
+    NativeUnlinkContext ctx = {target_dir, pkg_dir, real_pkg_dir, &raw_ignores, dry_run, 0, 0};
     for (size_t i = 0; i < pkg_files.count; i++) {
-        native_unstow_cb(pkg_files.entries[i].full_path, pkg_files.entries[i].rel_path, &ctx);
+        native_unlink_cb(pkg_files.entries[i].full_path, pkg_files.entries[i].rel_path, &ctx);
     }
 
     pkg_file_list_free(&pkg_files);
@@ -994,45 +1033,45 @@ int unstow_package(const char *dotfiles_dir,
     }
 
     if (ctx.errors == 0) {
-        log_success("Successfully unstowed package '%s'!", pkg_name);
+        log_success("Successfully unlinked package '%s'!", pkg_name);
         return 0;
     } else {
-        log_error("Failed to unstow package '%s'!", pkg_name);
+        log_error("Failed to unlink package '%s'!", pkg_name);
         return -1;
     }
 }
 
-int restow_package(const char *dotfiles_dir,
-                   const char *target_dir,
-                   const char *pkg_name,
-                   bool auto_install,
-                   bool dry_run)
+int relink_package(const char *source_dir,
+                    const char *target_dir,
+                    const char *pkg_name,
+                    bool auto_install,
+                    bool dry_run)
 {
     if (dry_run) {
-        log_info("[DRY-RUN] Restowing package '%s'...", pkg_name);
+        log_info("[DRY-RUN] Relinking package '%s'...", pkg_name);
     } else {
-        log_info("Restowing package '%s'...", pkg_name);
+        log_info("Relinking package '%s'...", pkg_name);
     }
 
-    check_package_dependencies(dotfiles_dir, pkg_name, auto_install, dry_run);
-    handle_mutual_exclusions(target_dir, dotfiles_dir, pkg_name, dry_run);
-    handle_dynamic_package_conflicts(target_dir, dotfiles_dir, pkg_name, NULL, dry_run);
-    unfold_directory_symlinks(target_dir, dotfiles_dir, NULL, dry_run);
+    check_package_dependencies(source_dir, pkg_name, auto_install, dry_run);
+    handle_mutual_exclusions(target_dir, source_dir, pkg_name, dry_run);
+    handle_dynamic_package_conflicts(target_dir, source_dir, pkg_name, NULL, dry_run);
+    unfold_directory_symlinks(target_dir, source_dir, NULL, dry_run);
 
     if (dry_run) {
-        unstow_package(dotfiles_dir, target_dir, pkg_name, true);
-        prepare_target_conflicts(target_dir, dotfiles_dir, pkg_name, NULL, true);
+        unlink_package(source_dir, target_dir, pkg_name, true);
+        prepare_target_conflicts(target_dir, source_dir, pkg_name, NULL, true);
         log_success("[DRY-RUN] Dry run / Diff complete for package '%s'. No changes "
                     "were made to disk.",
                     pkg_name);
         return 0;
     }
 
-    unstow_package(dotfiles_dir, target_dir, pkg_name, false);
-    prepare_target_conflicts(target_dir, dotfiles_dir, pkg_name, NULL, dry_run);
+    unlink_package(source_dir, target_dir, pkg_name, false);
+    prepare_target_conflicts(target_dir, source_dir, pkg_name, NULL, dry_run);
 
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!is_dir(pkg_dir)) {
         log_error("Package directory does not exist: %s", pkg_dir);
@@ -1040,65 +1079,67 @@ int restow_package(const char *dotfiles_dir,
     }
 
     StringArray raw_ignores;
-    init_package_ignores(&raw_ignores, dotfiles_dir, pkg_dir);
+    init_package_ignores(&raw_ignores, source_dir, pkg_dir);
 
-    NativeStowContext ctx = {target_dir, pkg_dir, &raw_ignores, 0, 0};
-    walk_dir_files(pkg_dir, "", native_stow_cb, &ctx);
+    NativeLinkContext ctx = {target_dir, pkg_dir, &raw_ignores, 0, 0};
+    walk_dir_files(pkg_dir, "", native_link_cb, &ctx);
     str_array_free(&raw_ignores);
 
     if (ctx.errors == 0) {
-        log_success("Successfully restowed package '%s'!", pkg_name);
+        log_success("Successfully relinked package '%s'!", pkg_name);
         return 0;
     } else {
-        log_error("Failed to restow package '%s'!", pkg_name);
+        log_error("Failed to relink package '%s'!", pkg_name);
         return -1;
     }
 }
 
-void stow_all_packages(const char *dotfiles_dir,
+void link_all_packages(const char *source_dir,
                        const char *target_dir,
                        bool auto_install,
                        bool dry_run)
 {
     StringArray packages;
     str_array_init(&packages);
-    get_all_packages(dotfiles_dir, &packages);
+    get_all_packages(source_dir, &packages);
 
     if (dry_run) {
-        log_info("[DRY-RUN] Previewing stow operation for ALL packages (%zu "
+        log_info("[DRY-RUN] Previewing link operation for ALL packages (%zu "
                  "found)...",
                  packages.count);
     } else {
-        log_info("Stowing ALL packages (%zu found)...", packages.count);
+        log_info("Linking ALL packages (%zu found)...", packages.count);
     }
 
     for (size_t i = 0; i < packages.count; i++) {
-        stow_package(dotfiles_dir, target_dir, packages.items[i], auto_install, dry_run);
+        link_package(source_dir, target_dir, packages.items[i], auto_install, dry_run);
     }
 
     str_array_free(&packages);
 }
 
-void list_packages_status(const char *dotfiles_dir, const char *target_dir)
+void list_packages_status(const char *source_dir, const char *target_dir)
 {
     StringArray packages;
     str_array_init(&packages);
-    get_all_packages(dotfiles_dir, &packages);
+    get_all_packages(source_dir, &packages);
 
-    printf("\n%s%s=== Stow Packages Status ===%s\n\n", COLOR_CYAN, COLOR_BOLD, COLOR_RESET);
+    printf("\n%s%s=== Package Symlink Status ===%s\n\n", COLOR_CYAN, COLOR_BOLD, COLOR_RESET);
 
     for (size_t i = 0; i < packages.count; i++) {
         const char *pkg = packages.items[i];
-        StowStatus status = get_package_stow_status(target_dir, dotfiles_dir, pkg);
-        if (status == STOW_STATUS_STOWED) {
-            printf("  %s[STOWED]%s   %s\n", COLOR_GREEN, COLOR_RESET, pkg);
-        } else if (status == STOW_STATUS_PARTIAL) {
+        LinkStatus status = get_package_link_status(target_dir, source_dir, pkg);
+        if (status == LINK_STATUS_LINKED) {
+            printf("  %s[LINKED]%s   %s\n", COLOR_GREEN, COLOR_RESET, pkg);
+        } else if (status == LINK_STATUS_PARTIAL) {
             printf("  %s[PARTIAL]%s  %s\n", COLOR_YELLOW, COLOR_RESET, pkg);
         } else {
-            printf("  %s[UNSTOWED]%s %s\n", COLOR_RED, COLOR_RESET, pkg);
+            printf("  %s[UNLINKED]%s %s\n", COLOR_RED, COLOR_RESET, pkg);
         }
     }
     printf("\n");
 
     str_array_free(&packages);
 }
+
+

@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef SYMDEP_CONFIG_H
+#define SYMDEP_CONFIG_H
 
 #include "utils/str.h"
 #include <limits.h>
@@ -25,7 +25,7 @@
 
 typedef struct {
     char config_file_path[PATH_MAX];
-    StringArray dotfiles_dirs;
+    StringArray source_dirs;
     char target_dir[PATH_MAX];
 } Config;
 
@@ -35,18 +35,19 @@ void get_config_file_path(char *buf, size_t buf_size);
 bool config_load(Config *cfg);
 bool config_save(const Config *cfg);
 
-void config_set_dotfiles_dir(const char *path);
-void config_add_dotfiles_dir(const char *path);
-void config_remove_dotfiles_dir(const char *path);
+void config_set_source_dir(const char *path);
+void config_add_source_dir(const char *path);
+void config_remove_source_dir(const char *path);
 void config_set_target_dir(const char *path);
 void config_show(void);
 
-void get_active_dotfiles_dir(const char *cli_override, char *buf, size_t buf_size);
+void get_active_source_dir(const char *cli_override, char *buf, size_t buf_size);
 void get_active_target_dir(const char *cli_override, char *buf, size_t buf_size);
 void get_active_target_dir_for_pkg(const char *cli_override,
-                                   const char *dotfiles_dir,
+                                   const char *source_dir,
                                    const char *pkg_name,
                                    char *buf,
                                    size_t buf_size);
 
-#endif /* CONFIG_H */
+#endif /* SYMDEP_CONFIG_H */
+

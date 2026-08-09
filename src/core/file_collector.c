@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "core/stowignore.h"
+#include "core/file_collector.h"
 #include "utils/fs.h"
 #include "utils/mem.h"
 #include "utils/path.h"
@@ -108,7 +108,6 @@ collect_package_files_recursive(CollectState *state, size_t base_full_len, size_
             continue;
         }
 
-        // Avoid strlen(name) if using dirent d_namlen (BSD/macOS) or track offset during copy
         size_t name_len = strlen(name);
 
         char *full_p = state->full_buf + base_full_len;
@@ -167,7 +166,6 @@ void collect_package_files(const char *pkg_dir, const StringArray *raw_ignores, 
 
     size_t len = strlen(pkg_dir);
     if (len >= sizeof(((CollectState *)0)->full_buf)) {
-        // Path exceeds buffer capacity; handle error gracefully instead of truncating
         perf_timer_log(&t);
         return;
     }
@@ -178,7 +176,6 @@ void collect_package_files(const char *pkg_dir, const StringArray *raw_ignores, 
 
     memcpy(state.full_buf, pkg_dir, len + 1);
 
-    // Normalize trailing slash if user passed e.g. "path/to/pkg/"
     if (len > 0 && state.full_buf[len - 1] == '/') {
         len--;
         state.full_buf[len] = '\0';
@@ -186,23 +183,26 @@ void collect_package_files(const char *pkg_dir, const StringArray *raw_ignores, 
 
     state.rel_buf[0] = '\0';
 
-    // Pass base_full_len and base_rel_len (0) directly down the stack
     collect_package_files_recursive(&state, len, 0);
 
     perf_timer_log(&t);
 }
 
-typedef void (*StowignoreLineCallback)(const char *line, void *user_data);
+typedef void (*IgnoreLineCallback)(const char *line, void *user_data);
 
-static void read_stowignore_file(const char *dir_path, StowignoreLineCallback cb, void *user_data)
+static void read_ignore_file(const char *dir_path, IgnoreLineCallback cb, void *user_data)
 {
     if (!dir_path) {
         return;
     }
     char ignore_file[PATH_MAX * 2];
-    join_path(ignore_file, sizeof(ignore_file), dir_path, ".stowignore");
+    join_path(ignore_file, sizeof(ignore_file), dir_path, ".symignore");
 
     FILE *fp = fopen(ignore_file, "r");
+    if (!fp) {
+        join_path(ignore_file, sizeof(ignore_file), dir_path, ".stowignore");
+        fp = fopen(ignore_file, "r");
+    }
     if (!fp) {
         return;
     }
@@ -218,7 +218,6 @@ static void read_stowignore_file(const char *dir_path, StowignoreLineCallback cb
             continue;
         }
 
-        /* Strip inline comment if present */
         char *hash = strchr(trimmed, '#');
         if (hash) {
             *hash = '\0';
@@ -234,7 +233,7 @@ static void read_stowignore_file(const char *dir_path, StowignoreLineCallback cb
     fclose(fp);
 }
 
-static void stowignore_cb(const char *line, void *user_data)
+static void ignore_pattern_cb(const char *line, void *user_data)
 {
     StringArray *ignore_patterns = (StringArray *)user_data;
     char escaped[PATH_MAX * 2];
@@ -257,12 +256,12 @@ static void stowignore_cb(const char *line, void *user_data)
     }
 }
 
-void parse_stowignore(const char *dir_path, StringArray *ignore_patterns)
+void parse_ignore_file(const char *dir_path, StringArray *ignore_patterns)
 {
-    read_stowignore_file(dir_path, stowignore_cb, ignore_patterns);
+    read_ignore_file(dir_path, ignore_pattern_cb, ignore_patterns);
 }
 
-static void raw_stowignore_cb(const char *line, void *user_data)
+static void raw_ignore_cb(const char *line, void *user_data)
 {
     StringArray *raw_ignores = (StringArray *)user_data;
     if (!str_array_contains(raw_ignores, line)) {
@@ -270,14 +269,17 @@ static void raw_stowignore_cb(const char *line, void *user_data)
     }
 }
 
-void parse_stowignore_raw(const char *dir_path, StringArray *raw_ignores)
+void parse_ignore_file_raw(const char *dir_path, StringArray *raw_ignores)
 {
-    read_stowignore_file(dir_path, raw_stowignore_cb, raw_ignores);
+    read_ignore_file(dir_path, raw_ignore_cb, raw_ignores);
 }
 
-void get_default_stowignore(StringArray *ignore_patterns)
+void get_default_ignore_patterns(StringArray *ignore_patterns)
 {
-    FILE *fp = open_resource_file("stowignore.default");
+    FILE *fp = open_resource_file("symignore.default");
+    if (!fp) {
+        fp = open_resource_file("stowignore.default");
+    }
     if (fp) {
         char *linebuf = NULL;
         size_t linecap = 0;
@@ -295,12 +297,11 @@ void get_default_stowignore(StringArray *ignore_patterns)
         free(linebuf);
         fclose(fp);
     } else {
-        /* Embedded fallback if resource registry is not found */
         static const char *default_ignores[] = {
-            ".stowdeps",   ".stowignore", ".git",       ".gitignore", ".gitattributes",
-            ".gitmodules", ".DS_Store",   ".cvsignore", "CVS",        ".svn",
-            ".hg",         ".hgignore",   ".hgtags",    "_darcs",     "README*",
-            "LICENSE*",    "COPYING*",    "*~",         "#*#",        ".#*"};
+            ".symdeps",    ".symignore",  ".stowdeps",  ".stowignore", ".git",       ".gitignore",
+            ".gitattributes", ".gitmodules", ".DS_Store",   ".cvsignore",  "CVS",        ".svn",
+            ".hg",         ".hgignore",   ".hgtags",    "_darcs",      "README*",    "LICENSE*",
+            "COPYING*",    "*~",          "#*#",        ".#*"};
         size_t num_defaults = sizeof(default_ignores) / sizeof(default_ignores[0]);
         for (size_t i = 0; i < num_defaults; i++) {
             if (!str_array_contains(ignore_patterns, default_ignores[i])) {

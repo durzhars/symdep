@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,19 +16,20 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef REGISTRY_H
-#define REGISTRY_H
+#ifndef SYMDEP_REGISTRY_H
+#define SYMDEP_REGISTRY_H
 
 #include "utils/str.h"
 
-void registry_get_aliases(const char *dotfiles_dir, const char *tool, StringArray *aliases);
-void registry_get_distro_pkg(const char *dotfiles_dir,
+void registry_get_aliases(const char *source_dir, const char *tool, StringArray *aliases);
+void registry_get_distro_pkg(const char *source_dir,
                              const char *tool,
                              const char *distro,
                              char *out,
                              size_t out_size);
-void registry_get_all_tools(const char *dotfiles_dir, StringArray *tools);
-bool is_tool_installed_dynamic(const char *dotfiles_dir, const char *tool);
-void get_all_packages(const char *dotfiles_dir, StringArray *packages);
+void registry_get_all_tools(const char *source_dir, StringArray *tools);
+bool is_tool_installed_dynamic(const char *source_dir, const char *tool);
+void get_all_packages(const char *source_dir, StringArray *packages);
 
-#endif /* REGISTRY_H */
+#endif /* SYMDEP_REGISTRY_H */
+

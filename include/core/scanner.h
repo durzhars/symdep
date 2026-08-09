@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,9 +16,10 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef SCANNER_H
-#define SCANNER_H
+#ifndef SYMDEP_SCANNER_H
+#define SYMDEP_SCANNER_H
 
-void scan_package(const char *dotfiles_dir, const char *pkg_name);
+void scan_package(const char *source_dir, const char *pkg_name);
 
-#endif /* SCANNER_H */
+#endif /* SYMDEP_SCANNER_H */
+

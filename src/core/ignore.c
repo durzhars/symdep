@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -20,29 +20,43 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "core/ignore.h"
+#include "core/file_collector.h"
 #include "core/registry.h"
-#include "core/stowignore.h"
 
 #include "utils/defs.h"
 #include "utils/fs.h"
 #include "utils/logger.h"
-#include "utils/mem.h"
 #include "utils/path.h"
+#include "utils/str.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static void
-get_stowignore_path(const char *dotfiles_dir, const char *pkg_name, char *out_path, size_t out_size)
+get_stowignore_path(const char *source_dir, const char *pkg_name, char *out_path, size_t out_size)
 {
     if (pkg_name && *pkg_name != '\0') {
         char pkg_dir[PATH_MAX * 2];
-        join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+        join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
         mkdir_p(pkg_dir, 0755);
-        join_path(out_path, out_size, pkg_dir, ".stowignore");
+        join_path(out_path, out_size, pkg_dir, ".symignore");
+        if (!file_exists(out_path)) {
+            char legacy_path[PATH_MAX * 4];
+            join_path(legacy_path, sizeof(legacy_path), pkg_dir, ".stowignore");
+            if (file_exists(legacy_path)) {
+                snprintf(out_path, out_size, "%s", legacy_path);
+            }
+        }
     } else {
-        join_path(out_path, out_size, dotfiles_dir, ".stowignore");
+        join_path(out_path, out_size, source_dir, ".symignore");
+        if (!file_exists(out_path)) {
+            char legacy_path[PATH_MAX * 4];
+            join_path(legacy_path, sizeof(legacy_path), source_dir, ".stowignore");
+            if (file_exists(legacy_path)) {
+                snprintf(out_path, out_size, "%s", legacy_path);
+            }
+        }
     }
 }
 
@@ -90,17 +104,17 @@ static void print_ignore_file_lines(const char *path, const StringArray *global_
  * =========================================================================
  */
 
-static void ignore_show_global(const char *dotfiles_dir)
+static void ignore_show_global(const char *source_dir)
 {
     char global_path[PATH_MAX];
-    get_stowignore_path(dotfiles_dir, NULL, global_path, sizeof(global_path));
+    get_stowignore_path(source_dir, NULL, global_path, sizeof(global_path));
 
     if (!file_exists(global_path)) {
-        log_warn("No global '.stowignore' file found at repository root.");
+        log_warn("No global '.symignore' file found at repository root.");
         return;
     }
 
-    printf("\n%s%s=== Global Ignore Rules [.stowignore] ===%s\n\n",
+    printf("\n%s%s=== Global Ignore Rules [.symignore] ===%s\n\n",
            COLOR_CYAN,
            COLOR_BOLD,
            COLOR_RESET);
@@ -108,17 +122,17 @@ static void ignore_show_global(const char *dotfiles_dir)
     printf("\n");
 }
 
-static void ignore_show_package(const char *dotfiles_dir, const char *pkg_name)
+static void ignore_show_package(const char *source_dir, const char *pkg_name)
 {
     char pkg_path[PATH_MAX];
-    get_stowignore_path(dotfiles_dir, pkg_name, pkg_path, sizeof(pkg_path));
+    get_stowignore_path(source_dir, pkg_name, pkg_path, sizeof(pkg_path));
 
     if (!file_exists(pkg_path)) {
-        log_warn("No '.stowignore' file found for package '%s'.", pkg_name);
+        log_warn("No '.symignore' file found for package '%s'.", pkg_name);
         return;
     }
 
-    printf("\n%s%s=== Ignore Rules [.stowignore] for Package '%s' ===%s\n\n",
+    printf("\n%s%s=== Ignore Rules [.symignore] for Package '%s' ===%s\n\n",
            COLOR_CYAN,
            COLOR_BOLD,
            pkg_name,
@@ -127,7 +141,7 @@ static void ignore_show_package(const char *dotfiles_dir, const char *pkg_name)
     /* Load raw global ignore patterns to mark redundant declarations */
     StringArray global_patterns;
     str_array_init(&global_patterns);
-    parse_stowignore_raw(dotfiles_dir, &global_patterns);
+    parse_stowignore_raw(source_dir, &global_patterns);
 
     print_ignore_file_lines(pkg_path, &global_patterns);
     printf("\n");
@@ -135,19 +149,19 @@ static void ignore_show_package(const char *dotfiles_dir, const char *pkg_name)
     str_array_free(&global_patterns);
 }
 
-static void ignore_show_all(const char *dotfiles_dir)
+static void ignore_show_all(const char *source_dir)
 {
-    ignore_show_global(dotfiles_dir);
+    ignore_show_global(source_dir);
 
     StringArray packages;
     str_array_init(&packages);
-    get_all_packages(dotfiles_dir, &packages);
+    get_all_packages(source_dir, &packages);
 
     for (size_t i = 0; i < packages.count; i++) {
         char pkg_path[PATH_MAX];
-        get_stowignore_path(dotfiles_dir, packages.items[i], pkg_path, sizeof(pkg_path));
+        get_stowignore_path(source_dir, packages.items[i], pkg_path, sizeof(pkg_path));
         if (file_exists(pkg_path)) {
-            ignore_show_package(dotfiles_dir, packages.items[i]);
+            ignore_show_package(source_dir, packages.items[i]);
         }
     }
 
@@ -158,33 +172,36 @@ static void ignore_show_all(const char *dotfiles_dir)
  * Single Target Init / Clear
  * ========================================================================= */
 
-static void ignore_init_single(const char *dotfiles_dir, const char *pkg_name)
+static void ignore_init_single(const char *source_dir, const char *pkg_name)
 {
     char path[PATH_MAX * 4];
-    get_stowignore_path(dotfiles_dir, pkg_name, path, sizeof(path));
+    get_stowignore_path(source_dir, pkg_name, path, sizeof(path));
 
     if (file_exists(path)) {
         if (pkg_name && *pkg_name != '\0') {
-            log_warn("'.stowignore' already exists for package '%s'.", pkg_name);
+            log_warn("'.symignore' already exists for package '%s'.", pkg_name);
         } else {
-            log_warn("'.stowignore' already exists at repository root.");
+            log_warn("'.symignore' already exists at repository root.");
         }
         return;
     }
 
     FILE *fp = fopen(path, "w");
     if (!fp) {
-        log_error("Failed to create '.stowignore' at: %s", path);
+        log_error("Failed to create '.symignore' at: %s", path);
         return;
     }
 
     if (pkg_name && *pkg_name != '\0') {
-        fprintf(fp, "# .stowignore for package '%s'\n", pkg_name);
+        fprintf(fp, "# .symignore for package '%s'\n", pkg_name);
     } else {
-        fprintf(fp, "# Global .stowignore for dotfiles repository\n");
+        fprintf(fp, "# Global .symignore for source repository\n");
     }
 
-    FILE *tmpl = open_resource_file("stowignore.template");
+    FILE *tmpl = open_resource_file("symignore.template");
+    if (!tmpl) {
+        tmpl = open_resource_file("stowignore.template");
+    }
     if (tmpl) {
         char line[512];
         while (fgets(line, sizeof(line), tmpl)) {
@@ -197,7 +214,7 @@ static void ignore_init_single(const char *dotfiles_dir, const char *pkg_name)
                 "# Build & Runtime Cache Artifacts\n"
                 "*.zwc\n"
                 "*.pyc\n"
-                "*.stow_backup_*\n\n"
+                "*.symdep_backup_*\n\n"
                 "# OS & Editor Metadata\n"
                 ".DS_Store\n"
                 "Thumbs.db\n"
@@ -208,34 +225,34 @@ static void ignore_init_single(const char *dotfiles_dir, const char *pkg_name)
     fclose(fp);
 
     if (pkg_name && *pkg_name != '\0') {
-        log_success("Initialized '.stowignore' for package '%s'.", pkg_name);
+        log_success("Initialized '.symignore' for package '%s'.", pkg_name);
     } else {
-        log_success("Initialized global '.stowignore' at repository root.");
+        log_success("Initialized global '.symignore' at repository root.");
     }
 }
 
-static void ignore_clear_single(const char *dotfiles_dir, const char *pkg_name)
+static void ignore_clear_single(const char *source_dir, const char *pkg_name)
 {
     char path[PATH_MAX * 4];
-    get_stowignore_path(dotfiles_dir, pkg_name, path, sizeof(path));
+    get_stowignore_path(source_dir, pkg_name, path, sizeof(path));
 
     if (!file_exists(path)) {
         if (pkg_name && *pkg_name != '\0') {
-            log_warn("No '.stowignore' file found for package '%s'.", pkg_name);
+            log_warn("No '.symignore' file found for package '%s'.", pkg_name);
         } else {
-            log_warn("No global '.stowignore' file found at repository root.");
+            log_warn("No global '.symignore' file found at repository root.");
         }
         return;
     }
 
     if (remove(path) == 0) {
         if (pkg_name && *pkg_name != '\0') {
-            log_success("Cleared '.stowignore' file for package '%s'.", pkg_name);
+            log_success("Cleared '.symignore' file for package '%s'.", pkg_name);
         } else {
-            log_success("Cleared global '.stowignore' file at repository root.");
+            log_success("Cleared global '.symignore' file at repository root.");
         }
     } else {
-        log_error("Failed to delete '.stowignore' file at: %s", path);
+        log_error("Failed to delete '.symignore' file at: %s", path);
     }
 }
 
@@ -243,45 +260,45 @@ static void ignore_clear_single(const char *dotfiles_dir, const char *pkg_name)
  * Batch Entrypoints (Zero Allocation Slices)
  * ========================================================================= */
 
-void ignore_init(const char *dotfiles_dir, const char *const *pkgs, size_t count)
+void ignore_init(const char *source_dir, const char *const *pkgs, size_t count)
 {
     if (!pkgs || count == 0) {
-        ignore_init_single(dotfiles_dir, NULL);
+        ignore_init_single(source_dir, NULL);
         return;
     }
     for (size_t i = 0; i < count; i++) {
-        ignore_init_single(dotfiles_dir, pkgs[i]);
+        ignore_init_single(source_dir, pkgs[i]);
     }
 }
 
-void ignore_clear(const char *dotfiles_dir, const char *const *pkgs, size_t count)
+void ignore_clear(const char *source_dir, const char *const *pkgs, size_t count)
 {
     if (!pkgs || count == 0) {
-        ignore_clear_single(dotfiles_dir, NULL);
+        ignore_clear_single(source_dir, NULL);
         return;
     }
     for (size_t i = 0; i < count; i++) {
-        ignore_clear_single(dotfiles_dir, pkgs[i]);
+        ignore_clear_single(source_dir, pkgs[i]);
     }
 }
 
-void ignore_show(const char *dotfiles_dir, const char *const *pkgs, size_t count)
+void ignore_show(const char *source_dir, const char *const *pkgs, size_t count)
 {
     if (!pkgs || count == 0) {
-        ignore_show_all(dotfiles_dir);
+        ignore_show_all(source_dir);
         return;
     }
 
     for (size_t i = 0; i < count; i++) {
         if (strcmp(pkgs[i], "all") == 0 || strcmp(pkgs[i], "--all") == 0) {
-            ignore_show_all(dotfiles_dir);
+            ignore_show_all(source_dir);
         } else {
-            ignore_show_package(dotfiles_dir, pkgs[i]);
+            ignore_show_package(source_dir, pkgs[i]);
         }
     }
 }
 
-void ignore_add_patterns(const char *dotfiles_dir,
+void ignore_add_patterns(const char *source_dir,
                          const char *pkg_name,
                          const char *const *patterns,
                          size_t count)
@@ -296,14 +313,14 @@ void ignore_add_patterns(const char *dotfiles_dir,
     StringArray global_patterns;
     str_array_init(&global_patterns);
     if (is_package) {
-        parse_stowignore_raw(dotfiles_dir, &global_patterns);
+        parse_stowignore_raw(source_dir, &global_patterns);
     }
 
     char path[PATH_MAX];
-    get_stowignore_path(dotfiles_dir, pkg_name, path, sizeof(path));
+    get_stowignore_path(source_dir, pkg_name, path, sizeof(path));
 
     if (!file_exists(path)) {
-        ignore_init_single(dotfiles_dir, pkg_name);
+        ignore_init_single(source_dir, pkg_name);
     }
 
     StringArray existing;
@@ -323,7 +340,7 @@ void ignore_add_patterns(const char *dotfiles_dir,
 
     FILE *afp = fopen(path, "a");
     if (!afp) {
-        log_error("Failed to open '.stowignore' for writing: %s", path);
+        log_error("Failed to open '.symignore' for writing: %s", path);
         str_array_free(&existing);
         str_array_free(&global_patterns);
         return;
@@ -336,14 +353,14 @@ void ignore_add_patterns(const char *dotfiles_dir,
         }
 
         if (is_package && str_array_contains(&global_patterns, pat)) {
-            log_warn("Pattern '%s' is already in global '.stowignore' (skipping "
+            log_warn("Pattern '%s' is already in global '.symignore' (skipping "
                      "duplicate).",
                      pat);
             continue;
         }
 
         if (str_array_contains(&existing, pat)) {
-            log_warn("Pattern '%s' already exists in '.stowignore' (skipping "
+            log_warn("Pattern '%s' already exists in '.symignore' (skipping "
                      "duplicate).",
                      pat);
             continue;
@@ -353,9 +370,9 @@ void ignore_add_patterns(const char *dotfiles_dir,
         str_array_append(&existing, pat);
 
         if (is_package) {
-            log_success("Added pattern '%s' to '.stowignore' for package '%s'.", pat, pkg_name);
+            log_success("Added pattern '%s' to '.symignore' for package '%s'.", pat, pkg_name);
         } else {
-            log_success("Added pattern '%s' to global '.stowignore'.", pat);
+            log_success("Added pattern '%s' to global '.symignore'.", pat);
         }
     }
 
@@ -364,7 +381,7 @@ void ignore_add_patterns(const char *dotfiles_dir,
     str_array_free(&global_patterns);
 }
 
-void ignore_remove_patterns(const char *dotfiles_dir,
+void ignore_remove_patterns(const char *source_dir,
                             const char *pkg_name,
                             const char *const *patterns,
                             size_t count)
@@ -375,20 +392,20 @@ void ignore_remove_patterns(const char *dotfiles_dir,
     }
 
     char path[PATH_MAX * 4];
-    get_stowignore_path(dotfiles_dir, pkg_name, path, sizeof(path));
+    get_stowignore_path(source_dir, pkg_name, path, sizeof(path));
 
     if (!file_exists(path)) {
         if (pkg_name && *pkg_name != '\0') {
-            log_warn("No '.stowignore' file found for package '%s'.", pkg_name);
+            log_warn("No '.symignore' file found for package '%s'.", pkg_name);
         } else {
-            log_warn("No global '.stowignore' file found at repository root.");
+            log_warn("No global '.symignore' file found at repository root.");
         }
         return;
     }
 
     FILE *fp = fopen(path, "r");
     if (!fp) {
-        log_error("Failed to open '.stowignore' for reading: %s", path);
+        log_error("Failed to open '.symignore' for reading: %s", path);
         return;
     }
 
@@ -430,12 +447,12 @@ void ignore_remove_patterns(const char *dotfiles_dir,
         if (found) {
             if (pkg_name && *pkg_name != '\0') {
                 log_success(
-                    "Removed pattern '%s' from '.stowignore' for package '%s'.", pat, pkg_name);
+                    "Removed pattern '%s' from '.symignore' for package '%s'.", pat, pkg_name);
             } else {
-                log_success("Removed pattern '%s' from global '.stowignore'.", pat);
+                log_success("Removed pattern '%s' from global '.symignore'.", pat);
             }
         } else {
-            log_warn("Pattern '%s' was not found in '.stowignore'.", pat);
+            log_warn("Pattern '%s' was not found in '.symignore'.", pat);
         }
     }
 
@@ -447,7 +464,7 @@ void ignore_remove_patterns(const char *dotfiles_dir,
             }
             fclose(wfp);
         } else {
-            log_error("Failed to write updated '.stowignore': %s", path);
+            log_error("Failed to write updated '.symignore': %s", path);
         }
     }
 

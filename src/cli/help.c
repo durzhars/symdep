@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -34,8 +34,8 @@
 #if __has_include("help_text_plain.h")
 #include "help_text_plain.h"
 #else
-static const char *EMBEDDED_HELP_TXT = "Dotfiles Stow Manager (stow-manager)\n\n"
-                                       "Usage: stow-manager [options] <command> [arguments]\n\n"
+static const char *EMBEDDED_HELP_TXT = "Symlink & Dependency Manager (symdep)\n\n"
+                                       "Usage: symdep [options] <command> [arguments]\n\n"
                                        "Run make to compile full help menu or pass -h / --help.\n";
 #endif
 
@@ -60,13 +60,13 @@ static void render_plain_line(const char *line, int use_color)
     }
 
     /* Title line (first non-empty line, no leading whitespace, contains program name) */
-    if (strstr(buf, "stow-manager") && buf[0] != ' ') {
+    if ((strstr(buf, "symdep") || strstr(buf, "stow-manager")) && buf[0] != ' ') {
         if (strncmp(buf, "Usage:", 6) == 0) {
             /* "Usage: ..." line */
             printf("%s%sUsage:%s %s\n", COLOR_BOLD, COLOR_WHITE, COLOR_RESET, buf + 6);
             return;
         }
-        if (strncmp(buf, "Dotfiles", 8) == 0) {
+        if (strncmp(buf, "Symlink", 7) == 0 || strncmp(buf, "Dotfiles", 8) == 0) {
             printf("\n%s%s%s%s\n", COLOR_BOLD, COLOR_CYAN, buf, COLOR_RESET);
             return;
         }
@@ -128,3 +128,4 @@ void show_help(void)
         }
     }
 }
+

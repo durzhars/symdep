@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef STOW_CMD_DISPATCH_H
-#define STOW_CMD_DISPATCH_H
+#ifndef SYMDEP_CMD_DISPATCH_H
+#define SYMDEP_CMD_DISPATCH_H
 
 #include <stdbool.h>
 
@@ -26,7 +26,7 @@
 // Unified context passed into every command handler template
 typedef struct {
     const CliOptions *opts;
-    const char *dotfiles_dir;
+    const char *source_dir;
     const char *global_target_dir;
     const StringArray *args; // Positional sub-arguments for the matched command
     size_t arg_offset;       // Index where subcommand payload arguments begin
@@ -48,4 +48,5 @@ typedef struct {
 // Routes positional arguments against the command table
 int dispatch_command(const StringArray *args, const CliOptions *opts);
 
-#endif /* STOW_CMD_DISPATCH_H */
+#endif /* SYMDEP_CMD_DISPATCH_H */
+

@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef UTILS_ENV_H
-#define UTILS_ENV_H
+#ifndef SYMDEP_UTILS_ENV_H
+#define SYMDEP_UTILS_ENV_H
 
 #include <limits.h>
 #include <stdbool.h>
@@ -64,4 +64,5 @@ void get_distro_id(char *buf, size_t buf_size);
 bool is_executable_in_path(const char *executable);
 int run_system_cmd(const char *cmd);
 
-#endif /* UTILS_ENV_H */
+#endif /* SYMDEP_UTILS_ENV_H */
+

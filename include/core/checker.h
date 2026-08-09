@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,15 +16,16 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef CHECKER_H
-#define CHECKER_H
+#ifndef SYMDEP_CHECKER_H
+#define SYMDEP_CHECKER_H
 
 #include <stdbool.h>
 
-void check_package_dependencies(const char *dotfiles_dir,
+void check_package_dependencies(const char *source_dir,
                                 const char *target_pkg,
                                 bool auto_install,
                                 bool dry_run);
-void check_symlink_health(const char *dotfiles_dir, const char *target_dir);
+void check_symlink_health(const char *source_dir, const char *target_dir);
 
-#endif /* CHECKER_H */
+#endif /* SYMDEP_CHECKER_H */
+

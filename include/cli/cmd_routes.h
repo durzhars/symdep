@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef STOW_CMD_ROUTES_H
-#define STOW_CMD_ROUTES_H
+#ifndef SYMDEP_CMD_ROUTES_H
+#define SYMDEP_CMD_ROUTES_H
 
 #include "cmd_dispatch.h"
 
@@ -58,4 +58,5 @@ int cmd_help(const CommandContext *ctx);
 /* Command Routing Table Registry */
 extern const CommandRoute ROUTE_TABLE[];
 
-#endif /* STOW_CMD_ROUTES_H */
+#endif /* SYMDEP_CMD_ROUTES_H */
+

@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef CORE_STOWIGNORE_H
-#define CORE_STOWIGNORE_H
+#ifndef SYMDEP_FILE_COLLECTOR_H
+#define SYMDEP_FILE_COLLECTOR_H
 
 #include <limits.h>
 #include <stdbool.h>
@@ -41,9 +41,14 @@ void pkg_file_list_free(PkgFileList *list);
 void pkg_file_list_append(PkgFileList *list, const char *rel_path, const char *full_path, bool is_dir);
 void collect_package_files(const char *pkg_dir, const StringArray *raw_ignores, PkgFileList *list);
 
-void parse_stowignore(const char *dir_path, StringArray *ignore_patterns);
-void parse_stowignore_raw(const char *dir_path, StringArray *raw_ignores);
-void get_default_stowignore(StringArray *ignore_patterns);
+void parse_ignore_file(const char *dir_path, StringArray *ignore_patterns);
+void parse_ignore_file_raw(const char *dir_path, StringArray *raw_ignores);
+void get_default_ignore_patterns(StringArray *ignore_patterns);
 bool is_path_ignored(const char *rel_path, const StringArray *raw_ignores);
 
-#endif /* CORE_STOWIGNORE_H */
+/* Forward-compatibility aliases */
+#define parse_stowignore parse_ignore_file
+#define parse_stowignore_raw parse_ignore_file_raw
+#define get_default_stowignore get_default_ignore_patterns
+
+#endif /* SYMDEP_FILE_COLLECTOR_H */

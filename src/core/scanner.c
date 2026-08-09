@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -149,10 +149,10 @@ static void scan_file_cb(const char *file_path, const char *rel_path, void *user
     }
 }
 
-void scan_package(const char *dotfiles_dir, const char *pkg_name)
+void scan_package(const char *source_dir, const char *pkg_name)
 {
     char pkg_dir[PATH_MAX * 2];
-    join_path(pkg_dir, sizeof(pkg_dir), dotfiles_dir, pkg_name);
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!file_exists(pkg_dir)) {
         log_error("Package directory '%s' does not exist!", pkg_name);
@@ -164,9 +164,9 @@ void scan_package(const char *dotfiles_dir, const char *pkg_name)
     StringArray candidate_tools;
     str_array_init(&candidate_tools);
 
-    // Collect candidate tools from dotfiles packages and registry
-    get_all_packages(dotfiles_dir, &candidate_tools);
-    registry_get_all_tools(dotfiles_dir, &candidate_tools);
+    // Collect candidate tools from source packages and registry
+    get_all_packages(source_dir, &candidate_tools);
+    registry_get_all_tools(source_dir, &candidate_tools);
 
     StringArray shebangs;
     StringArray invocations;
@@ -204,9 +204,17 @@ void scan_package(const char *dotfiles_dir, const char *pkg_name)
     printf("\n\n");
 
     char manifest_path[PATH_MAX * 4];
-    join_path(manifest_path, sizeof(manifest_path), pkg_dir, ".stowdeps");
+    join_path(manifest_path, sizeof(manifest_path), pkg_dir, ".symdeps");
     if (!file_exists(manifest_path)) {
-        log_info("Auto-generating '.stowdeps' manifest for '%s'...", pkg_name);
+        char legacy_manifest[PATH_MAX * 4];
+        join_path(legacy_manifest, sizeof(legacy_manifest), pkg_dir, ".stowdeps");
+        if (file_exists(legacy_manifest)) {
+            snprintf(manifest_path, sizeof(manifest_path), "%s", legacy_manifest);
+        }
+    }
+
+    if (!file_exists(manifest_path)) {
+        log_info("Auto-generating '.symdeps' manifest for '%s'...", pkg_name);
         PackageManifest manifest;
         manifest_init(&manifest, pkg_name);
         for (size_t i = 0; i < shebangs.count; i++) {
@@ -215,7 +223,7 @@ void scan_package(const char *dotfiles_dir, const char *pkg_name)
         for (size_t i = 0; i < invocations.count; i++) {
             str_array_append(&manifest.optional, invocations.items[i]);
         }
-        manifest_save(&manifest, dotfiles_dir);
+        manifest_save(&manifest, source_dir);
         log_success("Generated '%s'", manifest_path);
         manifest_free(&manifest);
     }
@@ -224,3 +232,4 @@ void scan_package(const char *dotfiles_dir, const char *pkg_name)
     str_array_free(&invocations);
     str_array_free(&candidate_tools);
 }
+

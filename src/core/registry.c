@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "core/registry.h"
-#include "core/stowignore.h"
+#include "core/file_collector.h"
 
 #include "utils/fs.h"
 #include "utils/path.h"
@@ -32,9 +32,9 @@
 #include <string.h>
 #include <unistd.h>
 
-void get_all_packages(const char *dotfiles_dir, StringArray *packages)
+void get_all_packages(const char *source_dir, StringArray *packages)
 {
-    DIR *dir = opendir(dotfiles_dir);
+    DIR *dir = opendir(source_dir);
     if (!dir) {
         return;
     }
@@ -42,16 +42,16 @@ void get_all_packages(const char *dotfiles_dir, StringArray *packages)
     StringArray ignore_patterns;
     str_array_init(&ignore_patterns);
     get_default_stowignore(&ignore_patterns);
-    parse_stowignore_raw(dotfiles_dir, &ignore_patterns);
+    parse_stowignore_raw(source_dir, &ignore_patterns);
 
     struct dirent *entry;
     char path[PATH_MAX * 2];
-    size_t dotfiles_len = strlen(dotfiles_dir);
+    size_t source_len = strlen(source_dir);
 
-    if (dotfiles_len < sizeof(path) - 1) {
-        memcpy(path, dotfiles_dir, dotfiles_len);
-        if (dotfiles_len > 0 && path[dotfiles_len - 1] != '/') {
-            path[dotfiles_len++] = '/';
+    if (source_len < sizeof(path) - 1) {
+        memcpy(path, source_dir, source_len);
+        if (source_len > 0 && path[source_len - 1] != '/') {
+            path[source_len++] = '/';
         }
     }
 
@@ -67,8 +67,8 @@ void get_all_packages(const char *dotfiles_dir, StringArray *packages)
                 str_array_append(packages, name);
             } else if (entry->d_type == DT_UNKNOWN || entry->d_type == DT_LNK) {
                 size_t name_len = strlen(name);
-                if (dotfiles_len + name_len < sizeof(path)) {
-                    memcpy(path + dotfiles_len, name, name_len + 1);
+                if (source_len + name_len < sizeof(path)) {
+                    memcpy(path + source_len, name, name_len + 1);
                     if (is_dir(path) && !is_symlink(path)) {
                         str_array_append(packages, name);
                     }
@@ -81,29 +81,45 @@ void get_all_packages(const char *dotfiles_dir, StringArray *packages)
     closedir(dir);
 }
 
-static FILE *open_registry_file(const char *dotfiles_dir)
+static FILE *open_registry_file(const char *source_dir)
 {
-    if (dotfiles_dir && *dotfiles_dir != '\0') {
+    if (source_dir && *source_dir != '\0') {
         char path[PATH_MAX * 2];
-        snprintf(path, sizeof(path), "%s/stow.registry", dotfiles_dir);
+        snprintf(path, sizeof(path), "%s/symdep.registry", source_dir);
         FILE *fp = fopen(path, "r");
         if (fp) {
             return fp;
         }
 
-        snprintf(path, sizeof(path), "%s/.stowregistry", dotfiles_dir);
+        snprintf(path, sizeof(path), "%s/.symdepregistry", source_dir);
+        fp = fopen(path, "r");
+        if (fp) {
+            return fp;
+        }
+
+        snprintf(path, sizeof(path), "%s/stow.registry", source_dir);
+        fp = fopen(path, "r");
+        if (fp) {
+            return fp;
+        }
+
+        snprintf(path, sizeof(path), "%s/.stowregistry", source_dir);
         fp = fopen(path, "r");
         if (fp) {
             return fp;
         }
     }
 
-    return open_resource_file("stow.registry");
+    FILE *rfp = open_resource_file("symdep.registry");
+    if (!rfp) {
+        rfp = open_resource_file("stow.registry");
+    }
+    return rfp;
 }
 
-void registry_get_aliases(const char *dotfiles_dir, const char *tool, StringArray *aliases)
+void registry_get_aliases(const char *source_dir, const char *tool, StringArray *aliases)
 {
-    FILE *fp = open_registry_file(dotfiles_dir);
+    FILE *fp = open_registry_file(source_dir);
     if (!fp) {
         str_array_append(aliases, tool);
         return;
@@ -151,7 +167,7 @@ void registry_get_aliases(const char *dotfiles_dir, const char *tool, StringArra
     fclose(fp);
 }
 
-void registry_get_distro_pkg(const char *dotfiles_dir,
+void registry_get_distro_pkg(const char *source_dir,
                              const char *tool,
                              const char *distro_id,
                              char *pkg_out,
@@ -159,7 +175,7 @@ void registry_get_distro_pkg(const char *dotfiles_dir,
 {
     snprintf(pkg_out, pkg_out_size, "%s", tool);
 
-    FILE *fp = open_registry_file(dotfiles_dir);
+    FILE *fp = open_registry_file(source_dir);
     if (!fp) {
         return;
     }
@@ -195,9 +211,9 @@ void registry_get_distro_pkg(const char *dotfiles_dir,
     fclose(fp);
 }
 
-void registry_get_all_tools(const char *dotfiles_dir, StringArray *tools)
+void registry_get_all_tools(const char *source_dir, StringArray *tools)
 {
-    FILE *fp = open_registry_file(dotfiles_dir);
+    FILE *fp = open_registry_file(source_dir);
     if (!fp) {
         return;
     }
@@ -232,11 +248,11 @@ void registry_get_all_tools(const char *dotfiles_dir, StringArray *tools)
     fclose(fp);
 }
 
-bool is_tool_installed_dynamic(const char *dotfiles_dir, const char *tool)
+bool is_tool_installed_dynamic(const char *source_dir, const char *tool)
 {
     StringArray aliases;
     str_array_init(&aliases);
-    registry_get_aliases(dotfiles_dir, tool, &aliases);
+    registry_get_aliases(source_dir, tool, &aliases);
 
     bool installed = false;
     for (size_t i = 0; i < aliases.count; i++) {

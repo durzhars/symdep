@@ -19,14 +19,13 @@
 #ifndef SYMDEP_CONFIG_H
 #define SYMDEP_CONFIG_H
 
+#include "utils/defs.h"
 #include "utils/str.h"
-#include <limits.h>
-#include <linux/limits.h>
 
 typedef struct {
-    char config_file_path[PATH_MAX];
+    char config_file_path[STOW_PATH_MAX];
     StringArray source_dirs;
-    char target_dir[PATH_MAX];
+    char target_dir[STOW_PATH_MAX];
 } Config;
 
 void config_init(Config *cfg);

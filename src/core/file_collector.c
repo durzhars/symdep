@@ -19,10 +19,6 @@
 #define _GNU_SOURCE
 #define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
-#ifndef STR
-#define XSTR(s) #s
-#define STR(s) XSTR(s)
-#endif
 
 #include <dirent.h>
 #include <fnmatch.h>
@@ -89,8 +85,8 @@ void pkg_file_list_append(PkgFileList *list,
 typedef struct {
     const StringArray *raw_ignores;
     PkgFileList *list;
-    char full_buf[PATH_MAX * 2];
-    char rel_buf[PATH_MAX * 2];
+    char full_buf[STOW_PATH_LARGE];
+    char rel_buf[STOW_PATH_LARGE];
 } CollectState;
 
 static void
@@ -195,7 +191,7 @@ static void read_ignore_file(const char *dir_path, IgnoreLineCallback cb, void *
     if (!dir_path) {
         return;
     }
-    char ignore_file[PATH_MAX * 2];
+    char ignore_file[STOW_PATH_LARGE];
     join_path(ignore_file, sizeof(ignore_file), dir_path, ".symignore");
 
     FILE *fp = fopen(ignore_file, "r");
@@ -236,7 +232,7 @@ static void read_ignore_file(const char *dir_path, IgnoreLineCallback cb, void *
 static void ignore_pattern_cb(const char *line, void *user_data)
 {
     StringArray *ignore_patterns = (StringArray *)user_data;
-    char escaped[PATH_MAX * 2];
+    char escaped[STOW_PATH_LARGE];
     size_t e = 0;
     for (size_t i = 0; line[i] != '\0' && e + 2 < sizeof(escaped); i++) {
         if (line[i] == '.') {
@@ -351,8 +347,8 @@ bool is_path_ignored(const char *rel_path, const StringArray *raw_ignores)
 
             size_t plen = strlen(pat);
             if (pat[plen - 1] == '/') {
-                if (plen < PATH_MAX) {
-                    char dir_pat[PATH_MAX];
+                if (plen < STOW_PATH_MAX) {
+                    char dir_pat[STOW_PATH_MAX];
                     memcpy(dir_pat, pat, plen - 1);
                     dir_pat[plen - 1] = '\0';
 

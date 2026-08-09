@@ -26,6 +26,7 @@
 #include "utils/defs.h"
 #include "utils/fs.h"
 #include "utils/logger.h"
+#include "utils/mem.h"
 #include "utils/path.h"
 #include <ctype.h>
 #include <dirent.h>
@@ -39,7 +40,7 @@ static void parse_shebang_interpreter(const char *first_line, StringArray *sheba
         return;
     }
 
-    char *copy = strdup(first_line + 2);
+    char *copy = safe_strdup(first_line + 2);
     if (!copy) {
         return;
     }
@@ -151,7 +152,7 @@ static void scan_file_cb(const char *file_path, const char *rel_path, void *user
 
 void scan_package(const char *source_dir, const char *pkg_name)
 {
-    char pkg_dir[PATH_MAX * 2];
+    char pkg_dir[STOW_PATH_LARGE];
     join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!file_exists(pkg_dir)) {
@@ -203,10 +204,10 @@ void scan_package(const char *source_dir, const char *pkg_name)
     }
     printf("\n\n");
 
-    char manifest_path[PATH_MAX * 4];
+    char manifest_path[STOW_PATH_HUGE];
     join_path(manifest_path, sizeof(manifest_path), pkg_dir, ".symdeps");
     if (!file_exists(manifest_path)) {
-        char legacy_manifest[PATH_MAX * 4];
+        char legacy_manifest[STOW_PATH_HUGE];
         join_path(legacy_manifest, sizeof(legacy_manifest), pkg_dir, ".stowdeps");
         if (file_exists(legacy_manifest)) {
             snprintf(manifest_path, sizeof(manifest_path), "%s", legacy_manifest);

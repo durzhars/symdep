@@ -280,7 +280,7 @@ static void scan_orphan_cb(const char *symlink_path, void *user_data)
             if (pkg_len < sizeof(pkg_name)) {
                 strncpy(pkg_name, rel, pkg_len);
                 pkg_name[pkg_len] = '\0';
-                char pkg_dir[PATH_MAX * 2];
+                char pkg_dir[STOW_PATH_LARGE];
                 join_path(pkg_dir, sizeof(pkg_dir), ctx->source_dir, pkg_name);
                 if (!is_dir(pkg_dir) || !file_exists(target)) {
                     log_warn("Unmanaged / Orphan symlink: %s -> %s (target file does not exist)",

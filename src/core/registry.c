@@ -45,7 +45,7 @@ void get_all_packages(const char *source_dir, StringArray *packages)
     parse_stowignore_raw(source_dir, &ignore_patterns);
 
     struct dirent *entry;
-    char path[PATH_MAX * 2];
+    char path[STOW_PATH_LARGE];
     size_t source_len = strlen(source_dir);
 
     if (source_len < sizeof(path) - 1) {
@@ -84,7 +84,7 @@ void get_all_packages(const char *source_dir, StringArray *packages)
 static FILE *open_registry_file(const char *source_dir)
 {
     if (source_dir && *source_dir != '\0') {
-        char path[PATH_MAX * 2];
+        char path[STOW_PATH_LARGE];
         snprintf(path, sizeof(path), "%s/symdep.registry", source_dir);
         FILE *fp = fopen(path, "r");
         if (fp) {
@@ -259,7 +259,7 @@ bool is_tool_installed_dynamic(const char *source_dir, const char *tool)
         const char *entry = aliases.items[i];
         if (strncmp(entry, "plugin:", 7) == 0) {
             const char *plugin_path = entry + 7;
-            char expanded[PATH_MAX * 2];
+            char expanded[STOW_PATH_LARGE];
             expand_tilde_path(plugin_path, expanded, sizeof(expanded));
             if (access(expanded, R_OK) == 0) {
                 installed = true;

@@ -39,7 +39,7 @@ static void parse_space_delimited(const char *str, StringArray *arr)
     if (!str) {
         return;
     }
-    char *copy = strdup(str);
+    char *copy = safe_strdup(str);
     if (!copy) {
         return;
     }
@@ -55,7 +55,7 @@ static void parse_space_delimited(const char *str, StringArray *arr)
 
 void manifest_init(PackageManifest *manifest, const char *pkg_name)
 {
-    manifest->package_name = strdup(pkg_name);
+    manifest->package_name = safe_strdup(pkg_name);
     manifest->target_path = NULL;
     str_array_init(&manifest->required);
     str_array_init(&manifest->optional);
@@ -64,10 +64,10 @@ void manifest_init(PackageManifest *manifest, const char *pkg_name)
 
 bool manifest_load(PackageManifest *manifest, const char *source_dir)
 {
-    char pkg_dir[PATH_MAX * 2];
+    char pkg_dir[STOW_PATH_LARGE];
     join_path(pkg_dir, sizeof(pkg_dir), source_dir, manifest->package_name);
 
-    char path[PATH_MAX * 4];
+    char path[STOW_PATH_HUGE];
     join_path(path, sizeof(path), pkg_dir, ".symdeps");
 
     FILE *fp = fopen(path, "r");
@@ -126,11 +126,11 @@ bool manifest_load(PackageManifest *manifest, const char *source_dir)
 
 bool manifest_save(const PackageManifest *manifest, const char *source_dir)
 {
-    char pkg_dir[PATH_MAX * 2];
+    char pkg_dir[STOW_PATH_LARGE];
     join_path(pkg_dir, sizeof(pkg_dir), source_dir, manifest->package_name);
     mkdir_p(pkg_dir, 0755);
 
-    char path[PATH_MAX * 4];
+    char path[STOW_PATH_HUGE];
     join_path(path, sizeof(path), pkg_dir, ".symdeps");
 
     FILE *fp = fopen(path, "w");
@@ -318,9 +318,9 @@ void manifest_remove_dep(const char *source_dir, const char *pkg_name, const cha
 
 void manifest_show(const char *source_dir, const char *pkg_name)
 {
-    char pkg_dir[PATH_MAX * 2];
+    char pkg_dir[STOW_PATH_LARGE];
     join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
-    char path[PATH_MAX * 4];
+    char path[STOW_PATH_HUGE];
     join_path(path, sizeof(path), pkg_dir, ".symdeps");
 
     if (!file_exists(path)) {
@@ -353,7 +353,7 @@ void package_remove(const char *source_dir,
                     const char *pkg_name,
                     bool dry_run)
 {
-    char pkg_dir[PATH_MAX * 2];
+    char pkg_dir[STOW_PATH_LARGE];
     join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     if (!is_dir(pkg_dir)) {
@@ -379,11 +379,8 @@ void package_remove(const char *source_dir,
     }
 
     log_warn("Removing package directory '%s'...", pkg_dir);
-    char escaped_pkg_dir[PATH_MAX * 3];
-    escape_shell_arg(pkg_dir, escaped_pkg_dir, sizeof(escaped_pkg_dir));
-    char rm_cmd[PATH_MAX * 3 + 32];
-    snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", escaped_pkg_dir);
-    if (run_system_cmd(rm_cmd) == 0) {
+    cleanup_temp_dir_contents(pkg_dir);
+    if (rmdir(pkg_dir) == 0) {
         log_success("Successfully removed package '%s'.", pkg_name);
     } else {
         log_error("Failed to remove package directory '%s'.", pkg_dir);

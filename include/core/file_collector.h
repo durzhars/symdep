@@ -18,15 +18,12 @@
 #ifndef SYMDEP_FILE_COLLECTOR_H
 #define SYMDEP_FILE_COLLECTOR_H
 
-#include <limits.h>
-#include <stdbool.h>
-#include <stddef.h>
-
+#include "utils/defs.h"
 #include "utils/str.h"
 
 typedef struct {
-    char rel_path[PATH_MAX];
-    char full_path[PATH_MAX * 2];
+    char rel_path[STOW_PATH_MAX];
+    char full_path[STOW_PATH_LARGE];
     bool is_dir;
 } PkgFileEntry;
 

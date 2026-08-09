@@ -20,9 +20,8 @@
 #define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
-#include "../test_framework.h"
+#include "../../test_framework.h"
 #include "cli/cmd_dispatch.h"
-#include "core/config.h"
 
 void test_dispatch_command_routes(void)
 {
@@ -46,7 +45,7 @@ void test_dispatch_command_routes(void)
     }
 
     CliOptions opts = {.auto_install = false,
-                       .dry_run = true, // Use dry_run for safe execution testing
+                       .dry_run = true,
                        .save_flag = false,
                        .cli_source_dir = tmp_dotfiles,
                        .cli_target_dir = tmp_target};
@@ -90,7 +89,7 @@ void test_dispatch_command_routes(void)
     ASSERT(res5 == 1, "dispatch_command with unknown command should return 1 error");
     str_array_free(&args);
 
-    // 6. Insufficient arguments (e.g., 'stow' without package name)
+    // 6. Insufficient arguments
     str_array_init(&args);
     str_array_append(&args, "stow");
     int res6 = dispatch_command(&args, &opts);
@@ -106,4 +105,3 @@ void test_dispatch_command_routes(void)
     cleanup_test_dir(tmp_dotfiles);
     cleanup_test_dir(tmp_target);
 }
-

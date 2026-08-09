@@ -78,7 +78,7 @@ SRC_DEPS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/.deps/%.d,$(SRCS))
 DEPS = $(SRC_DEPS) $(TEST_DEPS)
 TARGET = $(BIN_DIR)/$(BIN_NAME)
 
-TEST_SRCS = $(wildcard $(TEST_UNIT_DIR)/*.c $(TEST_UNIT_DIR)/*/*.c)
+TEST_SRCS = $(shell find $(TEST_UNIT_DIR) -name '*.c' | sort)
 TEST_OBJS = $(patsubst $(TEST_UNIT_DIR)/%.c,$(BUILD_TEST_DIR)/%.o,$(TEST_SRCS)) \
             $(filter-out $(BUILD_DIR)/main.o,$(OBJS))
 TEST_DEPS = $(patsubst $(TEST_UNIT_DIR)/%.c,$(BUILD_TEST_DIR)/.deps/%.d,$(TEST_SRCS))

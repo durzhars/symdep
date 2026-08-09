@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -36,15 +36,40 @@ void test_check_package_dependencies(void)
            "snprintf should successfully format pkg_dir without truncation");
     ASSERT(mkdir(pkg_dir, 0755) == 0, "Should create chkpkg directory");
 
-    // Add manifest with valid tool 'sh' and non-existent tool 'nonexistent_tool_xyz_99'
     manifest_add_dep(tmp_dotfiles, "chkpkg", "sh", "--required");
     manifest_add_dep(tmp_dotfiles, "chkpkg", "nonexistent_tool_xyz_99", "--optional");
 
-    // Run dependency check in dry_run mode
     check_package_dependencies(tmp_dotfiles, "chkpkg", false, true);
-
-    // Run dependency check for all packages in dry_run mode
     check_package_dependencies(tmp_dotfiles, "all", false, true);
 
     cleanup_test_dir(tmp_dotfiles);
+}
+
+void test_symlink_health_check(void)
+{
+    char tmp_dotfiles[PATH_MAX];
+    char tmp_target[PATH_MAX];
+    ASSERT(create_test_tmp_dir(tmp_dotfiles, sizeof(tmp_dotfiles), "sym_dot") != NULL,
+           "Should create temporary dotfiles directory");
+    ASSERT(create_test_tmp_dir(tmp_target, sizeof(tmp_target), "sym_tgt") != NULL,
+           "Should create temporary target directory");
+
+    char broken_link[PATH_MAX * 4];
+    snprintf(broken_link, sizeof(broken_link), "%s/broken.symlink", tmp_dotfiles);
+    symlink("/nonexistent/file/path", broken_link);
+
+    char del_pkg[PATH_MAX * 4];
+    snprintf(del_pkg, sizeof(del_pkg), "%s/delpkg", tmp_dotfiles);
+    mkdir(del_pkg, 0755);
+    char del_file[PATH_MAX * 4];
+    snprintf(del_file, sizeof(del_file), "%s/.dummy", del_pkg);
+
+    char orphan_link[PATH_MAX * 4];
+    snprintf(orphan_link, sizeof(orphan_link), "%s/orphan.symlink", tmp_target);
+    symlink(del_file, orphan_link);
+
+    check_symlink_health(tmp_dotfiles, tmp_target);
+
+    cleanup_test_dir(tmp_dotfiles);
+    cleanup_test_dir(tmp_target);
 }

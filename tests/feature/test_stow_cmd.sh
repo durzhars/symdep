@@ -152,6 +152,7 @@ assert_file_contains "$LAST_CMD_OUTPUT" "symdep" "--help output contains binary 
 assert_success "$STOW_BIN help" "symdep help succeeded"
 assert_file_contains "$LAST_CMD_OUTPUT" "symdep" "help subcommand output contains binary name"
 
+# 9. Dynamic Package Collision Resolution
 echo -e "\n${COLOR_BOLD}[Test 9] Dynamic Package Collision Resolution${COLOR_RESET}"
 setup_sandbox
 mkdir -p "$STOW_DOTFILES_DIR/nvim/.config/nvim"
@@ -165,5 +166,22 @@ assert_symlink_exists "$HOME/.config/nvim/init.lua" "$STOW_DOTFILES_DIR/nvim/.co
 assert_success "$STOW_BIN stow nvim-headless" "Stowing colliding nvim-headless package succeeded"
 assert_symlink_exists "$HOME/.config/nvim/init.lua" "$STOW_DOTFILES_DIR/nvim-headless/.config/nvim/init.lua" "nvim-headless symlink now active"
 
-print_summary
+# 10. Command Aliases & Profile Profiler Flag
+echo -e "\n${COLOR_BOLD}[Test 10] Command Aliases ('link', 'deploy', 'unlink', 'relink') & '--profile' Flag${COLOR_RESET}"
+setup_sandbox
+mkdir -p "$STOW_DOTFILES_DIR/aliaspkg/.config/alias"
+echo "alias config" >"$STOW_DOTFILES_DIR/aliaspkg/.config/alias/alias.conf"
 
+assert_success "$STOW_BIN --profile link aliaspkg" "symdep --profile link aliaspkg succeeded"
+assert_symlink_exists "$HOME/.config/alias/alias.conf" "$STOW_DOTFILES_DIR/aliaspkg/.config/alias/alias.conf" "Symlink created via 'link' alias"
+
+assert_success "$STOW_BIN relink aliaspkg" "symdep relink aliaspkg succeeded"
+assert_symlink_exists "$HOME/.config/alias/alias.conf" "$STOW_DOTFILES_DIR/aliaspkg/.config/alias/alias.conf" "Symlink maintained via 'relink' alias"
+
+assert_success "$STOW_BIN unlink aliaspkg" "symdep unlink aliaspkg succeeded"
+assert_path_not_exists "$HOME/.config/alias/alias.conf" "Symlink removed via 'unlink' alias"
+
+assert_success "$STOW_BIN deploy aliaspkg" "symdep deploy aliaspkg succeeded"
+assert_symlink_exists "$HOME/.config/alias/alias.conf" "$STOW_DOTFILES_DIR/aliaspkg/.config/alias/alias.conf" "Symlink created via 'deploy' alias"
+
+print_summary

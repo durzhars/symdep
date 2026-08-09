@@ -74,8 +74,7 @@ void test_parse_cli_options_directory_overrides(void)
     str_array_free(&args);
 
     // 2. Equal sign long directory arguments (--source-dir= / --target-dir=)
-    char *argv2[] = {
-        "symdep", "--source-dir=/custom/src", "--target-dir=/custom/tgt", "diff"};
+    char *argv2[] = {"symdep", "--source-dir=/custom/src", "--target-dir=/custom/tgt", "diff"};
     str_array_init(&args);
     int res2 = parse_cli_options(4, argv2, &opts, &args);
     ASSERT(res2 == 0, "parse_cli_options should return 0");
@@ -112,4 +111,3 @@ void test_parse_cli_options_errors_and_help(void)
     ASSERT(res_none == -1, "parse_cli_options with no subcommands/packages should return -1");
     str_array_free(&args);
 }
-

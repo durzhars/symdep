@@ -55,4 +55,3 @@ void get_active_target_dir_for_pkg(const char *cli_override,
                                    size_t buf_size);
 
 #endif /* SYMDEP_CONFIG_H */
-

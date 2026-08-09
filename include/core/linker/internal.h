@@ -23,9 +23,9 @@
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
-#include "core/linker.h"
 #include "core/checker.h"
 #include "core/file_collector.h"
+#include "core/linker.h"
 #include "core/manifest.h"
 #include "core/registry.h"
 #include "utils/defs.h"
@@ -64,25 +64,25 @@ typedef struct {
 void init_package_ignores(StringArray *raw_ignores, const char *source_dir, const char *pkg_dir);
 
 bool package_context_init(PackageContext *ctx,
-                         const char *source_dir,
-                         const char *target_dir,
-                         const char *pkg_name,
-                         bool auto_install,
-                         bool dry_run);
+                          const char *source_dir,
+                          const char *target_dir,
+                          const char *pkg_name,
+                          bool auto_install,
+                          bool dry_run);
 
 void package_context_free(PackageContext *ctx);
 
 void build_unique_backup_path(const char *target_path, char *out_buf, size_t out_size);
 
 bool get_symlink_owner_package(const char *symlink_path,
-                                const char *source_dir,
-                                char *owner_pkg_buf,
-                                size_t buf_size);
+                               const char *source_dir,
+                               char *owner_pkg_buf,
+                               size_t buf_size);
 
 void handle_dynamic_package_conflicts(const char *target_dir,
-                                       const char *source_dir,
-                                       const char *pkg_name,
-                                       const PkgFileList *pkg_files_param,
-                                       bool dry_run);
+                                      const char *source_dir,
+                                      const char *pkg_name,
+                                      const PkgFileList *pkg_files_param,
+                                      bool dry_run);
 
 #endif /* SYMDEP_LINKER_INTERNAL_H */

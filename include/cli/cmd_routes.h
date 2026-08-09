@@ -59,4 +59,3 @@ int cmd_help(const CommandContext *ctx);
 extern const CommandRoute ROUTE_TABLE[];
 
 #endif /* SYMDEP_CMD_ROUTES_H */
-

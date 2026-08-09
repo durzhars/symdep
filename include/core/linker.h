@@ -66,14 +66,14 @@ int link_package(const char *source_dir,
                  bool auto_install,
                  bool dry_run);
 int unlink_package(const char *source_dir,
-                    const char *target_dir,
-                    const char *pkg_name,
-                    bool dry_run);
+                   const char *target_dir,
+                   const char *pkg_name,
+                   bool dry_run);
 int relink_package(const char *source_dir,
-                    const char *target_dir,
-                    const char *pkg_name,
-                    bool auto_install,
-                    bool dry_run);
+                   const char *target_dir,
+                   const char *pkg_name,
+                   bool auto_install,
+                   bool dry_run);
 
 void link_all_packages(const char *source_dir,
                        const char *target_dir,

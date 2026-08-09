@@ -89,11 +89,11 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
         const char *next_arg = (i + 1 < argc) ? argv[i + 1] : NULL;
 
         // 1. Path Options (-d / --source-dir / --src-dir / --dotfiles-dir and -t / --target-dir)
-        int res_d = parse_string_opt(
-            arg, next_arg, "-d", "--source-dir", &opts->cli_source_dir, &i, argc);
+        int res_d =
+            parse_string_opt(arg, next_arg, "-d", "--source-dir", &opts->cli_source_dir, &i, argc);
         if (res_d == 0) {
-            res_d = parse_string_opt(
-                arg, next_arg, "-d", "--src-dir", &opts->cli_source_dir, &i, argc);
+            res_d =
+                parse_string_opt(arg, next_arg, "-d", "--src-dir", &opts->cli_source_dir, &i, argc);
         }
         if (res_d == 0) {
             res_d = parse_string_opt(
@@ -151,4 +151,3 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
 
     return 0;
 }
-

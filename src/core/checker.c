@@ -55,8 +55,7 @@ static void build_install_command(const char *source_dir,
     size_t offset = 0;
     for (size_t i = 0; i < pkgs->count; i++) {
         char distro_pkg[256];
-        registry_get_distro_pkg(
-            source_dir, pkgs->items[i], distro, distro_pkg, sizeof(distro_pkg));
+        registry_get_distro_pkg(source_dir, pkgs->items[i], distro, distro_pkg, sizeof(distro_pkg));
         char escaped_pkg[512];
         escape_shell_arg(distro_pkg, escaped_pkg, sizeof(escaped_pkg));
         int written = snprintf(pkg_list + offset,
@@ -331,4 +330,3 @@ void check_symlink_health(const char *source_dir, const char *target_dir)
     }
     printf("\n");
 }
-

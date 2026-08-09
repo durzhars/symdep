@@ -22,4 +22,3 @@
 void show_help(void);
 
 #endif /* SYMDEP_HELP_H */
-

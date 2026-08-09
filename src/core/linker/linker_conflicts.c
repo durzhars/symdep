@@ -59,19 +59,22 @@ static void prepare_conflict_cb(const char *file_path, const char *rel_path, voi
             if (get_symlink_owner_package(
                     target_path, ctx->source_dir, owner_pkg, sizeof(owner_pkg))) {
                 if (ctx->dry_run) {
-                    log_warn("[DRY-RUN] Conflict! Target '%s' is linked by package '%s'. Would replace with '%s'.",
+                    log_warn("[DRY-RUN] Conflict! Target '%s' is linked by package '%s'. Would "
+                             "replace with '%s'.",
                              rel_path,
                              owner_pkg,
                              ctx->pkg_name);
                 } else {
-                    log_warn("Conflict! Target '%s' is linked by package '%s'. Replacing with '%s'...",
-                             rel_path,
-                             owner_pkg,
-                             ctx->pkg_name);
+                    log_warn(
+                        "Conflict! Target '%s' is linked by package '%s'. Replacing with '%s'...",
+                        rel_path,
+                        owner_pkg,
+                        ctx->pkg_name);
                 }
             } else {
                 if (ctx->dry_run) {
-                    log_info("[DRY-RUN] Would replace symlink: %s -> %s", target_path, pkg_file_path);
+                    log_info(
+                        "[DRY-RUN] Would replace symlink: %s -> %s", target_path, pkg_file_path);
                 }
             }
             ctx->replaced_links++;
@@ -124,23 +127,15 @@ void prepare_target_conflicts(const char *target_dir,
         pkg_files = &local_files;
     }
 
-    ConflictContext ctx = {target_dir,
-                           source_dir,
-                           pkg_name,
-                           pkg_dir,
-                           real_pkg_dir,
-                           &raw_ignores,
-                           dry_run,
-                           0,
-                           0,
-                           0,
-                           0};
+    ConflictContext ctx = {
+        target_dir, source_dir, pkg_name, pkg_dir, real_pkg_dir, &raw_ignores, dry_run, 0, 0, 0, 0};
     for (size_t i = 0; i < pkg_files->count; i++) {
         prepare_conflict_cb(pkg_files->entries[i].full_path, pkg_files->entries[i].rel_path, &ctx);
     }
 
     if (dry_run) {
-        log_info("[DRY-RUN] Summary for '%s': %zu new symlink(s), %zu replaced, %zu backed up, %zu unchanged.",
+        log_info("[DRY-RUN] Summary for '%s': %zu new symlink(s), %zu replaced, %zu backed up, %zu "
+                 "unchanged.",
                  pkg_name,
                  ctx.new_links,
                  ctx.replaced_links,
@@ -167,9 +162,10 @@ void handle_mutual_exclusions(const char *target_dir,
         const char *conflict_pkg = manifest.conflicts.items[i];
         if (is_package_linked(target_dir, source_dir, conflict_pkg)) {
             if (dry_run) {
-                log_warn("[DRY-RUN] Would unlink manifest-conflicting package '%s' before linking '%s'.",
-                         conflict_pkg,
-                         pkg_name);
+                log_warn(
+                    "[DRY-RUN] Would unlink manifest-conflicting package '%s' before linking '%s'.",
+                    conflict_pkg,
+                    pkg_name);
             } else {
                 log_warn("Unlinking manifest-conflicting package '%s' before linking '%s'...",
                          conflict_pkg,
@@ -215,10 +211,10 @@ static void detect_conflicts_cb(const char *file_path, const char *rel_path, voi
 }
 
 void handle_dynamic_package_conflicts(const char *target_dir,
-                                       const char *source_dir,
-                                       const char *pkg_name,
-                                       const PkgFileList *pkg_files_param,
-                                       bool dry_run)
+                                      const char *source_dir,
+                                      const char *pkg_name,
+                                      const PkgFileList *pkg_files_param,
+                                      bool dry_run)
 {
     char pkg_dir[STOW_PATH_LARGE];
     join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
@@ -255,13 +251,15 @@ void handle_dynamic_package_conflicts(const char *target_dir,
     for (size_t i = 0; i < ctx.conflicting_pkgs.count; i++) {
         const char *conflict_pkg = ctx.conflicting_pkgs.items[i];
         if (dry_run) {
-            log_warn("[DRY-RUN] Package conflict detected! Package '%s' collides with linked package '%s'. Would unlink '%s' before linking '%s'.",
+            log_warn("[DRY-RUN] Package conflict detected! Package '%s' collides with linked "
+                     "package '%s'. Would unlink '%s' before linking '%s'.",
                      pkg_name,
                      conflict_pkg,
                      conflict_pkg,
                      pkg_name);
         } else {
-            log_warn("Package conflict detected! Package '%s' collides with linked package '%s'. Unlinking '%s' before linking '%s'...",
+            log_warn("Package conflict detected! Package '%s' collides with linked package '%s'. "
+                     "Unlinking '%s' before linking '%s'...",
                      pkg_name,
                      conflict_pkg,
                      conflict_pkg,

@@ -293,11 +293,28 @@ void get_default_ignore_patterns(StringArray *ignore_patterns)
         free(linebuf);
         fclose(fp);
     } else {
-        static const char *default_ignores[] = {
-            ".symdeps",    ".symignore",  ".stowdeps",  ".stowignore", ".git",       ".gitignore",
-            ".gitattributes", ".gitmodules", ".DS_Store",   ".cvsignore",  "CVS",        ".svn",
-            ".hg",         ".hgignore",   ".hgtags",    "_darcs",      "README*",    "LICENSE*",
-            "COPYING*",    "*~",          "#*#",        ".#*"};
+        static const char *default_ignores[] = {".symdeps",
+                                                ".symignore",
+                                                ".stowdeps",
+                                                ".stowignore",
+                                                ".git",
+                                                ".gitignore",
+                                                ".gitattributes",
+                                                ".gitmodules",
+                                                ".DS_Store",
+                                                ".cvsignore",
+                                                "CVS",
+                                                ".svn",
+                                                ".hg",
+                                                ".hgignore",
+                                                ".hgtags",
+                                                "_darcs",
+                                                "README*",
+                                                "LICENSE*",
+                                                "COPYING*",
+                                                "*~",
+                                                "#*#",
+                                                ".#*"};
         size_t num_defaults = sizeof(default_ignores) / sizeof(default_ignores[0]);
         for (size_t i = 0; i < num_defaults; i++) {
             if (!str_array_contains(ignore_patterns, default_ignores[i])) {

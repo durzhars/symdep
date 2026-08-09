@@ -118,10 +118,8 @@ int cmd_check(const CommandContext *ctx)
 
     if (ctx->args->count > ctx->arg_offset) {
         for (size_t i = ctx->arg_offset; i < ctx->args->count; i++) {
-            check_package_dependencies(ctx->source_dir,
-                                       ctx->args->items[i],
-                                       ctx->opts->auto_install,
-                                       ctx->opts->dry_run);
+            check_package_dependencies(
+                ctx->source_dir, ctx->args->items[i], ctx->opts->auto_install, ctx->opts->dry_run);
         }
     } else {
         check_package_dependencies(

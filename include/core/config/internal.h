@@ -40,10 +40,10 @@
 void config_load_active(Config *cfg);
 
 bool prepare_config_path(const char *input_path,
-                                char *out_buf,
-                                size_t buf_size,
-                                const char *context,
-                                bool check_sanity);
+                         char *out_buf,
+                         size_t buf_size,
+                         const char *context,
+                         bool check_sanity);
 
 const char *getenv_first(const char *const names[], size_t count);
 

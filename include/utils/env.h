@@ -56,4 +56,3 @@ bool app_env_resolve(AppEnvironment *env,
 void get_distro_id(char *buf, size_t buf_size);
 
 #endif /* SYMDEP_UTILS_ENV_H */
-

@@ -233,4 +233,3 @@ void scan_package(const char *source_dir, const char *pkg_name)
     str_array_free(&invocations);
     str_array_free(&candidate_tools);
 }
-

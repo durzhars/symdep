@@ -32,4 +32,3 @@ bool is_tool_installed_dynamic(const char *source_dir, const char *tool);
 void get_all_packages(const char *source_dir, StringArray *packages);
 
 #endif /* SYMDEP_REGISTRY_H */
-

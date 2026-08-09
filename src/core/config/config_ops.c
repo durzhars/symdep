@@ -20,10 +20,10 @@
 #include "core/config/internal.h"
 
 bool prepare_config_path(const char *input_path,
-                                char *out_buf,
-                                size_t buf_size,
-                                const char *context,
-                                bool check_sanity)
+                         char *out_buf,
+                         size_t buf_size,
+                         const char *context,
+                         bool check_sanity)
 {
     if (!input_path || *input_path == '\0') {
         log_error("Invalid empty path provided for %s.", context);
@@ -171,7 +171,8 @@ void config_show(void)
         printf("    (none configured - using current working directory fallback)\n");
     } else {
         for (size_t i = 0; i < cfg.source_dirs.count; i++) {
-            printf("    %zu. %s%s\n", i + 1, cfg.source_dirs.items[i], (i == 0) ? " (primary)" : "");
+            printf(
+                "    %zu. %s%s\n", i + 1, cfg.source_dirs.items[i], (i == 0) ? " (primary)" : "");
         }
     }
 

@@ -38,9 +38,9 @@
 
 /* Shared Internal Function Declarations */
 void get_stowignore_path(const char *source_dir,
-                          const char *pkg_name,
-                          char *out_path,
-                          size_t out_size);
+                         const char *pkg_name,
+                         char *out_path,
+                         size_t out_size);
 
 void ignore_init_single(const char *source_dir, const char *pkg_name);
 void ignore_clear_single(const char *source_dir, const char *pkg_name);

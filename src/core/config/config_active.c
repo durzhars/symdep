@@ -37,9 +37,9 @@ void get_active_source_dir(const char *cli_override, char *buf, size_t buf_size)
         normalize_path(buf);
     } else {
         static const char *const env_src_vars[] = {
-            "SYMDEP_SOURCE_DIR", "SOURCE_DIR", "STOW_DOTFILES_DIR", "DOTFILES_DIR"
-        };
-        const char *env_dir = getenv_first(env_src_vars, sizeof(env_src_vars) / sizeof(env_src_vars[0]));
+            "SYMDEP_SOURCE_DIR", "SOURCE_DIR", "STOW_DOTFILES_DIR", "DOTFILES_DIR"};
+        const char *env_dir =
+            getenv_first(env_src_vars, sizeof(env_src_vars) / sizeof(env_src_vars[0]));
 
         if (env_dir) {
             expand_tilde_path(env_dir, buf, buf_size);
@@ -48,8 +48,7 @@ void get_active_source_dir(const char *cli_override, char *buf, size_t buf_size)
             char cwd[STOW_PATH_LARGE];
             if (getcwd(cwd, sizeof(cwd))) {
                 const char *candidates[] = {
-                    "symdep.registry", ".symdepregistry", "stow.registry", ".stowregistry"
-                };
+                    "symdep.registry", ".symdepregistry", "stow.registry", ".stowregistry"};
                 char test_reg[STOW_PATH_LARGE];
                 for (size_t i = 0; i < 4; i++) {
                     join_path(test_reg, sizeof(test_reg), cwd, candidates[i]);
@@ -87,9 +86,9 @@ void get_active_target_dir(const char *cli_override, char *buf, size_t buf_size)
         normalize_path(buf);
     } else {
         static const char *const env_tgt_vars[] = {
-            "SYMDEP_TARGET_DIR", "STOW_TARGET_DIR", "TARGET_DIR"
-        };
-        const char *env_target = getenv_first(env_tgt_vars, sizeof(env_tgt_vars) / sizeof(env_tgt_vars[0]));
+            "SYMDEP_TARGET_DIR", "STOW_TARGET_DIR", "TARGET_DIR"};
+        const char *env_target =
+            getenv_first(env_tgt_vars, sizeof(env_tgt_vars) / sizeof(env_tgt_vars[0]));
 
         if (env_target) {
             expand_tilde_path(env_target, buf, buf_size);
@@ -106,7 +105,8 @@ void get_active_target_dir(const char *cli_override, char *buf, size_t buf_size)
                 const char *env_home = getenv("HOME");
                 if (!env_home || *env_home == '\0') {
                     log_error("Fatal: $HOME environment variable is not set");
-                    log_info("Hint: Set $HOME or configure a target directory via 'symdep config set target <path>'.");
+                    log_info("Hint: Set $HOME or configure a target directory via 'symdep config "
+                             "set target <path>'.");
                     exit(EXIT_FAILURE);
                 }
                 snprintf(buf, buf_size, "%s", env_home);
@@ -137,8 +137,7 @@ void get_active_config_dirs(const char *cli_source_override,
         normalize_path(src_buf);
     } else {
         static const char *const env_src_vars[] = {
-            "SYMDEP_SOURCE_DIR", "SOURCE_DIR", "STOW_DOTFILES_DIR", "DOTFILES_DIR"
-        };
+            "SYMDEP_SOURCE_DIR", "SOURCE_DIR", "STOW_DOTFILES_DIR", "DOTFILES_DIR"};
         const char *env_dir = getenv_first(env_src_vars, 4);
 
         if (env_dir) {
@@ -149,8 +148,7 @@ void get_active_config_dirs(const char *cli_source_override,
             bool found_reg = false;
             if (getcwd(cwd, sizeof(cwd))) {
                 const char *candidates[] = {
-                    "symdep.registry", ".symdepregistry", "stow.registry", ".stowregistry"
-                };
+                    "symdep.registry", ".symdepregistry", "stow.registry", ".stowregistry"};
                 char test_reg[STOW_PATH_LARGE];
                 for (size_t i = 0; i < 4; i++) {
                     join_path(test_reg, sizeof(test_reg), cwd, candidates[i]);
@@ -177,8 +175,10 @@ void get_active_config_dirs(const char *cli_source_override,
 
     PathSanityResult src_sanity = verify_path_sanity(src_buf);
     if (src_sanity != PATH_VALID) {
-        if (cfg_loaded) config_free(&cfg);
-        log_error("Fatal: Source directory error: %s. Exiting.", path_sanity_strerror(src_sanity, src_buf));
+        if (cfg_loaded)
+            config_free(&cfg);
+        log_error("Fatal: Source directory error: %s. Exiting.",
+                  path_sanity_strerror(src_sanity, src_buf));
         exit(EXIT_FAILURE);
     }
 
@@ -188,8 +188,7 @@ void get_active_config_dirs(const char *cli_source_override,
         normalize_path(tgt_buf);
     } else {
         static const char *const env_tgt_vars[] = {
-            "SYMDEP_TARGET_DIR", "STOW_TARGET_DIR", "TARGET_DIR"
-        };
+            "SYMDEP_TARGET_DIR", "STOW_TARGET_DIR", "TARGET_DIR"};
         const char *env_target = getenv_first(env_tgt_vars, 3);
 
         if (env_target) {
@@ -205,7 +204,8 @@ void get_active_config_dirs(const char *cli_source_override,
             } else {
                 const char *env_home = getenv("HOME");
                 if (!env_home || *env_home == '\0') {
-                    if (cfg_loaded) config_free(&cfg);
+                    if (cfg_loaded)
+                        config_free(&cfg);
                     log_error("Fatal: $HOME environment variable is not set");
                     exit(EXIT_FAILURE);
                 }
@@ -220,7 +220,8 @@ void get_active_config_dirs(const char *cli_source_override,
 
     PathSanityResult tgt_sanity = verify_path_sanity(tgt_buf);
     if (tgt_sanity != PATH_VALID) {
-        log_error("Fatal: Target directory error: %s. Exiting.", path_sanity_strerror(tgt_sanity, tgt_buf));
+        log_error("Fatal: Target directory error: %s. Exiting.",
+                  path_sanity_strerror(tgt_sanity, tgt_buf));
         exit(EXIT_FAILURE);
     }
 }

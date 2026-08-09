@@ -121,7 +121,8 @@ void walk_target_dir_symlinks_targeted(const char *target_dir,
         str_array_free(&packages);
     }
 
-    // 3. For each relative path, check target_dir/rel_path and its immediate children if it's a directory
+    // 3. For each relative path, check target_dir/rel_path and its immediate children if it's a
+    // directory
     for (size_t i = 0; i < rel_paths.capacity; i++) {
         if (!rel_paths.keys || !rel_paths.keys[i]) {
             continue;
@@ -142,7 +143,8 @@ void walk_target_dir_symlinks_targeted(const char *target_dir,
                     struct dirent *entry;
                     while ((entry = readdir(tdir)) != NULL) {
                         const char *name = entry->d_name;
-                        if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
+                        if (name[0] == '.' &&
+                            (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
                             continue;
                         }
                         if (entry->d_type == DT_LNK) {

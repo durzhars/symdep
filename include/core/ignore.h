@@ -38,4 +38,3 @@ void ignore_remove_patterns(const char *source_dir,
                             size_t count);
 
 #endif /* SYMDEP_IGNORE_H */
-

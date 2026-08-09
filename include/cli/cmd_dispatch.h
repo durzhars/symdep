@@ -49,4 +49,3 @@ typedef struct {
 int dispatch_command(const StringArray *args, const CliOptions *opts);
 
 #endif /* SYMDEP_CMD_DISPATCH_H */
-

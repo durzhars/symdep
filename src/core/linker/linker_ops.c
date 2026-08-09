@@ -75,16 +75,21 @@ static void native_link_cb(const char *file_path, const char *rel_path, void *us
     if (sym_res == 0) {
         if (perf_profiler_is_enabled()) {
             if (op_us >= 1000.0) {
-                log_info("[PERF] LINK: %s => %s (completed in %.2f ms)", rel_path, pkg_file_path, op_us / 1000.0);
+                log_info("[PERF] LINK: %s => %s (completed in %.2f ms)",
+                         rel_path,
+                         pkg_file_path,
+                         op_us / 1000.0);
             } else {
-                log_info("[PERF] LINK: %s => %s (completed in %.0f us)", rel_path, pkg_file_path, op_us);
+                log_info(
+                    "[PERF] LINK: %s => %s (completed in %.0f us)", rel_path, pkg_file_path, op_us);
             }
         } else {
             log_info("LINK: %s => %s", rel_path, pkg_file_path);
         }
         ctx->created_count++;
     } else {
-        log_error("Failed to create symlink: %s -> %s: %s", target_path, pkg_file_path, strerror(errno));
+        log_error(
+            "Failed to create symlink: %s -> %s: %s", target_path, pkg_file_path, strerror(errno));
         ctx->errors++;
     }
 }
@@ -120,7 +125,8 @@ static void native_unlink_cb(const char *file_path, const char *rel_path, void *
             if (unl_res == 0) {
                 if (perf_profiler_is_enabled()) {
                     if (op_us >= 1000.0) {
-                        log_info("[PERF] UNLINK: %s (completed in %.2f ms)", rel_path, op_us / 1000.0);
+                        log_info(
+                            "[PERF] UNLINK: %s (completed in %.2f ms)", rel_path, op_us / 1000.0);
                     } else {
                         log_info("[PERF] UNLINK: %s (completed in %.0f us)", rel_path, op_us);
                     }
@@ -202,15 +208,17 @@ int link_package(const char *source_dir,
     perf_timer_log(&t_prep);
 
     if (dry_run) {
-        log_success("[DRY-RUN] Dry run / Diff complete for package '%s'. No changes were made to disk.",
-                    pkg_name);
+        log_success(
+            "[DRY-RUN] Dry run / Diff complete for package '%s'. No changes were made to disk.",
+            pkg_name);
         package_context_free(&pctx);
         perf_timer_log(&t_stow);
         return 0;
     }
 
     for (size_t i = 0; i < pctx.pkg_files.count; i++) {
-        native_link_cb(pctx.pkg_files.entries[i].full_path, pctx.pkg_files.entries[i].rel_path, &pctx);
+        native_link_cb(
+            pctx.pkg_files.entries[i].full_path, pctx.pkg_files.entries[i].rel_path, &pctx);
     }
 
     int result = (pctx.errors == 0) ? 0 : -1;
@@ -226,9 +234,9 @@ int link_package(const char *source_dir,
 }
 
 int unlink_package(const char *source_dir,
-                    const char *target_dir,
-                    const char *pkg_name,
-                    bool dry_run)
+                   const char *target_dir,
+                   const char *pkg_name,
+                   bool dry_run)
 {
     if (dry_run) {
         log_info("[DRY-RUN] Previewing unlink operation for package '%s'...", pkg_name);
@@ -243,13 +251,15 @@ int unlink_package(const char *source_dir,
     }
 
     for (size_t i = 0; i < pctx.pkg_files.count; i++) {
-        native_unlink_cb(pctx.pkg_files.entries[i].full_path, pctx.pkg_files.entries[i].rel_path, &pctx);
+        native_unlink_cb(
+            pctx.pkg_files.entries[i].full_path, pctx.pkg_files.entries[i].rel_path, &pctx);
     }
 
     int result = (pctx.errors == 0) ? 0 : -1;
     if (dry_run) {
-        log_success("[DRY-RUN] Dry run / Diff complete for package '%s'. No changes were made to disk.",
-                    pkg_name);
+        log_success(
+            "[DRY-RUN] Dry run / Diff complete for package '%s'. No changes were made to disk.",
+            pkg_name);
         result = 0;
     } else if (result == 0) {
         log_success("Successfully unlinked package '%s'!", pkg_name);
@@ -262,10 +272,10 @@ int unlink_package(const char *source_dir,
 }
 
 int relink_package(const char *source_dir,
-                    const char *target_dir,
-                    const char *pkg_name,
-                    bool auto_install,
-                    bool dry_run)
+                   const char *target_dir,
+                   const char *pkg_name,
+                   bool auto_install,
+                   bool dry_run)
 {
     if (dry_run) {
         log_info("[DRY-RUN] Relinking package '%s'...", pkg_name);
@@ -281,8 +291,9 @@ int relink_package(const char *source_dir,
     if (dry_run) {
         unlink_package(source_dir, target_dir, pkg_name, true);
         prepare_target_conflicts(target_dir, source_dir, pkg_name, NULL, true);
-        log_success("[DRY-RUN] Dry run / Diff complete for package '%s'. No changes were made to disk.",
-                    pkg_name);
+        log_success(
+            "[DRY-RUN] Dry run / Diff complete for package '%s'. No changes were made to disk.",
+            pkg_name);
         return 0;
     }
 
@@ -296,7 +307,8 @@ int relink_package(const char *source_dir,
     }
 
     for (size_t i = 0; i < pctx.pkg_files.count; i++) {
-        native_link_cb(pctx.pkg_files.entries[i].full_path, pctx.pkg_files.entries[i].rel_path, &pctx);
+        native_link_cb(
+            pctx.pkg_files.entries[i].full_path, pctx.pkg_files.entries[i].rel_path, &pctx);
     }
 
     int result = (pctx.errors == 0) ? 0 : -1;
@@ -311,9 +323,9 @@ int relink_package(const char *source_dir,
 }
 
 void link_all_packages(const char *source_dir,
-                        const char *target_dir,
-                        bool auto_install,
-                        bool dry_run)
+                       const char *target_dir,
+                       bool auto_install,
+                       bool dry_run)
 {
     StringArray packages;
     str_array_init(&packages);

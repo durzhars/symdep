@@ -35,7 +35,10 @@ typedef struct {
 
 void pkg_file_list_init(PkgFileList *list);
 void pkg_file_list_free(PkgFileList *list);
-void pkg_file_list_append(PkgFileList *list, const char *rel_path, const char *full_path, bool is_dir);
+void pkg_file_list_append(PkgFileList *list,
+                          const char *rel_path,
+                          const char *full_path,
+                          bool is_dir);
 void collect_package_files(const char *pkg_dir, const StringArray *raw_ignores, PkgFileList *list);
 
 void parse_ignore_file(const char *dir_path, StringArray *ignore_patterns);

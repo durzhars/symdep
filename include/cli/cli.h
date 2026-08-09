@@ -35,4 +35,3 @@ typedef struct {
 int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *positional_args);
 
 #endif /* SYMDEP_CLI_H */
-

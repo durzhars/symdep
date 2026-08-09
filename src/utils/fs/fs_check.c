@@ -43,8 +43,6 @@ bool is_symlink(const char *path)
     return false;
 }
 
-
-
 PathSanityResult verify_path_sanity(const char *path)
 {
     if (!path || *path == '\0') {
@@ -109,7 +107,8 @@ const char *path_sanity_strerror(PathSanityResult res, const char *path)
                      p,
                      getuid());
         } else {
-            snprintf(buf, sizeof(buf), "directory owner UID does not match running UID %u", getuid());
+            snprintf(
+                buf, sizeof(buf), "directory owner UID does not match running UID %u", getuid());
         }
         break;
     case ERR_WORLD_WRITABLE:

@@ -28,4 +28,3 @@ void check_package_dependencies(const char *source_dir,
 void check_symlink_health(const char *source_dir, const char *target_dir);
 
 #endif /* SYMDEP_CHECKER_H */
-

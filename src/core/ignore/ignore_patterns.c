@@ -163,7 +163,8 @@ void ignore_remove_patterns(const char *source_dir,
 
         if (found) {
             if (pkg_name && *pkg_name != '\0') {
-                log_success("Removed pattern '%s' from '.symignore' for package '%s'.", pat, pkg_name);
+                log_success(
+                    "Removed pattern '%s' from '.symignore' for package '%s'.", pat, pkg_name);
             } else {
                 log_success("Removed pattern '%s' from global '.symignore'.", pat);
             }

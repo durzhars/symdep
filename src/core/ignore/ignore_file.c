@@ -20,9 +20,9 @@
 #include "core/ignore/internal.h"
 
 void get_stowignore_path(const char *source_dir,
-                          const char *pkg_name,
-                          char *out_path,
-                          size_t out_size)
+                         const char *pkg_name,
+                         char *out_path,
+                         size_t out_size)
 {
     if (pkg_name && *pkg_name != '\0') {
         char pkg_dir[STOW_PATH_LARGE];

@@ -20,9 +20,9 @@
 #include "cli/dispatch/internal.h"
 
 bool parse_ignore_args(const CommandContext *ctx,
-                              const char **out_pkg,
-                              const char *const **out_patterns,
-                              size_t *out_count)
+                       const char **out_pkg,
+                       const char *const **out_patterns,
+                       size_t *out_count)
 {
     *out_pkg = NULL;
     *out_patterns = NULL;

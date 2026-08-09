@@ -41,9 +41,8 @@ int cmd_deps_edit(const CommandContext *ctx)
 
 int cmd_deps_remove(const CommandContext *ctx)
 {
-    manifest_remove_dep(ctx->source_dir,
-                        ctx->args->items[ctx->arg_offset],
-                        ctx->args->items[ctx->arg_offset + 1]);
+    manifest_remove_dep(
+        ctx->source_dir, ctx->args->items[ctx->arg_offset], ctx->args->items[ctx->arg_offset + 1]);
     return 0;
 }
 
@@ -55,8 +54,7 @@ int cmd_deps_show(const CommandContext *ctx)
 
 int cmd_deps_target(const CommandContext *ctx)
 {
-    manifest_set_target(ctx->source_dir,
-                        ctx->args->items[ctx->arg_offset],
-                        ctx->args->items[ctx->arg_offset + 1]);
+    manifest_set_target(
+        ctx->source_dir, ctx->args->items[ctx->arg_offset], ctx->args->items[ctx->arg_offset + 1]);
     return 0;
 }

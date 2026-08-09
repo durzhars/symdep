@@ -52,4 +52,3 @@ void package_remove(const char *source_dir,
                     bool dry_run);
 
 #endif /* SYMDEP_MANIFEST_H */
-

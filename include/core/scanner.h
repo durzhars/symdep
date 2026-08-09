@@ -22,4 +22,3 @@
 void scan_package(const char *source_dir, const char *pkg_name);
 
 #endif /* SYMDEP_SCANNER_H */
-

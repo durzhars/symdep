@@ -386,4 +386,3 @@ void package_remove(const char *source_dir,
         log_error("Failed to remove package directory '%s'.", pkg_dir);
     }
 }
-

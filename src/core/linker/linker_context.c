@@ -30,11 +30,11 @@ void init_package_ignores(StringArray *raw_ignores, const char *source_dir, cons
 }
 
 bool package_context_init(PackageContext *ctx,
-                         const char *source_dir,
-                         const char *target_dir,
-                         const char *pkg_name,
-                         bool auto_install,
-                         bool dry_run)
+                          const char *source_dir,
+                          const char *target_dir,
+                          const char *pkg_name,
+                          bool auto_install,
+                          bool dry_run)
 {
     if (!ctx || !source_dir || !target_dir || !pkg_name) {
         return false;
@@ -97,9 +97,9 @@ void build_unique_backup_path(const char *target_path, char *out_buf, size_t out
 }
 
 bool get_symlink_owner_package(const char *symlink_path,
-                                const char *source_dir,
-                                char *owner_pkg_buf,
-                                size_t buf_size)
+                               const char *source_dir,
+                               char *owner_pkg_buf,
+                               size_t buf_size)
 {
     static char cached_source_dir[STOW_PATH_MAX] = {0};
     static char cached_real_source[STOW_PATH_MAX] = {0};

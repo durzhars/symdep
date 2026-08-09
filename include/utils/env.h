@@ -19,26 +19,19 @@
 #ifndef SYMDEP_UTILS_ENV_H
 #define SYMDEP_UTILS_ENV_H
 
-#include <limits.h>
-#include <stdbool.h>
-#include <stddef.h>
-
+#include "utils/defs.h"
 #include "utils/fs.h"
 #include "utils/str.h"
-
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
 
 typedef enum { XDG_CONFIG, XDG_DATA, XDG_CACHE, XDG_STATE } XdgDirType;
 
 typedef struct {
-    char home_dir[PATH_MAX];
-    char target_dir[PATH_MAX];
-    char xdg_config_home[PATH_MAX];
-    char xdg_data_home[PATH_MAX];
-    char xdg_cache_home[PATH_MAX];
-    char xdg_state_home[PATH_MAX];
+    char home_dir[STOW_PATH_MAX];
+    char target_dir[STOW_PATH_MAX];
+    char xdg_config_home[STOW_PATH_MAX];
+    char xdg_data_home[STOW_PATH_MAX];
+    char xdg_cache_home[STOW_PATH_MAX];
+    char xdg_state_home[STOW_PATH_MAX];
     bool is_home_validated;
     bool is_target_override;
 } AppEnvironment;
@@ -61,8 +54,6 @@ bool app_env_resolve(AppEnvironment *env,
                      PathSanityResult *out_reason);
 
 void get_distro_id(char *buf, size_t buf_size);
-bool is_executable_in_path(const char *executable);
-int run_system_cmd(const char *cmd);
 
 #endif /* SYMDEP_UTILS_ENV_H */
 

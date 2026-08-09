@@ -65,7 +65,7 @@ resolve_xdg_path(const char *env_var, const char *default_rel, char *buf, size_t
 
     const char *env = getenv(env_var);
     if (env && strlen(env) > 0) {
-        char expanded[PATH_MAX * 2];
+        char expanded[STOW_PATH_LARGE];
         expand_env_vars(env, expanded, sizeof(expanded));
         if (expanded[0] == '/') {
             snprintf(buf, buf_size, "%s", expanded);
@@ -73,7 +73,7 @@ resolve_xdg_path(const char *env_var, const char *default_rel, char *buf, size_t
         }
     }
 
-    char home[PATH_MAX];
+    char home[STOW_PATH_MAX];
     if (get_user_home_dir(home, sizeof(home))) {
         join_path(buf, buf_size, home, default_rel);
         return true;
@@ -154,7 +154,7 @@ get_xdg_colon_separated_dirs(const char *env_var, const char *default_val, Strin
     str_split_delim(env, ":", &raw_tokens);
 
     for (size_t i = 0; i < raw_tokens.count; i++) {
-        char expanded[PATH_MAX * 2];
+        char expanded[STOW_PATH_LARGE];
         expand_env_vars(raw_tokens.items[i], expanded, sizeof(expanded));
         str_array_append(dirs, expanded);
     }
@@ -268,7 +268,7 @@ bool is_executable_in_path(const char *executable)
     str_split_delim(path_env, ":", &path_dirs);
 
     bool found = false;
-    char full_path[PATH_MAX * 2];
+    char full_path[STOW_PATH_LARGE];
 
     for (size_t i = 0; i < path_dirs.count; i++) {
         snprintf(full_path, sizeof(full_path), "%s/%s", path_dirs.items[i], executable);

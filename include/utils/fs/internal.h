@@ -1,5 +1,6 @@
 /*
- * Symlink & Dependency Manager (symdep)
+ * Dotfiles Stow Manager (stow-manager)
+ * Internal Filesystem Submodule Header
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,39 +17,27 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef SYMDEP_UTILS_DEFS_H
-#define SYMDEP_UTILS_DEFS_H
+#ifndef UTILS_FS_INTERNAL_H
+#define UTILS_FS_INTERNAL_H
 
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 700
-#endif
-#ifndef _DEFAULT_SOURCE
+#define _GNU_SOURCE
 #define _DEFAULT_SOURCE
-#endif
+#define _POSIX_C_SOURCE 200809L
 
+#include <dirent.h>
+#include <errno.h>
 #include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
+#include "utils/defs.h"
+#include "utils/env.h"
+#include "utils/fs.h"
+#include "utils/mem.h"
+#include "utils/path.h"
+#include "utils/timer.h"
 
-/* Deterministic path buffer capacities across OSes */
-#define STOW_PATH_MAX 4096
-#define STOW_PATH_LARGE 8192
-#define STOW_PATH_HUGE 16384
-
-#ifndef STR
-#define XSTR(s) #s
-#define STR(s) XSTR(s)
-#endif
-
-#define COLOR_RED "\033[0;31m"
-#define COLOR_GREEN "\033[0;32m"
-#define COLOR_YELLOW "\033[1;33m"
-#define COLOR_BLUE "\033[0;34m"
-#define COLOR_CYAN "\033[0;36m"
-#define COLOR_WHITE "\033[1;37m"
-#define COLOR_BOLD "\033[1m"
-#define COLOR_RESET "\033[0m"
-
-#endif /* SYMDEP_UTILS_DEFS_H */
+#endif /* UTILS_FS_INTERNAL_H */

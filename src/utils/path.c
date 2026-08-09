@@ -73,7 +73,8 @@ int collapse_path(char *path)
     size_t stack[MAX_PATH_DEPTH];
     size_t depth = 0;
 
-    // Sorcery below. Don't touch
+    // Iterate through slash-delimited path components, using a stack
+    // of write-offsets to pop parent components when encountering '..'
     while (*r) {
         while (*r == '/') {
             r++;
@@ -87,7 +88,7 @@ int collapse_path(char *path)
         }
         size_t len = (size_t)(r - start);
         if (len == 1 && start[0] == '.') {
-            // Do nothing. No Sorcery here.
+            // Skip '.' current directory component
             continue;
         }
         if (len == 2 && start[0] == '.' && start[1] == '.') {
@@ -191,7 +192,7 @@ int join_path(char *out, size_t out_size, const char *dir, const char *rel)
 
     // Assemble into temporary buffer to safely support overlapping buffers (out == dir or out ==
     // rel)
-    char tmp[PATH_MAX];
+    char tmp[STOW_PATH_MAX];
     char *buf = tmp;
     if (needed >= sizeof(tmp)) {
         buf = (char *)safe_malloc(needed + 1);
@@ -226,8 +227,8 @@ int is_path_prefix(const char *path, const char *prefix)
     if (!path || !prefix) {
         return false;
     }
-    char norm_path[PATH_MAX];
-    char norm_prefix[PATH_MAX];
+    char norm_path[STOW_PATH_MAX];
+    char norm_prefix[STOW_PATH_MAX];
     size_t plen = strlen(path);
     size_t prlen = strlen(prefix);
     if (plen >= sizeof(norm_path) || prlen >= sizeof(norm_prefix)) {
@@ -258,10 +259,10 @@ void expand_tilde_path(const char *path, char *out, size_t out_size)
         out[0] = '\0';
         return;
     }
-    char temp[PATH_MAX];
+    char temp[STOW_PATH_MAX];
     bool expanded = false;
     if (path[0] == '~' && (path[1] == '/' || path[1] == '\0')) {
-        char home[PATH_MAX];
+        char home[STOW_PATH_MAX];
         if (get_user_home_dir(home, sizeof(home))) {
             int ret = snprintf(temp, sizeof(temp), "%s%s", home, path + 1);
             if (ret >= 0 && (size_t)ret < sizeof(temp)) {
@@ -284,7 +285,7 @@ void get_dotfiles_dir(char *buf, size_t buf_size)
     if (!buf || buf_size == 0) {
         return;
     }
-    char cwd[PATH_MAX];
+    char cwd[STOW_PATH_MAX];
     if (getcwd(cwd, sizeof(cwd))) {
         int ret = snprintf(buf, buf_size, "%s", cwd);
         if (ret < 0 || (size_t)ret >= buf_size) {

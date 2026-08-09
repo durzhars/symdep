@@ -281,6 +281,75 @@ static inline bool is_var_body_char(char c)
     return isalnum((unsigned char)c) || c == '_';
 }
 
+static inline bool append_resolved_var(const char *val, char *out, size_t out_size, size_t *out_idx)
+{
+    if (!val) {
+        return true;
+    }
+    for (size_t k = 0; val[k] != '\0'; k++) {
+        if (*out_idx + 1 >= out_size) {
+            return false;
+        }
+        out[(*out_idx)++] = val[k];
+    }
+    return true;
+}
+
+static bool expand_braced_var(const char *src,
+                              size_t srclen,
+                              size_t *in_idx,
+                              char *out,
+                              size_t out_size,
+                              size_t *out_idx,
+                              StrVarResolver resolver,
+                              void *ctx)
+{
+    size_t j = *in_idx + 2;
+    char varname[256] = {0};
+    size_t vn = 0;
+
+    while (j < srclen && src[j] != '}' && vn + 1 < sizeof(varname)) {
+        varname[vn++] = src[j++];
+    }
+
+    if (j < srclen && src[j] == '}' && vn > 0) {
+        const char *val = resolver ? resolver(varname, ctx) : NULL;
+        if (!append_resolved_var(val, out, out_size, out_idx)) {
+            return false;
+        }
+        *in_idx = j + 1;
+        return true;
+    }
+
+    out[(*out_idx)++] = src[(*in_idx)++];
+    return true;
+}
+
+static bool expand_unbraced_var(const char *src,
+                                size_t srclen,
+                                size_t *in_idx,
+                                char *out,
+                                size_t out_size,
+                                size_t *out_idx,
+                                StrVarResolver resolver,
+                                void *ctx)
+{
+    size_t j = *in_idx + 1;
+    char varname[256] = {0};
+    size_t vn = 0;
+
+    while (j < srclen && is_var_body_char(src[j]) && vn + 1 < sizeof(varname)) {
+        varname[vn++] = src[j++];
+    }
+
+    const char *val = resolver ? resolver(varname, ctx) : NULL;
+    if (!append_resolved_var(val, out, out_size, out_idx)) {
+        return false;
+    }
+    *in_idx = j;
+    return true;
+}
+
 void str_expand_vars(const char *src,
                      char *out,
                      size_t out_size,
@@ -298,64 +367,27 @@ void str_expand_vars(const char *src,
     size_t srclen = strlen(src);
     size_t o = 0;
     size_t i = 0;
-    bool overflow = false;
+    bool ok = true;
 
     while (i < srclen && o + 1 < out_size) {
         if (src[i] == '$') {
             if (i + 1 < srclen && src[i + 1] == '{') {
-                size_t j = i + 2;
-                char varname[256] = {0};
-                size_t vn = 0;
-                while (j < srclen && src[j] != '}' && vn + 1 < sizeof(varname)) {
-                    varname[vn++] = src[j++];
-                }
-                if (j < srclen && src[j] == '}' && vn > 0) {
-                    const char *val = resolver ? resolver(varname, ctx) : NULL;
-                    if (val) {
-                        size_t vlen = strlen(val);
-                        for (size_t k = 0; k < vlen; k++) {
-                            if (o + 1 >= out_size) {
-                                overflow = true;
-                                break;
-                            }
-                            out[o++] = val[k];
-                        }
-                    }
-                    i = j + 1;
-                } else {
-                    out[o++] = src[i++];
-                }
+                ok = expand_braced_var(src, srclen, &i, out, out_size, &o, resolver, ctx);
             } else if (i + 1 < srclen && is_var_start_char(src[i + 1])) {
-                size_t j = i + 1;
-                char varname[256] = {0};
-                size_t vn = 0;
-                while (j < srclen && is_var_body_char(src[j]) && vn + 1 < sizeof(varname)) {
-                    varname[vn++] = src[j++];
-                }
-                const char *val = resolver ? resolver(varname, ctx) : NULL;
-                if (val) {
-                    size_t vlen = strlen(val);
-                    for (size_t k = 0; k < vlen; k++) {
-                        if (o + 1 >= out_size) {
-                            overflow = true;
-                            break;
-                        }
-                        out[o++] = val[k];
-                    }
-                }
-                i = j;
+                ok = expand_unbraced_var(src, srclen, &i, out, out_size, &o, resolver, ctx);
             } else {
                 out[o++] = src[i++];
             }
         } else {
             out[o++] = src[i++];
         }
-        if (overflow) {
+
+        if (!ok) {
             break;
         }
     }
 
-    if (overflow || i < srclen) {
+    if (!ok || i < srclen) {
         out[0] = '\0';
         return;
     }

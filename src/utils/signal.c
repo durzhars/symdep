@@ -20,12 +20,16 @@
 #define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
+#include <dirent.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "utils/defs.h"
 
 #include "utils/fs.h"
 #include "utils/mem.h"
@@ -34,7 +38,7 @@
 volatile sig_atomic_t g_interrupted = 0;
 
 #define MAX_SIGNAL_TEMP_PATHS 64
-static char g_signal_temp_paths[MAX_SIGNAL_TEMP_PATHS][PATH_MAX];
+static char g_signal_temp_paths[MAX_SIGNAL_TEMP_PATHS][STOW_PATH_MAX];
 
 static StringArray g_temp_paths = {NULL, 0, 0};
 
@@ -51,8 +55,8 @@ void register_temp_path(const char *path)
     for (int i = 0; i < MAX_SIGNAL_TEMP_PATHS; i++) {
         if (g_signal_temp_paths[i][0] == '\0') {
             size_t len = strlen(path);
-            if (len >= PATH_MAX) {
-                len = PATH_MAX - 1;
+            if (len >= STOW_PATH_MAX) {
+                len = STOW_PATH_MAX - 1;
             }
             memcpy(&g_signal_temp_paths[i][1], path + 1, len);
             g_signal_temp_paths[i][len] = '\0';
@@ -98,11 +102,8 @@ void cleanup_temp_paths(void)
         }
 
         if (is_dir(p)) {
-            char escaped[PATH_MAX * 3];
-            escape_shell_arg(p, escaped, sizeof(escaped));
-            char rm_cmd[PATH_MAX * 3 + 32];
-            snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", escaped);
-            (void)system(rm_cmd);
+            cleanup_temp_dir_contents(p);
+            rmdir(p);
         } else if (file_exists(p) || is_symlink(p)) {
             unlink(p);
         }
@@ -112,18 +113,23 @@ void cleanup_temp_paths(void)
 
 void cleanup_temp_paths_signal_safe(void)
 {
-    // unlink the directory first
     for (int i = 0; i < MAX_SIGNAL_TEMP_PATHS; i++) {
         const char *p = g_signal_temp_paths[i];
         if (p && p[0] != '\0') {
+            DIR *dir = opendir(p);
+            if (dir) {
+                struct dirent *entry;
+                int dfd = dirfd(dir);
+                while ((entry = readdir(dir)) != NULL) {
+                    if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+                        if (dfd >= 0) {
+                            (void)unlinkat(dfd, entry->d_name, 0);
+                        }
+                    }
+                }
+                closedir(dir);
+            }
             (void)unlink(p);
-        }
-    }
-
-    // and remove the directory
-    for (int i = 0; i < MAX_SIGNAL_TEMP_PATHS; i++) {
-        const char *p = g_signal_temp_paths[i];
-        if (p && p[0] != '\0') {
             (void)rmdir(p);
         }
     }

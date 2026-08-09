@@ -35,7 +35,11 @@ static void native_link_cb(const char *file_path, const char *rel_path, void *us
     join_path(pkg_file_path, sizeof(pkg_file_path), ctx->pkg_dir, rel_path);
 
     char real_pkg_file_path[STOW_PATH_LARGE];
-    if (realpath(pkg_file_path, real_pkg_file_path) == NULL) {
+    if (is_symlink(pkg_file_path)) {
+        if (realpath(pkg_file_path, real_pkg_file_path) == NULL) {
+            snprintf(real_pkg_file_path, sizeof(real_pkg_file_path), "%s", pkg_file_path);
+        }
+    } else {
         snprintf(real_pkg_file_path, sizeof(real_pkg_file_path), "%s", pkg_file_path);
     }
 

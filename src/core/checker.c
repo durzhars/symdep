@@ -155,7 +155,11 @@ void check_package_dependencies(const char *source_dir,
 
     StringArray all_pkgs;
     str_array_init(&all_pkgs);
-    get_all_packages(source_dir, &all_pkgs);
+    if (target_pkg && strcmp(target_pkg, "all") != 0) {
+        str_array_append(&all_pkgs, target_pkg);
+    } else {
+        get_all_packages(source_dir, &all_pkgs);
+    }
 
     StringArray missing_req;
     StringArray missing_opt;
@@ -166,6 +170,7 @@ void check_package_dependencies(const char *source_dir,
            COLOR_CYAN,
            COLOR_BOLD,
            COLOR_RESET);
+    fflush(stdout);
 
     for (size_t i = 0; i < all_pkgs.count; i++) {
         const char *pkg_name = all_pkgs.items[i];

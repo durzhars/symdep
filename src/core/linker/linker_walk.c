@@ -34,25 +34,25 @@ static void check_and_notify_symlink(const char *path, TargetedWalkState *state)
 
 static void add_rel_path_and_parents(StrSet *set, const char *rel_path)
 {
-    if (!rel_path || *rel_path == '\0' || !str_set_add(set, rel_path)) {
+    if (!rel_path || *rel_path == '\0') {
         return;
     }
-
-    char parent[STOW_PATH_LARGE];
-    size_t len = strlen(rel_path);
-    if (len >= sizeof(parent)) {
-        return;
-    }
-    memcpy(parent, rel_path, len + 1);
-
-    char *slash = strrchr(parent, '/');
-    while (slash) {
-        *slash = '\0';
-        if (*parent != '\0' && !str_set_add(set, parent)) {
-            break;
+    const char *p = rel_path;
+    while (*p != '\0') {
+        if (*p == '/') {
+            size_t len = (size_t)(p - rel_path);
+            if (len > 0) {
+                char parent[STOW_PATH_LARGE];
+                if (len < sizeof(parent)) {
+                    memcpy(parent, rel_path, len);
+                    parent[len] = '\0';
+                    str_set_add(set, parent);
+                }
+            }
         }
-        slash = strrchr(parent, '/');
+        p++;
     }
+    str_set_add(set, rel_path);
 }
 
 void walk_target_dir_symlinks_targeted(const char *target_dir,
@@ -130,24 +130,35 @@ void walk_target_dir_symlinks_targeted(const char *target_dir,
         char target_path[STOW_PATH_LARGE];
         join_path(target_path, sizeof(target_path), target_dir, rel);
 
-        check_and_notify_symlink(target_path, &state);
-
-        if (is_dir(target_path) && !is_symlink(target_path)) {
-            DIR *tdir = opendir(target_path);
-            if (tdir) {
-                struct dirent *entry;
-                while ((entry = readdir(tdir)) != NULL) {
-                    const char *name = entry->d_name;
-                    if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
-                        continue;
-                    }
-                    if (entry->d_type == DT_LNK || entry->d_type == DT_UNKNOWN) {
-                        char child_path[STOW_PATH_LARGE];
-                        join_path(child_path, sizeof(child_path), target_path, name);
-                        check_and_notify_symlink(child_path, &state);
-                    }
+        struct stat st;
+        if (lstat(target_path, &st) == 0) {
+            if (S_ISLNK(st.st_mode)) {
+                if (str_set_add(&state.visited_paths, target_path)) {
+                    state.cb(target_path, state.user_data);
                 }
-                closedir(tdir);
+            } else if (S_ISDIR(st.st_mode)) {
+                DIR *tdir = opendir(target_path);
+                if (tdir) {
+                    struct dirent *entry;
+                    while ((entry = readdir(tdir)) != NULL) {
+                        const char *name = entry->d_name;
+                        if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
+                            continue;
+                        }
+                        if (entry->d_type == DT_LNK) {
+                            char child_path[STOW_PATH_LARGE];
+                            join_path(child_path, sizeof(child_path), target_path, name);
+                            if (str_set_add(&state.visited_paths, child_path)) {
+                                state.cb(child_path, state.user_data);
+                            }
+                        } else if (entry->d_type == DT_UNKNOWN) {
+                            char child_path[STOW_PATH_LARGE];
+                            join_path(child_path, sizeof(child_path), target_path, name);
+                            check_and_notify_symlink(child_path, &state);
+                        }
+                    }
+                    closedir(tdir);
+                }
             }
         }
     }

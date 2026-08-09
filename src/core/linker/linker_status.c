@@ -61,7 +61,11 @@ get_package_link_status(const char *target_dir, const char *source_dir, const ch
     }
 
     char real_pkg_dir[STOW_PATH_LARGE];
-    if (realpath(pkg_dir, real_pkg_dir) == NULL) {
+    if (is_symlink(pkg_dir)) {
+        if (realpath(pkg_dir, real_pkg_dir) == NULL) {
+            snprintf(real_pkg_dir, sizeof(real_pkg_dir), "%s", pkg_dir);
+        }
+    } else {
         snprintf(real_pkg_dir, sizeof(real_pkg_dir), "%s", pkg_dir);
     }
 
@@ -93,7 +97,34 @@ get_package_link_status(const char *target_dir, const char *source_dir, const ch
 
 bool is_package_linked(const char *target_dir, const char *source_dir, const char *pkg_name)
 {
-    return get_package_link_status(target_dir, source_dir, pkg_name) != LINK_STATUS_UNLINKED;
+    char pkg_dir[STOW_PATH_LARGE];
+    join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
+
+    if (!is_dir(pkg_dir)) {
+        return false;
+    }
+
+    StringArray raw_ignores;
+    init_package_ignores(&raw_ignores, source_dir, pkg_dir);
+
+    PkgFileList pkg_files;
+    collect_package_files(pkg_dir, &raw_ignores, &pkg_files);
+
+    bool linked = false;
+    for (size_t i = 0; i < pkg_files.count; i++) {
+        char target_path[STOW_PATH_LARGE];
+        join_path(target_path, sizeof(target_path), target_dir, pkg_files.entries[i].rel_path);
+
+        if (is_symlink(target_path) &&
+            is_symlink_pointing_to(target_path, pkg_files.entries[i].full_path, NULL)) {
+            linked = true;
+            break;
+        }
+    }
+
+    pkg_file_list_free(&pkg_files);
+    str_array_free(&raw_ignores);
+    return linked;
 }
 
 void list_packages_status(const char *source_dir, const char *target_dir)

@@ -101,10 +101,20 @@ bool get_symlink_owner_package(const char *symlink_path,
                                 char *owner_pkg_buf,
                                 size_t buf_size)
 {
-    char real_source[STOW_PATH_MAX];
-    if (realpath(source_dir, real_source) == NULL) {
-        snprintf(real_source, sizeof(real_source), "%s", source_dir);
+    static char cached_source_dir[STOW_PATH_MAX] = {0};
+    static char cached_real_source[STOW_PATH_MAX] = {0};
+
+    if (!source_dir || *source_dir == '\0') {
+        return false;
     }
+
+    if (strcmp(cached_source_dir, source_dir) != 0) {
+        snprintf(cached_source_dir, sizeof(cached_source_dir), "%s", source_dir);
+        if (realpath(source_dir, cached_real_source) == NULL) {
+            snprintf(cached_real_source, sizeof(cached_real_source), "%s", source_dir);
+        }
+    }
+    const char *real_source = cached_real_source;
 
     char *target = read_symlink_target(symlink_path);
     if (!target) {

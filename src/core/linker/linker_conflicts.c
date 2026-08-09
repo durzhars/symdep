@@ -102,7 +102,11 @@ void prepare_target_conflicts(const char *target_dir,
     join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
 
     char real_pkg_dir[STOW_PATH_LARGE];
-    if (realpath(pkg_dir, real_pkg_dir) == NULL) {
+    if (is_symlink(pkg_dir)) {
+        if (realpath(pkg_dir, real_pkg_dir) == NULL) {
+            snprintf(real_pkg_dir, sizeof(real_pkg_dir), "%s", pkg_dir);
+        }
+    } else {
         snprintf(real_pkg_dir, sizeof(real_pkg_dir), "%s", pkg_dir);
     }
 

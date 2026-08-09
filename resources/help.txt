@@ -1,48 +1,50 @@
 USAGE:
-  stow-manager [OPTIONS] <COMMAND> [ARGS...]
+  symdep [OPTIONS] <COMMAND> [ARGS...]
 
 CORE COMMANDS:
-  stow <pkg...>             Stow one or multiple packages
-  unstow <pkg...>           Unstow one or multiple packages
-  restow <pkg...>           Restow (unstow & stow) one or multiple packages
-  all                       Stow all packages in dotfiles repository
-  diff [pkg...]             Preview pending symlink, backup, and dependency changes
+  link <pkg...>             Link / deploy package symlinks (aliases: stow, deploy)
+  unlink <pkg...>           Unlink / remove package symlinks (alias: unstow)
+  relink <pkg...>           Relink (unlink & link) packages (alias: restow)
+  all                       Link all packages in source repository
+  diff [pkg...]             Preview pending symlink, backup, and dependency changes (dry-run)
   scan [pkg...]             Scan packages to auto-detect missing tools & plugins
 
 PACKAGE MANAGEMENT (pkg):
-  pkg create <name>         Scaffold a new package directory & .stowdeps manifest
-  pkg remove <name...>      Safely unstow and remove package directories
-  pkg list                  List packages with status ([STOWED], [PARTIAL], [UNSTOWED])
+  pkg create <name>         Scaffold a new package directory & .symdeps manifest
+  pkg remove <name...>      Safely unlink and remove package directories (alias: remove)
+  pkg list                  List packages with status ([LINKED], [PARTIAL], [UNLINKED])
 
 DEPENDENCY MANAGEMENT (deps):
   deps add <pkg> <dep>      Add dependency/conflict (--required, --optional, --conflict)
   deps edit <pkg> <dep>     Edit existing dependency classification
-  deps remove <pkg> <dep>   Remove a dependency or conflict entry
-  deps show <pkg>           Display raw .stowdeps manifest contents
-  deps target <pkg> <path>  Set per-package target directory in .stowdeps manifest
+  deps remove <pkg> <dep>   Remove a dependency or conflict entry (alias: deps rm)
+  deps show <pkg>           Display raw .symdeps manifest contents
+  deps target <pkg> <path>  Set per-package target directory in .symdeps manifest
 
 FILE FILTERING (ignore):
-  ignore init [pkg...]      Scaffold global or package-level .stowignore template
-  ignore add [pkg] <pat...> Append glob pattern(s) to package or global .stowignore
-  ignore remove [pkg] <pat> Remove glob pattern(s) from .stowignore (-g for global)
-  ignore clear [pkg...]     Purge .stowignore file(s) for package(s) or repo root
-  ignore show [pkg...]      Display active .stowignore patterns
+  ignore init [pkg...]      Scaffold global or package-level .symignore template
+  ignore add [pkg] <pat...> Append glob pattern(s) to package or global .symignore
+  ignore remove [pkg] <pat> Remove glob pattern(s) from .symignore (-g for global)
+  ignore clear [pkg...]     Purge .symignore file(s) for package(s) or repo root
+  ignore show [pkg...]      Display active .symignore patterns (alias: ignore list)
 
 DIAGNOSTICS & REPAIR:
   check [pkg...]            Verify dependencies and symlink integrity for packages
   check symlinks            Scan for broken or unmanaged orphan symlinks
-  fix conflicts             Unfold directory symlinks to resolve collisions
+  fix                       Unfold directory symlinks to resolve collisions (alias: fix-conflicts)
 
 CONFIGURATION (config):
-  config show               Display active configuration & repositories
-  config set <key> <val>    Set primary dotfiles repository or target directory
-  config add <path>         Add an additional dotfiles repository (multi-repo)
-  config remove <path>      Remove a dotfiles repository from config
+  config show               Display active configuration & source repositories
+  config set <key> <val>    Set primary source repository or target directory
+  config add <path>         Add an additional source repository (multi-repo)
+  config remove <path>      Remove a source repository from config
 
 OPTIONS:
-  -d, --dotfiles-dir <path> Override dotfiles repository path for current command
+  -d, --source-dir <path>   Override source repository path for current command (aliases: --src-dir, --dotfiles-dir)
   -t, --target-dir <path>   Override target directory for current command
   -y, --install             Auto-confirm installation of missing dependencies
   -n, --dry-run             Preview disk changes without modifying disk
   -s, --save                Save command-line directory overrides (-d/-t) to config
+  -p, --profile             Enable execution performance profiler logging
   -h, --help                Display this help manual
+

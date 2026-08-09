@@ -1,0 +1,278 @@
+/*
+ * Symlink & Dependency Manager (symdep)
+ * Copyright (C) 2026 durzhars
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#define _GNU_SOURCE
+#define _DEFAULT_SOURCE
+#define _POSIX_C_SOURCE 200809L
+
+#include "core/registry.h"
+#include "core/file_collector.h"
+
+#include "utils/fs.h"
+#include "utils/path.h"
+
+#include <dirent.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+void get_all_packages(const char *source_dir, StringArray *packages)
+{
+    DIR *dir = opendir(source_dir);
+    if (!dir) {
+        return;
+    }
+
+    StringArray ignore_patterns;
+    str_array_init(&ignore_patterns);
+    get_default_stowignore(&ignore_patterns);
+    parse_stowignore_raw(source_dir, &ignore_patterns);
+
+    struct dirent *entry;
+    char path[PATH_MAX * 2];
+    size_t source_len = strlen(source_dir);
+
+    if (source_len < sizeof(path) - 1) {
+        memcpy(path, source_dir, source_len);
+        if (source_len > 0 && path[source_len - 1] != '/') {
+            path[source_len++] = '/';
+        }
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        const char *name = entry->d_name;
+        if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
+            continue;
+        }
+
+        if (!is_path_ignored(name, &ignore_patterns)) {
+            // Leverage d_type to avoid unnecessary stat calls when available
+            if (entry->d_type == DT_DIR) {
+                str_array_append(packages, name);
+            } else if (entry->d_type == DT_UNKNOWN || entry->d_type == DT_LNK) {
+                size_t name_len = strlen(name);
+                if (source_len + name_len < sizeof(path)) {
+                    memcpy(path + source_len, name, name_len + 1);
+                    if (is_dir(path) && !is_symlink(path)) {
+                        str_array_append(packages, name);
+                    }
+                }
+            }
+        }
+    }
+
+    str_array_free(&ignore_patterns);
+    closedir(dir);
+}
+
+static FILE *open_registry_file(const char *source_dir)
+{
+    if (source_dir && *source_dir != '\0') {
+        char path[PATH_MAX * 2];
+        snprintf(path, sizeof(path), "%s/symdep.registry", source_dir);
+        FILE *fp = fopen(path, "r");
+        if (fp) {
+            return fp;
+        }
+
+        snprintf(path, sizeof(path), "%s/.symdepregistry", source_dir);
+        fp = fopen(path, "r");
+        if (fp) {
+            return fp;
+        }
+
+        snprintf(path, sizeof(path), "%s/stow.registry", source_dir);
+        fp = fopen(path, "r");
+        if (fp) {
+            return fp;
+        }
+
+        snprintf(path, sizeof(path), "%s/.stowregistry", source_dir);
+        fp = fopen(path, "r");
+        if (fp) {
+            return fp;
+        }
+    }
+
+    FILE *rfp = open_resource_file("symdep.registry");
+    if (!rfp) {
+        rfp = open_resource_file("stow.registry");
+    }
+    return rfp;
+}
+
+void registry_get_aliases(const char *source_dir, const char *tool, StringArray *aliases)
+{
+    FILE *fp = open_registry_file(source_dir);
+    if (!fp) {
+        str_array_append(aliases, tool);
+        return;
+    }
+
+    char *linebuf = NULL;
+    size_t linecap = 0;
+    ssize_t linelen;
+    bool found = false;
+
+    while ((linelen = getline(&linebuf, &linecap, fp)) != -1) {
+        (void)linelen;
+        char *trimmed = trim_whitespace(linebuf);
+        if (trimmed[0] == '#' || trimmed[0] == '\0') {
+            continue;
+        }
+
+        char *eq = strchr(trimmed, '=');
+        if (eq) {
+            *eq = '\0';
+            char *key = trim_whitespace(trimmed);
+            char *val = trim_whitespace(eq + 1);
+
+            if (strcmp(key, tool) == 0) {
+                found = true;
+                char *saveptr = NULL;
+                char *token = strtok_r(val, "|", &saveptr);
+                while (token) {
+                    char *p = trim_whitespace(token);
+                    if (strlen(p) > 0 && !str_array_contains(aliases, p)) {
+                        str_array_append(aliases, p);
+                    }
+                    token = strtok_r(NULL, "|", &saveptr);
+                }
+                break;
+            }
+        }
+    }
+
+    if (!found) {
+        str_array_append(aliases, tool);
+    }
+
+    free(linebuf);
+    fclose(fp);
+}
+
+void registry_get_distro_pkg(const char *source_dir,
+                             const char *tool,
+                             const char *distro_id,
+                             char *pkg_out,
+                             size_t pkg_out_size)
+{
+    snprintf(pkg_out, pkg_out_size, "%s", tool);
+
+    FILE *fp = open_registry_file(source_dir);
+    if (!fp) {
+        return;
+    }
+
+    char key_distro[256];
+    snprintf(key_distro, sizeof(key_distro), "%s@%s", tool, distro_id);
+
+    char *linebuf = NULL;
+    size_t linecap = 0;
+    ssize_t linelen;
+
+    while ((linelen = getline(&linebuf, &linecap, fp)) != -1) {
+        (void)linelen;
+        char *trimmed = trim_whitespace(linebuf);
+        if (trimmed[0] == '#' || trimmed[0] == '\0') {
+            continue;
+        }
+
+        char *eq = strchr(trimmed, '=');
+        if (eq) {
+            *eq = '\0';
+            char *key = trim_whitespace(trimmed);
+            char *val = trim_whitespace(eq + 1);
+
+            if (strcmp(key, key_distro) == 0) {
+                snprintf(pkg_out, pkg_out_size, "%s", val);
+                break;
+            }
+        }
+    }
+
+    free(linebuf);
+    fclose(fp);
+}
+
+void registry_get_all_tools(const char *source_dir, StringArray *tools)
+{
+    FILE *fp = open_registry_file(source_dir);
+    if (!fp) {
+        return;
+    }
+
+    char *linebuf = NULL;
+    size_t linecap = 0;
+    ssize_t linelen;
+
+    while ((linelen = getline(&linebuf, &linecap, fp)) != -1) {
+        (void)linelen;
+        char *trimmed = trim_whitespace(linebuf);
+        if (trimmed[0] == '#' || trimmed[0] == '\0') {
+            continue;
+        }
+
+        char *eq = strchr(trimmed, '=');
+        if (eq) {
+            *eq = '\0';
+            char *key = trim_whitespace(trimmed);
+            char *at = strchr(key, '@');
+            if (at) {
+                *at = '\0';
+            }
+            char *tool = trim_whitespace(key);
+            if (strlen(tool) > 0 && !str_array_contains(tools, tool)) {
+                str_array_append(tools, tool);
+            }
+        }
+    }
+
+    free(linebuf);
+    fclose(fp);
+}
+
+bool is_tool_installed_dynamic(const char *source_dir, const char *tool)
+{
+    StringArray aliases;
+    str_array_init(&aliases);
+    registry_get_aliases(source_dir, tool, &aliases);
+
+    bool installed = false;
+    for (size_t i = 0; i < aliases.count; i++) {
+        const char *entry = aliases.items[i];
+        if (strncmp(entry, "plugin:", 7) == 0) {
+            const char *plugin_path = entry + 7;
+            char expanded[PATH_MAX * 2];
+            expand_tilde_path(plugin_path, expanded, sizeof(expanded));
+            if (access(expanded, R_OK) == 0) {
+                installed = true;
+                break;
+            }
+        } else {
+            if (is_executable_in_path(entry)) {
+                installed = true;
+                break;
+            }
+        }
+    }
+
+    str_array_free(&aliases);
+    return installed;
+}

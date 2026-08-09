@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef UTILS_DEFS_H
-#define UTILS_DEFS_H
+#ifndef SYMDEP_UTILS_DEFS_H
+#define SYMDEP_UTILS_DEFS_H
 
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 700
@@ -39,4 +39,5 @@
 #define COLOR_BOLD "\033[1m"
 #define COLOR_RESET "\033[0m"
 
-#endif /* UTILS_DEFS_H */
+#endif /* SYMDEP_UTILS_DEFS_H */
+

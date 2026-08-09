@@ -49,6 +49,8 @@ void test_walk_dir_files_and_cleanup(void);
 void test_path_sanity_strerror(void);
 void test_temp_path_registration(void);
 void test_path_parsing_traversal_and_naming_edge_cases(void);
+void test_str_set(void);
+void test_perf_timer(void);
 
 /* Prototypes from test_manifest.c */
 void test_manifest_load_save(void);
@@ -65,7 +67,7 @@ void test_get_active_dotfiles_dir_cascade(void);
 void test_config_sanity_checks(void);
 void test_config_save_disclaimer(void);
 
-/* Prototypes from test_stow.c */
+/* Prototypes from test_linker.c */
 void test_stowignore(void);
 void test_dry_run_stow(void);
 void test_symlink_health_check(void);
@@ -103,7 +105,7 @@ void test_check_package_dependencies(void);
 
 int main(void)
 {
-    printf("\n=== Running Dotfiles Stow Manager C Unit Tests ===\n\n");
+    printf("\n=== Running Symlink & Dependency Manager (symdep) C Unit Tests ===\n\n");
 
     // test_utils.c
     RUN_TEST(test_trim_whitespace);
@@ -129,6 +131,8 @@ int main(void)
     RUN_TEST(test_path_sanity_strerror);
     RUN_TEST(test_temp_path_registration);
     RUN_TEST(test_path_parsing_traversal_and_naming_edge_cases);
+    RUN_TEST(test_str_set);
+    RUN_TEST(test_perf_timer);
 
     // test_manifest.c
     RUN_TEST(test_manifest_load_save);

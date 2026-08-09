@@ -1,0 +1,24 @@
+# Default Symlink Manager ignore patterns (mirrors GNU Stow default ignore list)
+.symdeps
+.symignore
+.stowdeps
+.stowignore
+.git
+.gitignore
+.gitattributes
+.gitmodules
+.DS_Store
+.cvsignore
+CVS
+.svn
+.hg
+.hgignore
+.hgtags
+_darcs
+README*
+LICENSE*
+COPYING*
+*~
+#*#
+.#*
+

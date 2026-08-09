@@ -29,7 +29,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "utils.h"
+#include "utils/timer.h"
+#include "utils/defs.h"
+#include "utils/env.h"
+#include "utils/fs.h"
+#include "utils/mem.h"
+#include "utils/path.h"
 
 bool file_exists(const char *path)
 {
@@ -46,39 +51,56 @@ FILE *open_resource_file(const char *filename)
     StringArray search_paths;
     str_array_init(&search_paths);
 
+    // 1. CWD project resources
+    char p_res[PATH_MAX * 2];
+    snprintf(p_res, sizeof(p_res), "resources/%s", filename);
+    str_array_append(&search_paths, p_res);
+
+    // 2. XDG data home (symdep)
     char data_home[PATH_MAX];
     if (get_xdg_data_home(data_home, sizeof(data_home))) {
         char p[PATH_MAX * 2];
-        snprintf(p, sizeof(p), "%s/stow-manager/%s", data_home, filename);
+        snprintf(p, sizeof(p), "%s/symdep/%s", data_home, filename);
         str_array_append(&search_paths, p);
     }
 
+    // 3. XDG config home (symdep)
     char config_home[PATH_MAX];
     if (get_xdg_config_home(config_home, sizeof(config_home))) {
         char p[PATH_MAX * 2];
-        snprintf(p, sizeof(p), "%s/stow-manager/%s", config_home, filename);
+        snprintf(p, sizeof(p), "%s/symdep/%s", config_home, filename);
         str_array_append(&search_paths, p);
     }
 
+    // 4. XDG data dirs (symdep)
     StringArray data_dirs;
     str_array_init(&data_dirs);
     get_xdg_data_dirs(&data_dirs);
     for (size_t i = 0; i < data_dirs.count; i++) {
         char p[PATH_MAX * 2];
-        snprintf(p, sizeof(p), "%s/stow-manager/%s", data_dirs.items[i], filename);
+        snprintf(p, sizeof(p), "%s/symdep/%s", data_dirs.items[i], filename);
         str_array_append(&search_paths, p);
     }
     str_array_free(&data_dirs);
 
 #ifdef DATADIR
+    // 5. System DATADIR (symdep)
     char p3[PATH_MAX * 2];
-    snprintf(p3, sizeof(p3), "%s/stow-manager/%s", STR(DATADIR), filename);
+    snprintf(p3, sizeof(p3), "%s/symdep/%s", STR(DATADIR), filename);
     str_array_append(&search_paths, p3);
 #endif
 
-    char p_res[PATH_MAX * 2];
-    snprintf(p_res, sizeof(p_res), "resources/%s", filename);
-    str_array_append(&search_paths, p_res);
+    // 6. Legacy fallback (stow-manager)
+    if (get_xdg_data_home(data_home, sizeof(data_home))) {
+        char p[PATH_MAX * 2];
+        snprintf(p, sizeof(p), "%s/stow-manager/%s", data_home, filename);
+        str_array_append(&search_paths, p);
+    }
+    if (get_xdg_config_home(config_home, sizeof(config_home))) {
+        char p[PATH_MAX * 2];
+        snprintf(p, sizeof(p), "%s/stow-manager/%s", config_home, filename);
+        str_array_append(&search_paths, p);
+    }
 
     FILE *fp = NULL;
     for (size_t i = 0; i < search_paths.count; i++) {
@@ -114,7 +136,7 @@ bool is_symlink(const char *path)
 
 char *read_symlink_target(const char *path)
 {
-    if (!path || *path == '\0') {
+    if (!path || *path == '\0' || !is_symlink(path)) {
         return NULL;
     }
 
@@ -125,10 +147,7 @@ char *read_symlink_target(const char *path)
     }
     target[len] = '\0';
 
-    // 2 bytes of extra room for '/' and '\0'
-    char abs_target[PATH_MAX * 2 + 2];
-    const char *query_path = target;
-
+    char norm_path[PATH_MAX * 2];
     if (target[0] != '/') {
         const char *last_slash = strrchr(path, '/');
         int formatted_len = 0;
@@ -138,46 +157,20 @@ char *read_symlink_target(const char *path)
                 return NULL;
             }
             formatted_len =
-                snprintf(abs_target, sizeof(abs_target), "%.*s/%s", (int)parent_len, path, target);
+                snprintf(norm_path, sizeof(norm_path), "%.*s/%s", (int)parent_len, path, target);
         } else {
-            formatted_len = snprintf(abs_target, sizeof(abs_target), "./%s", target);
+            formatted_len = snprintf(norm_path, sizeof(norm_path), "./%s", target);
         }
 
-        if (formatted_len < 0 || (size_t)formatted_len >= sizeof(abs_target)) {
+        if (formatted_len < 0 || (size_t)formatted_len >= sizeof(norm_path)) {
             return NULL;
         }
-        query_path = abs_target;
+    } else {
+        snprintf(norm_path, sizeof(norm_path), "%s", target);
     }
 
-    // POSIX 2008 / GNU realpath(path, NULL) allocates the exact buffer required
-    char *real_res = realpath(query_path, NULL);
-    if (real_res) {
-        return real_res;
-    }
-
-    // Fallback for non-existent targets: try resolving parent directory if possible
-    char norm_path[PATH_MAX * 2];
-    int norm_ret = snprintf(norm_path, sizeof(norm_path), "%s", query_path);
-    if (norm_ret < 0 || (size_t)norm_ret >= sizeof(norm_path)) {
-        return NULL;
-    }
     collapse_path(norm_path);
-
-    char *last_slash = strrchr(norm_path, '/');
-    if (last_slash && last_slash != norm_path) {
-        *last_slash = '\0';
-        char *parent_real = realpath(norm_path, NULL);
-        if (parent_real) {
-            char full_buf[PATH_MAX * 2];
-            int ret = snprintf(full_buf, sizeof(full_buf), "%s/%s", parent_real, last_slash + 1);
-            free(parent_real);
-            if (ret < 0 || (size_t)ret >= sizeof(full_buf)) {
-                return NULL;
-            }
-            return safe_strdup(full_buf);
-        }
-        *last_slash = '/';
-    }
+    normalize_path(norm_path);
 
     return safe_strdup(norm_path);
 }
@@ -186,7 +179,7 @@ bool is_symlink_pointing_to(const char *symlink_path,
                             const char *pkg_file_path,
                             const char *real_pkg_file_path)
 {
-    if (!symlink_path || !pkg_file_path) {
+    if (!symlink_path || !pkg_file_path || !is_symlink(symlink_path)) {
         return false;
     }
 
@@ -247,11 +240,12 @@ bool is_symlink_pointing_to(const char *symlink_path,
         }
     }
 
-    char resolved_target[PATH_MAX];
-    char resolved_pkg_file[PATH_MAX];
-    if (realpath(symlink_path, resolved_target) != NULL &&
-        realpath(pkg_file_path, resolved_pkg_file) != NULL) {
-        if (strcmp(resolved_target, resolved_pkg_file) == 0) {
+    char *resolved = read_symlink_target(symlink_path);
+    if (resolved) {
+        bool match = (strcmp(resolved, pkg_file_path) == 0 ||
+                      (real_pkg_file_path && strcmp(resolved, real_pkg_file_path) == 0));
+        free(resolved);
+        if (match) {
             return true;
         }
     }
@@ -312,54 +306,7 @@ int mkdir_p(const char *path, mode_t mode)
     return 0;
 }
 
-void get_all_packages(const char *dotfiles_dir, StringArray *packages)
-{
-    DIR *dir = opendir(dotfiles_dir);
-    if (!dir) {
-        return;
-    }
 
-    StringArray ignore_patterns;
-    str_array_init(&ignore_patterns);
-    get_default_stowignore(&ignore_patterns);
-    parse_stowignore_raw(dotfiles_dir, &ignore_patterns);
-
-    struct dirent *entry;
-    char path[PATH_MAX * 2];
-    size_t dotfiles_len = strlen(dotfiles_dir);
-
-    if (dotfiles_len < sizeof(path) - 1) {
-        memcpy(path, dotfiles_dir, dotfiles_len);
-        if (dotfiles_len > 0 && path[dotfiles_len - 1] != '/') {
-            path[dotfiles_len++] = '/';
-        }
-    }
-
-    while ((entry = readdir(dir)) != NULL) {
-        const char *name = entry->d_name;
-        if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
-            continue;
-        }
-
-        if (!is_path_ignored(name, &ignore_patterns)) {
-            // Leverage d_type to avoid unnecessary stat calls when available
-            if (entry->d_type == DT_DIR) {
-                str_array_append(packages, name);
-            } else if (entry->d_type == DT_UNKNOWN || entry->d_type == DT_LNK) {
-                size_t name_len = strlen(name);
-                if (dotfiles_len + name_len < sizeof(path)) {
-                    memcpy(path + dotfiles_len, name, name_len + 1);
-                    if (is_dir(path) && !is_symlink(path)) {
-                        str_array_append(packages, name);
-                    }
-                }
-            }
-        }
-    }
-
-    str_array_free(&ignore_patterns);
-    closedir(dir);
-}
 
 void walk_dir_symlinks(const char *dir_path,
                        int current_depth,
@@ -414,6 +361,8 @@ void walk_dir_symlinks(const char *dir_path,
 
     closedir(dir);
 }
+
+
 
 typedef struct {
     const char *base_dir;
@@ -529,3 +478,95 @@ void cleanup_temp_dir_contents(const char *dir_path)
 
     closedir(dir);
 }
+
+PathSanityResult verify_path_sanity(const char *path)
+{
+    if (!path || *path == '\0') {
+        return ERR_PATH_EMPTY;
+    }
+
+    if (path[0] != '/') {
+        return ERR_NOT_ABSOLUTE;
+    }
+
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        return ERR_INSUFFICIENT_PERMS;
+    }
+
+    if (!S_ISDIR(st.st_mode)) {
+        return ERR_NOT_A_DIRECTORY;
+    }
+
+    if (getuid() != 0 && st.st_uid != getuid()) {
+        return ERR_NOT_OWNED_BY_USER;
+    }
+
+    if ((st.st_mode & S_IWOTH) && !(st.st_mode & S_ISVTX)) {
+        return ERR_WORLD_WRITABLE;
+    }
+
+    if (access(path, R_OK | W_OK | X_OK) != 0) {
+        return ERR_INSUFFICIENT_PERMS;
+    }
+
+    return PATH_VALID;
+}
+
+const char *path_sanity_strerror(PathSanityResult res, const char *path)
+{
+    static _Thread_local char buf[512];
+    const char *p = (path && *path) ? path : "<empty>";
+
+    struct stat st;
+    int has_stat = (path && stat(path, &st) == 0);
+
+    switch (res) {
+    case PATH_VALID:
+        snprintf(buf, sizeof(buf), "path '%s' is valid", p);
+        break;
+    case ERR_PATH_EMPTY:
+        snprintf(buf, sizeof(buf), "path string is empty or NULL");
+        break;
+    case ERR_NOT_ABSOLUTE:
+        snprintf(buf, sizeof(buf), "path '%s' is not absolute (must start with '/')", p);
+        break;
+    case ERR_NOT_A_DIRECTORY:
+        snprintf(buf, sizeof(buf), "'%s' is not a directory", p);
+        break;
+    case ERR_NOT_OWNED_BY_USER:
+        if (has_stat) {
+            snprintf(buf,
+                     sizeof(buf),
+                     "owner UID %u of '%s' does not match running UID %u",
+                     st.st_uid,
+                     p,
+                     getuid());
+        } else {
+            snprintf(
+                buf, sizeof(buf), "directory owner UID does not match running UID %u", getuid());
+        }
+        break;
+    case ERR_WORLD_WRITABLE:
+        if (has_stat) {
+            snprintf(buf,
+                     sizeof(buf),
+                     "'%s' permissions (%04o) are world-writable (security violation)",
+                     p,
+                     st.st_mode & 07777);
+        } else {
+            snprintf(buf, sizeof(buf), "'%s' is world-writable (security violation)", p);
+        }
+        break;
+    case ERR_INSUFFICIENT_PERMS:
+        snprintf(buf, sizeof(buf), "insufficient permissions for '%s' (rwx access required)", p);
+        break;
+    default:
+        snprintf(buf, sizeof(buf), "unknown path sanity error for '%s'", p);
+        break;
+    }
+
+    return buf;
+}
+
+

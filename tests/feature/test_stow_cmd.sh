@@ -81,16 +81,16 @@ echo "font_size 12" >"$STOW_DOTFILES_DIR/terminal/.config/kitty/kitty.conf"
 mkdir -p "$HOME/.config/kitty"
 echo "original local config file" >"$HOME/.config/kitty/kitty.conf"
 
-assert_success "$STOW_BIN stow terminal" "stow-manager stow terminal resolved conflict"
+assert_success "$STOW_BIN stow terminal" "symdep stow terminal resolved conflict"
 assert_symlink_exists "$HOME/.config/kitty/kitty.conf" "$STOW_DOTFILES_DIR/terminal/.config/kitty/kitty.conf" "Symlink placed over conflicting file"
 
-BACKUP_FILE=$(ls "$HOME/.config/kitty"/kitty.conf.stow_backup_* 2>/dev/null | head -n 1)
+BACKUP_FILE=$(ls "$HOME/.config/kitty"/kitty.conf.*backup_* 2>/dev/null | head -n 1)
 if [ -n "$BACKUP_FILE" ] && [ -f "$BACKUP_FILE" ]; then
-    assert_file_contains "$BACKUP_FILE" "original local config file" "Original file preserved in .stow_backup_* file"
+    assert_file_contains "$BACKUP_FILE" "original local config file" "Original file preserved in backup file"
 else
     TESTS_RUN=$((TESTS_RUN + 1))
     TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo -e "  ${COLOR_RED}✗${COLOR_RESET} Conflict backup file (.stow_backup_*) was not created"
+    echo -e "  ${COLOR_RED}✗${COLOR_RESET} Conflict backup file was not created"
 fi
 
 # 6. Global Dry-Run Mode (-n / --dry-run)
@@ -125,8 +125,8 @@ ln -s "$STOW_DOTFILES_DIR/terminal/.config/kitty" "$HOME/.config/kitty"
 assert_success "$STOW_BIN -n fix-conflicts" "fix-conflicts dry-run (-n) succeeded"
 assert_symlink_exists "$HOME/.config/kitty" "$STOW_DOTFILES_DIR/terminal/.config/kitty" "Target directory remains symlink after fix-conflicts dry-run"
 
-# 7. Flag Overrides (-d, --dotfiles-dir & -t, --target-dir)
-echo -e "\n${COLOR_BOLD}[Test 7] Flag Overrides (-d, --dotfiles-dir & -t, --target-dir)${COLOR_RESET}"
+# 7. Flag Overrides (-d, --source-dir / --dotfiles-dir & -t, --target-dir)
+echo -e "\n${COLOR_BOLD}[Test 7] Flag Overrides (-d, --source-dir & -t, --target-dir)${COLOR_RESET}"
 setup_sandbox
 CUSTOM_REPO="$TEST_TMPDIR/custom_repo"
 CUSTOM_TARGET="$TEST_TMPDIR/custom_target"
@@ -137,20 +137,20 @@ assert_success "$STOW_BIN -d $CUSTOM_REPO -t $CUSTOM_TARGET stow custom_pkg" "st
 assert_symlink_exists "$CUSTOM_TARGET/.custom_config" "$CUSTOM_REPO/custom_pkg/.custom_config" "Symlink created in custom target from custom repo"
 assert_path_not_exists "$HOME/.custom_config" "Default HOME untouched when -t override is provided"
 
-assert_success "$STOW_BIN --dotfiles-dir=$CUSTOM_REPO --target-dir=$CUSTOM_TARGET unstow custom_pkg" "unstow with long flags --dotfiles-dir and --target-dir succeeded"
+assert_success "$STOW_BIN --source-dir=$CUSTOM_REPO --target-dir=$CUSTOM_TARGET unstow custom_pkg" "unstow with long flags --source-dir and --target-dir succeeded"
 assert_path_not_exists "$CUSTOM_TARGET/.custom_config" "Symlink removed from custom target after unstow"
 
 # 8. Help Menu Flags (-h, --help, help)
 echo -e "\n${COLOR_BOLD}[Test 8] Help Menu Flags (-h, --help, help)${COLOR_RESET}"
 setup_sandbox
-assert_success "$STOW_BIN -h" "stow-manager -h succeeded"
-assert_file_contains "$LAST_CMD_OUTPUT" "stow-manager" "-h output contains binary name"
+assert_success "$STOW_BIN -h" "symdep -h succeeded"
+assert_file_contains "$LAST_CMD_OUTPUT" "symdep" "-h output contains binary name"
 
-assert_success "$STOW_BIN --help" "stow-manager --help succeeded"
-assert_file_contains "$LAST_CMD_OUTPUT" "stow-manager" "--help output contains binary name"
+assert_success "$STOW_BIN --help" "symdep --help succeeded"
+assert_file_contains "$LAST_CMD_OUTPUT" "symdep" "--help output contains binary name"
 
-assert_success "$STOW_BIN help" "stow-manager help succeeded"
-assert_file_contains "$LAST_CMD_OUTPUT" "stow-manager" "help subcommand output contains binary name"
+assert_success "$STOW_BIN help" "symdep help succeeded"
+assert_file_contains "$LAST_CMD_OUTPUT" "symdep" "help subcommand output contains binary name"
 
 echo -e "\n${COLOR_BOLD}[Test 9] Dynamic Package Collision Resolution${COLOR_RESET}"
 setup_sandbox
@@ -166,3 +166,4 @@ assert_success "$STOW_BIN stow nvim-headless" "Stowing colliding nvim-headless p
 assert_symlink_exists "$HOME/.config/nvim/init.lua" "$STOW_DOTFILES_DIR/nvim-headless/.config/nvim/init.lua" "nvim-headless symlink now active"
 
 print_summary
+

@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,8 +19,8 @@
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
-#include "cli.h"
-#include "cmd_dispatch.h"
+#include "cli/cli.h"
+#include "cli/cmd_dispatch.h"
 #include "utils/signal.h"
 
 int main(int argc, char **argv)

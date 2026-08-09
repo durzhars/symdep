@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # tests/feature/run_feature_tests.sh
-# Orchestrates all stow-manager feature test suites with formatted pass/fail output.
+# Orchestrates all symdep feature test suites with formatted pass/fail output.
 
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-STOW_BIN="${STOW_BIN:-$PROJECT_ROOT/bin/stow-manager}"
+STOW_BIN="${STOW_BIN:-$PROJECT_ROOT/bin/symdep}"
 
 if [ -t 1 ] || [ "${FORCE_COLOR:-0}" = "1" ]; then
     COLOR_RED='\033[0;31m'
@@ -25,7 +25,7 @@ else
 fi
 
 echo -e "${COLOR_CYAN}${COLOR_BOLD}=========================================${COLOR_RESET}"
-echo -e "${COLOR_CYAN}${COLOR_BOLD}  stow-manager Feature Test Suite Runner ${COLOR_RESET}"
+echo -e "${COLOR_CYAN}${COLOR_BOLD}    symdep Feature Test Suite Runner     ${COLOR_RESET}"
 echo -e "${COLOR_CYAN}${COLOR_BOLD}=========================================${COLOR_RESET}\n"
 
 if [ ! -x "$STOW_BIN" ]; then

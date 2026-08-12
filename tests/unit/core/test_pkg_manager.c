@@ -124,3 +124,19 @@ void test_pkg_manager_build_command_elevation(void)
     ASSERT(strcmp(cmd, "sudo apt update && sudo apt install -y 'bat'") == 0,
            "Compound command elevation should prepend sudo to each sub-command");
 }
+
+void test_pkg_manager_build_command_format_safety(void)
+{
+    PkgManagerEntry mgr;
+    memset(&mgr, 0, sizeof(mgr));
+    snprintf(mgr.name, sizeof(mgr.name), "custom");
+    snprintf(mgr.binary, sizeof(mgr.binary), "custom");
+    snprintf(mgr.install_cmd, sizeof(mgr.install_cmd), "custom_tool --fmt %%x %%s --flag");
+    mgr.requires_root = false;
+
+    char cmd[512] = {0};
+    pkg_manager_build_command(&mgr, NULL, "pkg1 pkg2", cmd, sizeof(cmd), false, true);
+
+    ASSERT(strcmp(cmd, "custom_tool --fmt %x pkg1 pkg2 --flag") == 0,
+           "Format specifiers in template should be treated as literal strings, not format arguments");
+}

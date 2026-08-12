@@ -609,7 +609,21 @@ void pkg_manager_build_command(const PkgManagerEntry *mgr,
     out_cmd[0] = '\0';
 
     char raw_cmd[2048];
-    int written = snprintf(raw_cmd, sizeof(raw_cmd), mgr->install_cmd, pkg_list ? pkg_list : "");
+    const char *pkgs = pkg_list ? pkg_list : "";
+    const char *fmt_pos = strstr(mgr->install_cmd, "%s");
+    int written;
+    if (fmt_pos) {
+        size_t prefix_len = (size_t)(fmt_pos - mgr->install_cmd);
+        written = snprintf(raw_cmd,
+                           sizeof(raw_cmd),
+                           "%.*s%s%s",
+                           (int)prefix_len,
+                           mgr->install_cmd,
+                           pkgs,
+                           fmt_pos + 2);
+    } else {
+        written = snprintf(raw_cmd, sizeof(raw_cmd), "%s", mgr->install_cmd);
+    }
     if (written <= 0 || (size_t)written >= sizeof(raw_cmd)) {
         log_error("Failed to format package manager command template.");
         return;

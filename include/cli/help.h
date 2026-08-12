@@ -21,5 +21,6 @@
 
 void show_help(void);
 void show_scan_help(void);
+void show_subcommand_help(const char *topic);
 
 #endif /* SYMDEP_HELP_H */

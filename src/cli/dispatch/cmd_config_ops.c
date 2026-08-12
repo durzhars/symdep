@@ -133,10 +133,8 @@ int cmd_help(const CommandContext *ctx)
 {
     if (ctx->args->count > ctx->arg_offset) {
         const char *topic = ctx->args->items[ctx->arg_offset];
-        if (strcmp(topic, "scan") == 0) {
-            show_scan_help();
-            return 0;
-        }
+        show_subcommand_help(topic);
+        return 0;
     }
     show_help();
     return 0;

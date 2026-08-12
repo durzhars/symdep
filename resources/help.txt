@@ -77,3 +77,27 @@ COMMAND MANUAL (scan):
     $ symdep scan hyprland
     $ symdep scan hyprland -i
     $ symdep scan nvim-headless -y
+
+
+COMMAND MANUAL (config):
+  Usage: symdep config [show|set|add|remove] [options]
+
+  Description:
+    Manages global configuration settings, source repository paths, target directories,
+    default package manager overrides, and privilege elevation settings.
+
+  Subcommands & Options:
+    config show                           Display active configuration & settings.
+    config set -m, --manager <name>       Set default package manager (alias: --pkg-manager).
+    config set -e, --elevation <tool>     Set default privilege elevation tool (sudo, tsu, doas, none).
+    config set -t, --target <path>        Set target home directory override.
+    config set -d, --source <path>        Set primary source repository directory.
+    config add <path>                     Add an additional source repository (multi-repo mode).
+    config remove <path>                  Remove a source repository from config.
+
+  Examples:
+    $ symdep config show
+    $ symdep config set -m yay
+    $ symdep config set -e tsu
+    $ symdep config set -t ~/
+    $ symdep config add ~/dotfiles-work

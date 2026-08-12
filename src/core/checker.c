@@ -89,6 +89,53 @@ static void build_install_command(const char *source_dir,
     }
 }
 
+static void parse_item_selections(const char *input, size_t count, bool default_all, bool *selected)
+{
+    if (!selected || count == 0) {
+        return;
+    }
+    char buf[256];
+    snprintf(buf, sizeof(buf), "%s", input ? input : "");
+    char *trimmed = trim_whitespace(buf);
+
+    if (trimmed[0] == '\0') {
+        for (size_t i = 0; i < count; i++) {
+            selected[i] = default_all;
+        }
+        return;
+    }
+
+    if (strcmp(trimmed, "all") == 0 || strcmp(trimmed, "a") == 0 || strcmp(trimmed, "y") == 0 ||
+        strcmp(trimmed, "Y") == 0 || strcmp(trimmed, "yes") == 0) {
+        for (size_t i = 0; i < count; i++) {
+            selected[i] = true;
+        }
+        return;
+    }
+
+    if (strcmp(trimmed, "none") == 0 || strcmp(trimmed, "n") == 0 || strcmp(trimmed, "N") == 0 ||
+        strcmp(trimmed, "no") == 0 || strcmp(trimmed, "0") == 0) {
+        for (size_t i = 0; i < count; i++) {
+            selected[i] = false;
+        }
+        return;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        selected[i] = false;
+    }
+
+    char *saveptr = NULL;
+    char *token = strtok_r(trimmed, " ,;\t", &saveptr);
+    while (token != NULL) {
+        long idx = strtol(token, NULL, 10);
+        if (idx > 0 && (size_t)idx <= count) {
+            selected[(size_t)idx - 1] = true;
+        }
+        token = strtok_r(NULL, " ,;\t", &saveptr);
+    }
+}
+
 static void handle_missing_dependencies(const char *source_dir,
                                         const StringArray *missing_pkgs,
                                         bool is_required,
@@ -115,31 +162,92 @@ static void handle_missing_dependencies(const char *source_dir,
                           sizeof(mgr_name),
                           auto_install,
                           dry_run);
-    printf("%sInstallation Command (%s):%s %s%s%s\n\n",
-           COLOR_BOLD,
-           mgr_name,
-           COLOR_RESET,
-           COLOR_CYAN,
-           install_cmd,
-           COLOR_RESET);
 
     if (dry_run) {
+        printf("%sInstallation Command (%s):%s %s%s%s\n\n",
+               COLOR_BOLD,
+               mgr_name,
+               COLOR_RESET,
+               COLOR_CYAN,
+               install_cmd,
+               COLOR_RESET);
         log_info("[DRY-RUN] Would prompt/execute installation command: %s", install_cmd);
     } else if (auto_install) {
         run_system_cmd(install_cmd);
     } else if (isatty(STDIN_FILENO)) {
         if (is_required) {
             printf("Would you like to install missing REQUIRED dependencies now? [Y/n] ");
+            fflush(stdout);
+            int c = getchar();
+            if (c != '\n' && c != EOF) {
+                flush_stdin();
+            }
+            if (c == 'y' || c == 'Y' || c == '\n') {
+                run_system_cmd(install_cmd);
+            }
         } else {
-            printf("Would you like to install missing OPTIONAL plugins & tools now? [y/N] ");
-        }
-        fflush(stdout);
-        int c = getchar();
-        if (c != '\n' && c != EOF) {
-            flush_stdin();
-        }
-        if (c == 'y' || c == 'Y' || (is_required && c == '\n')) {
-            run_system_cmd(install_cmd);
+            if (missing_pkgs->count == 1) {
+                printf("Would you like to install missing optional plugin '%s'? [y/N] ",
+                       missing_pkgs->items[0]);
+                fflush(stdout);
+                int c = getchar();
+                if (c != '\n' && c != EOF) {
+                    flush_stdin();
+                }
+                if (c == 'y' || c == 'Y') {
+                    run_system_cmd(install_cmd);
+                }
+            } else {
+                printf("  %sSelect missing OPTIONAL plugins & tools to install:%s\n",
+                       COLOR_BOLD,
+                       COLOR_RESET);
+                for (size_t i = 0; i < missing_pkgs->count; i++) {
+                    printf("    %zu. %s\n", i + 1, missing_pkgs->items[i]);
+                }
+                printf("  %sSelect tools (e.g. 'all', 'none', '1,3', or press Enter [none]): %s",
+                       COLOR_BOLD,
+                       COLOR_RESET);
+                fflush(stdout);
+
+                char response[256] = {0};
+                if (fgets(response, sizeof(response), stdin)) {
+                    bool *selected = (bool *)calloc(missing_pkgs->count, sizeof(bool));
+                    if (selected) {
+                        parse_item_selections(response, missing_pkgs->count, false, selected);
+                        StringArray selected_pkgs;
+                        str_array_init(&selected_pkgs);
+                        for (size_t i = 0; i < missing_pkgs->count; i++) {
+                            if (selected[i]) {
+                                str_array_append(&selected_pkgs, missing_pkgs->items[i]);
+                            }
+                        }
+                        if (selected_pkgs.count > 0) {
+                            char sel_cmd[4096];
+                            build_install_command(source_dir,
+                                                  &selected_pkgs,
+                                                  sel_cmd,
+                                                  sizeof(sel_cmd),
+                                                  mgr_name,
+                                                  sizeof(mgr_name),
+                                                  auto_install,
+                                                  dry_run);
+                            printf("\n%sExecuting Installation for Selected Optional Tools (%s):%s "
+                                   "%s%s%s\n",
+                                   COLOR_BOLD,
+                                   mgr_name,
+                                   COLOR_RESET,
+                                   COLOR_CYAN,
+                                   sel_cmd,
+                                   COLOR_RESET);
+                            run_system_cmd(sel_cmd);
+                        } else {
+                            log_info("Skipped installation of optional plugins.");
+                        }
+                        str_array_free(&selected_pkgs);
+                        free(selected);
+                    }
+                }
+            }
         }
     }
 }

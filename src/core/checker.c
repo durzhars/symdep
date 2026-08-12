@@ -47,21 +47,27 @@ static void flush_stdin(void)
 }
 
 static void build_install_command(const char *source_dir,
-                                  const char *distro,
                                   const StringArray *pkgs,
                                   char *cmd,
                                   size_t cmd_size,
+                                  char *out_mgr_name,
+                                  size_t out_mgr_name_size,
                                   bool auto_install,
                                   bool dry_run)
 {
     PkgManagerEntry mgr;
     bool resolved = pkg_manager_resolve(source_dir, NULL, &mgr, auto_install, dry_run);
 
+    const char *tag = resolved ? mgr.name : "unknown";
+    if (out_mgr_name && out_mgr_name_size > 0) {
+        snprintf(out_mgr_name, out_mgr_name_size, "%s", tag);
+    }
+
     char pkg_list[2048] = {0};
     size_t offset = 0;
     for (size_t i = 0; i < pkgs->count; i++) {
         char distro_pkg[256];
-        registry_get_distro_pkg(source_dir, pkgs->items[i], distro, distro_pkg, sizeof(distro_pkg));
+        registry_get_distro_pkg(source_dir, pkgs->items[i], tag, distro_pkg, sizeof(distro_pkg));
         char escaped_pkg[512];
         escape_shell_arg(distro_pkg, escaped_pkg, sizeof(escaped_pkg));
         int written = snprintf(pkg_list + offset,
@@ -84,7 +90,6 @@ static void build_install_command(const char *source_dir,
 }
 
 static void handle_missing_dependencies(const char *source_dir,
-                                        const char *distro,
                                         const StringArray *missing_pkgs,
                                         bool is_required,
                                         bool auto_install,
@@ -100,12 +105,13 @@ static void handle_missing_dependencies(const char *source_dir,
         log_warn("Missing OPTIONAL plugins & tools!");
     }
 
+    char mgr_name[64] = "unknown";
     char install_cmd[4096];
     build_install_command(
-        source_dir, distro, missing_pkgs, install_cmd, sizeof(install_cmd), auto_install, dry_run);
+        source_dir, missing_pkgs, install_cmd, sizeof(install_cmd), mgr_name, sizeof(mgr_name), auto_install, dry_run);
     printf("%sInstallation Command (%s):%s %s%s%s\n\n",
            COLOR_BOLD,
-           distro,
+           mgr_name,
            COLOR_RESET,
            COLOR_CYAN,
            install_cmd,
@@ -137,9 +143,6 @@ void check_package_dependencies(const char *source_dir,
                                 bool auto_install,
                                 bool dry_run)
 {
-    char distro[64];
-    get_distro_id(distro, sizeof(distro));
-
     StringArray all_pkgs;
     str_array_init(&all_pkgs);
     if (target_pkg && strcmp(target_pkg, "all") != 0) {
@@ -219,8 +222,8 @@ void check_package_dependencies(const char *source_dir,
         manifest_free(&manifest);
     }
 
-    handle_missing_dependencies(source_dir, distro, &missing_req, true, auto_install, dry_run);
-    handle_missing_dependencies(source_dir, distro, &missing_opt, false, auto_install, dry_run);
+    handle_missing_dependencies(source_dir, &missing_req, true, auto_install, dry_run);
+    handle_missing_dependencies(source_dir, &missing_opt, false, auto_install, dry_run);
 
     if (missing_req.count == 0 && missing_opt.count == 0) {
         log_success("All required dependencies and optional plugins are installed!");

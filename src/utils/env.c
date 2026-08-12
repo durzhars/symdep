@@ -235,11 +235,6 @@ void get_distro_id(char *buf, size_t buf_size)
     }
     buf[0] = '\0';
 
-    if (getenv("TERMUX_VERSION") != NULL || access("/data/data/com.termux", F_OK) == 0) {
-        snprintf(buf, buf_size, "termux");
-        return;
-    }
-
     FILE *fp = fopen("/etc/os-release", "r");
     if (!fp) {
         fp = fopen("/usr/lib/os-release", "r");
@@ -263,32 +258,6 @@ void get_distro_id(char *buf, size_t buf_size)
             }
         }
         fclose(fp);
-    }
-
-    FILE *u_fp = popen("uname -s 2>/dev/null", "r");
-    if (u_fp) {
-        char u_buf[128] = {0};
-        if (fgets(u_buf, sizeof(u_buf), u_fp)) {
-            char *trimmed = trim_whitespace(u_buf);
-            if (strcasecmp(trimmed, "Darwin") == 0) {
-                snprintf(buf, buf_size, "macos");
-                pclose(u_fp);
-                return;
-            } else if (strcasecmp(trimmed, "FreeBSD") == 0) {
-                snprintf(buf, buf_size, "freebsd");
-                pclose(u_fp);
-                return;
-            } else if (strcasecmp(trimmed, "OpenBSD") == 0) {
-                snprintf(buf, buf_size, "openbsd");
-                pclose(u_fp);
-                return;
-            } else if (strcasecmp(trimmed, "NetBSD") == 0) {
-                snprintf(buf, buf_size, "netbsd");
-                pclose(u_fp);
-                return;
-            }
-        }
-        pclose(u_fp);
     }
 
     snprintf(buf, buf_size, "unix");

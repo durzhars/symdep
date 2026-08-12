@@ -25,6 +25,7 @@
 #include "utils/path.h"
 #include "utils/str.h"
 
+#include <dirent.h>
 #include <limits.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -263,6 +264,51 @@ void get_distro_id(char *buf, size_t buf_size)
     snprintf(buf, buf_size, "unix");
 }
 
+static StrSet g_path_executables_cache;
+static bool g_path_cache_initialized = false;
+
+static void init_path_executables_cache(void)
+{
+    if (g_path_cache_initialized) {
+        return;
+    }
+    str_set_init(&g_path_executables_cache);
+
+    const char *path_env = getenv("PATH");
+    if (!path_env || *path_env == '\0') {
+        g_path_cache_initialized = true;
+        return;
+    }
+
+    const char *p = path_env;
+    while (*p != '\0') {
+        const char *next = strchr(p, ':');
+        size_t dir_len = next ? (size_t)(next - p) : strlen(p);
+        if (dir_len > 0) {
+            char dir_path[STOW_PATH_LARGE];
+            if (dir_len < sizeof(dir_path)) {
+                memcpy(dir_path, p, dir_len);
+                dir_path[dir_len] = '\0';
+                DIR *d = opendir(dir_path);
+                if (d) {
+                    struct dirent *entry;
+                    while ((entry = readdir(d)) != NULL) {
+                        if (entry->d_name[0] != '.') {
+                            str_set_add(&g_path_executables_cache, entry->d_name);
+                        }
+                    }
+                    closedir(d);
+                }
+            }
+        }
+        if (!next) {
+            break;
+        }
+        p = next + 1;
+    }
+    g_path_cache_initialized = true;
+}
+
 bool find_executable_in_path(const char *executable, char *out_path, size_t out_path_size)
 {
     if (!executable || *executable == '\0' || !out_path || out_path_size == 0) {
@@ -278,35 +324,13 @@ bool find_executable_in_path(const char *executable, char *out_path, size_t out_
         return false;
     }
 
-    const char *path_env = getenv("PATH");
-    if (!path_env || *path_env == '\0') {
-        return false;
+    init_path_executables_cache();
+
+    if (str_set_contains(&g_path_executables_cache, executable)) {
+        snprintf(out_path, out_path_size, "%s", executable);
+        return true;
     }
 
-    size_t exe_len = strlen(executable);
-    const char *p = path_env;
-
-    while (*p != '\0') {
-        const char *next = strchr(p, ':');
-        size_t dir_len = next ? (size_t)(next - p) : strlen(p);
-
-        if (dir_len > 0 && dir_len + 1 + exe_len < out_path_size) {
-            memcpy(out_path, p, dir_len);
-            out_path[dir_len] = '/';
-            memcpy(out_path + dir_len + 1, executable, exe_len + 1);
-
-            if (access(out_path, X_OK) == 0) {
-                return true;
-            }
-        }
-
-        if (!next) {
-            break;
-        }
-        p = next + 1;
-    }
-
-    out_path[0] = '\0';
     return false;
 }
 

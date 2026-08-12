@@ -81,31 +81,50 @@ void get_all_packages(const char *source_dir, StringArray *packages)
     closedir(dir);
 }
 
+static char g_cached_source_dir[STOW_PATH_LARGE] = "";
+static char g_cached_registry_path[STOW_PATH_LARGE] = "";
+
 static FILE *open_registry_file(const char *source_dir)
 {
+    const char *src = (source_dir && *source_dir != '\0') ? source_dir : "";
+
+    if (g_cached_source_dir[0] != '\0' && strcmp(g_cached_source_dir, src) == 0) {
+        if (g_cached_registry_path[0] != '\0') {
+            return fopen(g_cached_registry_path, "r");
+        }
+        return NULL;
+    }
+
+    snprintf(g_cached_source_dir, sizeof(g_cached_source_dir), "%s", src);
+    g_cached_registry_path[0] = '\0';
+
     if (source_dir && *source_dir != '\0') {
         char path[STOW_PATH_LARGE];
         snprintf(path, sizeof(path), "%s/symdep.registry", source_dir);
         FILE *fp = fopen(path, "r");
         if (fp) {
+            snprintf(g_cached_registry_path, sizeof(g_cached_registry_path), "%s", path);
             return fp;
         }
 
         snprintf(path, sizeof(path), "%s/.symdepregistry", source_dir);
         fp = fopen(path, "r");
         if (fp) {
+            snprintf(g_cached_registry_path, sizeof(g_cached_registry_path), "%s", path);
             return fp;
         }
 
         snprintf(path, sizeof(path), "%s/stow.registry", source_dir);
         fp = fopen(path, "r");
         if (fp) {
+            snprintf(g_cached_registry_path, sizeof(g_cached_registry_path), "%s", path);
             return fp;
         }
 
         snprintf(path, sizeof(path), "%s/.stowregistry", source_dir);
         fp = fopen(path, "r");
         if (fp) {
+            snprintf(g_cached_registry_path, sizeof(g_cached_registry_path), "%s", path);
             return fp;
         }
     }

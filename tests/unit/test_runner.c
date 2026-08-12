@@ -47,6 +47,7 @@ void test_pkg_manager_builtins(void);
 void test_pkg_manager_custom_config(void);
 void test_pkg_manager_resolution_precedence(void);
 void test_pkg_manager_writable_prefix_elevation(void);
+void test_pkg_manager_build_command_elevation(void);
 void test_default_stowignore(void);
 void test_pkg_file_list_ops(void);
 void test_collect_package_files(void);
@@ -159,6 +160,7 @@ int main(void)
     RUN_TEST(test_pkg_manager_custom_config);
     RUN_TEST(test_pkg_manager_resolution_precedence);
     RUN_TEST(test_pkg_manager_writable_prefix_elevation);
+    RUN_TEST(test_pkg_manager_build_command_elevation);
     RUN_TEST(test_default_stowignore);
     RUN_TEST(test_pkg_file_list_ops);
     RUN_TEST(test_collect_package_files);

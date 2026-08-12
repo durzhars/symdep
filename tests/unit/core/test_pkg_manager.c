@@ -106,3 +106,21 @@ void test_pkg_manager_writable_prefix_elevation(void)
     pkg_manager_get_elevation_tool(NULL, &mgr, tool, sizeof(tool), true, true);
     ASSERT(tool[0] == '\0', "Elevation tool should be empty for non-root-required package manager");
 }
+
+void test_pkg_manager_build_command_elevation(void)
+{
+    PkgManagerEntry apt_mgr;
+    memset(&apt_mgr, 0, sizeof(apt_mgr));
+    snprintf(apt_mgr.name, sizeof(apt_mgr.name), "apt");
+    snprintf(apt_mgr.binary, sizeof(apt_mgr.binary), "apt");
+    snprintf(apt_mgr.install_cmd, sizeof(apt_mgr.install_cmd), "apt update && apt install -y %%s");
+    apt_mgr.requires_root = true;
+
+    setenv("SYMDEP_ELEVATION_TOOL", "sudo", 1);
+    char cmd[512] = {0};
+    pkg_manager_build_command(&apt_mgr, NULL, "'bat'", cmd, sizeof(cmd), true, true);
+    unsetenv("SYMDEP_ELEVATION_TOOL");
+
+    ASSERT(strcmp(cmd, "sudo apt update && sudo apt install -y 'bat'") == 0,
+           "Compound command elevation should prepend sudo to each sub-command");
+}

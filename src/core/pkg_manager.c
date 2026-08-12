@@ -446,7 +446,9 @@ bool pkg_manager_resolve(const char *source_dir,
             resolved = true;
         } else {
             int sel = pkg_manager_prompt_selection(&detected, out_entry);
-            (void)sel;
+            if (sel >= 0) {
+                config_set_pkg_manager(out_entry->name);
+            }
             resolved = true;
         }
     } else {
@@ -587,6 +589,10 @@ void pkg_manager_get_elevation_tool(const char *source_dir,
         out_tool[0] = '\0';
         break;
     }
+
+    if (out_tool[0] != '\0') {
+        config_set_elevation_tool(out_tool);
+    }
 }
 
 void pkg_manager_build_command(const PkgManagerEntry *mgr,
@@ -618,6 +624,29 @@ void pkg_manager_build_command(const PkgManagerEntry *mgr,
     } else if (strcmp(elevation, "su") == 0) {
         snprintf(out_cmd, out_cmd_size, "su -c \"%s\"", raw_cmd);
     } else {
-        snprintf(out_cmd, out_cmd_size, "%s %s", elevation, raw_cmd);
+        if (strstr(raw_cmd, " && ") != NULL) {
+            StringArray parts;
+            str_array_init(&parts);
+            str_split_delim(raw_cmd, "&&", &parts);
+            char elevated_buf[4096] = {0};
+            size_t offset = 0;
+
+            for (size_t p = 0; p < parts.count; p++) {
+                char *part_trimmed = trim_whitespace(parts.items[p]);
+                int w = snprintf(elevated_buf + offset,
+                                 sizeof(elevated_buf) - offset,
+                                 "%s%s %s",
+                                 (p > 0) ? " && " : "",
+                                 elevation,
+                                 part_trimmed);
+                if (w > 0 && (size_t)w < sizeof(elevated_buf) - offset) {
+                    offset += (size_t)w;
+                }
+            }
+            snprintf(out_cmd, out_cmd_size, "%s", elevated_buf);
+            str_array_free(&parts);
+        } else {
+            snprintf(out_cmd, out_cmd_size, "%s %s", elevation, raw_cmd);
+        }
     }
 }

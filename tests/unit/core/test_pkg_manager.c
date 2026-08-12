@@ -94,11 +94,15 @@ void test_pkg_manager_resolution_precedence(void)
     ASSERT(strcmp(entry.name, "pacman") == 0, "Resolved package manager name should be 'pacman'");
 }
 
-void test_pkg_manager_termux_elevation(void)
+void test_pkg_manager_writable_prefix_elevation(void)
 {
-    setenv("TERMUX_VERSION", "0.118.0", 1);
+    PkgManagerEntry mgr;
+    memset(&mgr, 0, sizeof(mgr));
+    snprintf(mgr.name, sizeof(mgr.name), "test_writable");
+    snprintf(mgr.binary, sizeof(mgr.binary), "sh");
+    mgr.requires_root = false;
+
     char tool[64] = "initial";
-    pkg_manager_get_elevation_tool(NULL, true, tool, sizeof(tool), true, true);
-    ASSERT(tool[0] == '\0', "Elevation tool should be empty in Termux environment even if manager requires root");
-    unsetenv("TERMUX_VERSION");
+    pkg_manager_get_elevation_tool(NULL, &mgr, tool, sizeof(tool), true, true);
+    ASSERT(tool[0] == '\0', "Elevation tool should be empty for non-root-required package manager");
 }

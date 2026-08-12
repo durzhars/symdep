@@ -54,5 +54,6 @@ bool app_env_resolve(AppEnvironment *env,
                      PathSanityResult *out_reason);
 
 void get_distro_id(char *buf, size_t buf_size);
+bool find_executable_in_path(const char *executable, char *out_path, size_t out_path_size);
 
 #endif /* SYMDEP_UTILS_ENV_H */

@@ -61,7 +61,7 @@ int pkg_manager_prompt_selection(const PkgManagerArray *detected, PkgManagerEntr
 bool pkg_manager_prompt_fallback(PkgManagerEntry *out_entry, const char *source_dir);
 
 void pkg_manager_get_elevation_tool(const char *source_dir,
-                                    bool requires_root,
+                                    const PkgManagerEntry *mgr,
                                     char *out_tool,
                                     size_t out_tool_size,
                                     bool auto_install,

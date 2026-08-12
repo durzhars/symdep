@@ -107,8 +107,14 @@ static void handle_missing_dependencies(const char *source_dir,
 
     char mgr_name[64] = "unknown";
     char install_cmd[4096];
-    build_install_command(
-        source_dir, missing_pkgs, install_cmd, sizeof(install_cmd), mgr_name, sizeof(mgr_name), auto_install, dry_run);
+    build_install_command(source_dir,
+                          missing_pkgs,
+                          install_cmd,
+                          sizeof(install_cmd),
+                          mgr_name,
+                          sizeof(mgr_name),
+                          auto_install,
+                          dry_run);
     printf("%sInstallation Command (%s):%s %s%s%s\n\n",
            COLOR_BOLD,
            mgr_name,

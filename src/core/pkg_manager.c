@@ -447,20 +447,26 @@ bool pkg_manager_resolve(const char *source_dir,
     return resolved;
 }
 
-static bool is_termux_environment(void)
+static bool is_binary_writable_by_user(const char *binary)
 {
-    const char *prefix = getenv("PREFIX");
-    if (prefix && strstr(prefix, "com.termux") != NULL) {
-        return true;
+    if (!binary || *binary == '\0') {
+        return false;
     }
-    if (getenv("TERMUX_VERSION") != NULL) {
-        return true;
+    char full_path[STOW_PATH_LARGE] = {0};
+    if (find_executable_in_path(binary, full_path, sizeof(full_path))) {
+        char *last_slash = strrchr(full_path, '/');
+        if (last_slash) {
+            *last_slash = '\0';
+            if (access(full_path, W_OK) == 0) {
+                return true;
+            }
+        }
     }
     return false;
 }
 
 void pkg_manager_get_elevation_tool(const char *source_dir,
-                                    bool requires_root,
+                                    const PkgManagerEntry *mgr,
                                     char *out_tool,
                                     size_t out_tool_size,
                                     bool auto_install,
@@ -480,8 +486,13 @@ void pkg_manager_get_elevation_tool(const char *source_dir,
         return;
     }
 
-    // If running as root, or manager doesn't require root (e.g. brew, yay), or running in Termux user-space:
-    if (geteuid() == 0 || !requires_root || is_termux_environment()) {
+    // POSIX root/elevation check:
+    // 1. If running as root (geteuid() == 0), no elevation prefix needed.
+    // 2. If manager does not require root (mgr && !mgr->requires_root), no elevation prefix needed.
+    // 3. If binary parent directory is writable by current user (user-space prefix e.g. Termux,
+    // Homebrew), no elevation prefix needed.
+    if (geteuid() == 0 || (mgr && !mgr->requires_root) ||
+        (mgr && is_binary_writable_by_user(mgr->binary))) {
         return;
     }
 
@@ -567,7 +578,7 @@ void pkg_manager_build_command(const PkgManagerEntry *mgr,
 
     char elevation[64];
     pkg_manager_get_elevation_tool(
-        source_dir, mgr->requires_root, elevation, sizeof(elevation), auto_install, dry_run);
+        source_dir, mgr, elevation, sizeof(elevation), auto_install, dry_run);
 
     if (elevation[0] == '\0' || strcasecmp(elevation, "none") == 0) {
         snprintf(out_cmd, out_cmd_size, "%s", raw_cmd);

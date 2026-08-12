@@ -263,14 +263,19 @@ void get_distro_id(char *buf, size_t buf_size)
     snprintf(buf, buf_size, "unix");
 }
 
-bool is_executable_in_path(const char *executable)
+bool find_executable_in_path(const char *executable, char *out_path, size_t out_path_size)
 {
-    if (!executable || *executable == '\0') {
+    if (!executable || *executable == '\0' || !out_path || out_path_size == 0) {
         return false;
     }
+    out_path[0] = '\0';
 
     if (strchr(executable, '/') != NULL) {
-        return access(executable, X_OK) == 0;
+        if (access(executable, X_OK) == 0) {
+            snprintf(out_path, out_path_size, "%s", executable);
+            return true;
+        }
+        return false;
     }
 
     const char *path_env = getenv("PATH");
@@ -278,7 +283,6 @@ bool is_executable_in_path(const char *executable)
         return false;
     }
 
-    char full_path[STOW_PATH_LARGE];
     size_t exe_len = strlen(executable);
     const char *p = path_env;
 
@@ -286,12 +290,12 @@ bool is_executable_in_path(const char *executable)
         const char *next = strchr(p, ':');
         size_t dir_len = next ? (size_t)(next - p) : strlen(p);
 
-        if (dir_len > 0 && dir_len + 1 + exe_len < sizeof(full_path)) {
-            memcpy(full_path, p, dir_len);
-            full_path[dir_len] = '/';
-            memcpy(full_path + dir_len + 1, executable, exe_len + 1);
+        if (dir_len > 0 && dir_len + 1 + exe_len < out_path_size) {
+            memcpy(out_path, p, dir_len);
+            out_path[dir_len] = '/';
+            memcpy(out_path + dir_len + 1, executable, exe_len + 1);
 
-            if (access(full_path, X_OK) == 0) {
+            if (access(out_path, X_OK) == 0) {
                 return true;
             }
         }
@@ -302,7 +306,14 @@ bool is_executable_in_path(const char *executable)
         p = next + 1;
     }
 
+    out_path[0] = '\0';
     return false;
+}
+
+bool is_executable_in_path(const char *executable)
+{
+    char dummy[STOW_PATH_LARGE];
+    return find_executable_in_path(executable, dummy, sizeof(dummy));
 }
 
 int run_system_cmd(const char *cmd)

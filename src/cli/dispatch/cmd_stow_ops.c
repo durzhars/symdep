@@ -18,6 +18,7 @@
  */
 
 #include "cli/dispatch/internal.h"
+#include "utils/timer.h"
 
 int foreach_package(const CommandContext *ctx, PackageActionFn action)
 {
@@ -90,21 +91,40 @@ int cmd_diff(const CommandContext *ctx)
     return 0;
 }
 
+#include "cli/help.h"
+
 int cmd_scan(const CommandContext *ctx)
 {
+    if ((ctx->opts && ctx->opts->help_flag) ||
+        (ctx->args->count > ctx->arg_offset &&
+         (strcmp(ctx->args->items[ctx->arg_offset], "help") == 0 ||
+          strcmp(ctx->args->items[ctx->arg_offset], "-h") == 0 ||
+          strcmp(ctx->args->items[ctx->arg_offset], "--help") == 0))) {
+        show_scan_help();
+        return 0;
+    }
+
+    PERF_PROFILE_START(scan_package);
+    bool dry_run = (ctx->opts && ctx->opts->dry_run);
+
+    bool interactive = (ctx->opts && ctx->opts->interactive && !dry_run);
+    bool auto_install = (ctx->opts && ctx->opts->auto_install && !dry_run);
+
     if (ctx->args->count > ctx->arg_offset) {
         for (size_t i = ctx->arg_offset; i < ctx->args->count; i++) {
-            scan_package(ctx->source_dir, ctx->args->items[i]);
+            scan_package_opts(
+                ctx->source_dir, ctx->args->items[i], interactive, auto_install, dry_run);
         }
     } else {
         StringArray pkgs;
         str_array_init(&pkgs);
         get_all_packages(ctx->source_dir, &pkgs);
         for (size_t i = 0; i < pkgs.count; i++) {
-            scan_package(ctx->source_dir, pkgs.items[i]);
+            scan_package_opts(ctx->source_dir, pkgs.items[i], interactive, auto_install, dry_run);
         }
         str_array_free(&pkgs);
     }
+    PERF_PROFILE_END(scan_package);
     return 0;
 }
 

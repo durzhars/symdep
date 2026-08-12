@@ -1,0 +1,57 @@
+# Default Tool & Plugin Mapping Registry for Symlink & Dependency Manager
+# Format: tool_name = binary1 | binary2 | plugin:/path/to/file | ...
+
+# Common Binary Aliases & Utilities
+wl-clipboard = wl-copy | wl-paste
+fd = fd | fdfind
+rg = rg | ripgrep
+neovim = nvim
+fzf = fzf | fzf-tmux
+starship = starship
+fastfetch = fastfetch
+yazi = yazi
+ghostty = ghostty
+helix = hx | helix
+btop = btop | htop | top
+eza = eza | exa
+bat = bat | batcat
+zoxide = zoxide
+
+# Common Shell Plugins
+zsh-autosuggestions = plugin:/usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh | plugin:/usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh | plugin:/data/data/com.termux/files/usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh | plugin:/home/linuxbrew/.linuxbrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+zsh-syntax-highlighting = plugin:/usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh | plugin:/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh | plugin:/data/data/com.termux/files/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh | plugin:/home/linuxbrew/.linuxbrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+zsh-history-substring-search = plugin:/usr/share/zsh/plugins/zsh-history-substring-search/zsh-history-substring-search.zsh | plugin:/usr/share/zsh-history-substring-search/zsh-history-substring-search.zsh | plugin:/data/data/com.termux/files/usr/share/zsh-history-substring-search/zsh-history-substring-search.zsh | plugin:/home/linuxbrew/.linuxbrew/share/zsh-history-substring-search/zsh-history-substring-search.zsh
+
+# Popular Fonts
+symbols-nerd-font = plugin:/usr/share/fonts/TTF/SymbolsNerdFont-Regular.ttf | plugin:/usr/share/fonts/NerdFonts/SymbolsNerdFont-Regular.ttf | plugin:/usr/share/fonts/truetype/nerd-fonts/SymbolsNerdFont-Regular.ttf | plugin:/usr/share/fonts/truetype/nerd-fonts/SymbolsNerdFontMono-Regular.ttf | plugin:/usr/share/fonts/nerd-fonts/SymbolsNerdFont-Regular.ttf | plugin:/data/data/com.termux/files/home/.termux/font.ttf | plugin:/Library/Fonts/SymbolsNerdFont-Regular.ttf | plugin:/home/linuxbrew/.linuxbrew/share/fonts/NerdFonts/SymbolsNerdFont-Regular.ttf
+
+# Distro Package Overrides (Format: tool_name@distro_id = package_name)
+fd@ubuntu = fd-find
+fd@debian = fd-find
+fd@pop = fd-find
+fd@mint = fd-find
+rg@ubuntu = ripgrep
+rg@debian = ripgrep
+rg@pop = ripgrep
+rg@mint = ripgrep
+rg@termux = ripgrep
+symbols-nerd-font@termux = font-nerd-icons-ttf
+symbols-nerd-font@arch = ttf-nerd-fonts-symbols-common
+symbols-nerd-font@manjaro = ttf-nerd-fonts-symbols-common
+symbols-nerd-font@endeavouros = ttf-nerd-fonts-symbols-common
+symbols-nerd-font@ubuntu = fonts-symbols-nerd-font
+symbols-nerd-font@debian = fonts-symbols-nerd-font
+symbols-nerd-font@pop = fonts-symbols-nerd-font
+symbols-nerd-font@mint = fonts-symbols-nerd-font
+symbols-nerd-font@fedora = nerd-fonts
+symbols-nerd-font@rhel = nerd-fonts
+symbols-nerd-font@centos = nerd-fonts
+symbols-nerd-font@opensuse = nerd-fonts
+symbols-nerd-font@alpine = font-symbols-nerd-font
+symbols-nerd-font@void = font-nerd-icons-ttf
+symbols-nerd-font@nixos = nerd-fonts.symbols-only
+symbols-nerd-font@nix = nerd-fonts.symbols-only
+symbols-nerd-font@freebsd = nerd-fonts
+symbols-nerd-font@openbsd = nerd-fonts
+symbols-nerd-font@gentoo = media-fonts/nerd-fonts
+symbols-nerd-font@macos = font-symbols-only-nerd-font

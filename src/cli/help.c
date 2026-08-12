@@ -89,9 +89,21 @@ static void render_plain_line(const char *line, int use_color)
         return;
     }
 
-    /* Code example lines: "    command" (4-space indent) */
-    if (strncmp(buf, "    ", 4) == 0 && buf[4] != '\0' && buf[4] != ' ') {
-        printf("    %s$%s %s%s%s\n", COLOR_YELLOW, COLOR_RESET, COLOR_GREEN, buf + 4, COLOR_RESET);
+    /* Code example lines starting with '$' (e.g. "    $ symdep scan") */
+    const char *p = buf;
+    while (*p == ' ' || *p == '\t') {
+        p++;
+    }
+    if (*p == '$' && *(p + 1) == ' ') {
+        size_t indent = (size_t)(p - buf);
+        printf("%.*s%s$%s %s%s%s\n",
+               (int)indent,
+               buf,
+               COLOR_YELLOW,
+               COLOR_RESET,
+               COLOR_GREEN,
+               p + 2,
+               COLOR_RESET);
         return;
     }
 
@@ -107,6 +119,9 @@ void show_help(void)
     if (fp) {
         char line[1024];
         while (fgets(line, sizeof(line), fp)) {
+            if (strncmp(line, "COMMAND MANUAL (", 16) == 0) {
+                break;
+            }
             render_plain_line(line, use_color);
         }
         fclose(fp);
@@ -117,10 +132,79 @@ void show_help(void)
             char *saveptr = NULL;
             char *token = strtok_r(copy, "\n", &saveptr);
             while (token) {
+                if (strncmp(token, "COMMAND MANUAL (", 16) == 0) {
+                    break;
+                }
                 render_plain_line(token, use_color);
                 token = strtok_r(NULL, "\n", &saveptr);
             }
             free(copy);
         }
     }
+}
+
+static bool render_subcommand_section(FILE *fp, const char *topic, int use_color)
+{
+    char target_header[256];
+    snprintf(target_header, sizeof(target_header), "COMMAND MANUAL (%s):", topic);
+
+    char line[1024];
+    bool found = false;
+
+    while (fgets(line, sizeof(line), fp)) {
+        if (strstr(line, target_header) != NULL) {
+            found = true;
+            render_plain_line(line, use_color);
+            break;
+        }
+    }
+
+    if (!found) {
+        return false;
+    }
+
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "COMMAND MANUAL (", 16) == 0) {
+            break;
+        }
+        render_plain_line(line, use_color);
+    }
+    return true;
+}
+
+void show_subcommand_help(const char *topic)
+{
+    if (!topic || *topic == '\0') {
+        show_help();
+        return;
+    }
+
+    int use_color = isatty(STDOUT_FILENO) != 0 && getenv("NO_COLOR") == NULL;
+
+    FILE *fp = open_resource_file("help.txt");
+    if (fp) {
+        bool ok = render_subcommand_section(fp, topic, use_color);
+        fclose(fp);
+        if (ok) {
+            return;
+        }
+    }
+
+#if __has_include("help_text_plain.h")
+    FILE *mem_fp = fmemopen((void *)EMBEDDED_HELP_TXT, strlen(EMBEDDED_HELP_TXT), "r");
+    if (mem_fp) {
+        bool ok = render_subcommand_section(mem_fp, topic, use_color);
+        fclose(mem_fp);
+        if (ok) {
+            return;
+        }
+    }
+#endif
+
+    show_help();
+}
+
+void show_scan_help(void)
+{
+    show_subcommand_help("scan");
 }

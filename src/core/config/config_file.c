@@ -40,6 +40,15 @@ void config_load_active(Config *cfg)
 
 void get_config_file_path(char *buf, size_t buf_size)
 {
+    const char *env_cfg = getenv("SYMDEP_CONFIG_FILE");
+    if (!env_cfg || *env_cfg == '\0') {
+        env_cfg = getenv("STOW_CONFIG_FILE");
+    }
+    if (env_cfg && *env_cfg != '\0') {
+        snprintf(buf, buf_size, "%s", env_cfg);
+        return;
+    }
+
     char xdg_config[STOW_PATH_MAX];
     bool has_xdg_config = get_xdg_config_home(xdg_config, sizeof(xdg_config));
 

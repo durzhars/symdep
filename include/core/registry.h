@@ -28,6 +28,7 @@ void registry_get_distro_pkg(const char *source_dir,
                              char *out,
                              size_t out_size);
 void registry_get_all_tools(const char *source_dir, StringArray *tools);
+void registry_add_tool(const char *source_dir, const char *tool);
 bool is_tool_installed_dynamic(const char *source_dir, const char *tool);
 void get_all_packages(const char *source_dir, StringArray *packages);
 

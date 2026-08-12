@@ -16,24 +16,13 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef SYMDEP_CLI_H
-#define SYMDEP_CLI_H
-
-#include <stdbool.h>
+#ifndef SYMDEP_SCANNER_PARSER_H
+#define SYMDEP_SCANNER_PARSER_H
 
 #include "utils/str.h"
+#include <stdbool.h>
 
-typedef struct {
-    bool auto_install;
-    bool dry_run;
-    bool save_flag;
-    bool profile;
-    bool interactive;
-    bool help_flag;
-    const char *cli_source_dir;
-    const char *cli_target_dir;
-} CliOptions;
+bool is_scanner_comment_line(const char *line);
+void scanner_extract_line_tokens(const char *line, StringArray *tokens);
 
-int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *positional_args);
-
-#endif /* SYMDEP_CLI_H */
+#endif /* SYMDEP_SCANNER_PARSER_H */

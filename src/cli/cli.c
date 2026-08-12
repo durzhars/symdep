@@ -118,19 +118,25 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
             continue;
         if (parse_bool_opt(arg, "-s", "--save", &opts->save_flag))
             continue;
+        if (parse_bool_opt(arg, "-i", "--interactive", &opts->interactive))
+            continue;
         if (parse_bool_opt(arg, "-p", "--profile", &opts->profile) ||
             parse_bool_opt(arg, "-p", "--perf", &opts->profile) ||
             parse_bool_opt(arg, "-p", "--performance", &opts->profile) ||
             parse_bool_opt(arg, "-p", "--profiler", &opts->profile))
             continue;
 
-        if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
-            show_help();
-            return -1;
-        }
+        if (parse_bool_opt(arg, "-h", "--help", &opts->help_flag))
+            continue;
 
         // 3. Positional Subcommands / Package Names
         str_array_append(args, arg);
+    }
+
+    if (opts->profile && opts->interactive) {
+        log_error("Cannot use performance profiling (-p / --profile) with interactive mode (-i / "
+                  "--interactive)!");
+        return 1;
     }
 
     if (opts->profile || getenv("PROFILE") != NULL || getenv("SYMDEP_PROFILE") != NULL ||

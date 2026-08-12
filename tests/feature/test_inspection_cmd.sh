@@ -71,14 +71,53 @@ fzf --height 40%
 EOF
 chmod +x "$SCRIPT_PATH"
 
-assert_success "$STOW_BIN scan scanner_pkg" "symdep scan scanner_pkg succeeded"
+assert_success "$STOW_BIN scan scanner_pkg" "symdep scan scanner_pkg preview succeeded"
+assert_file_contains "$LAST_CMD_OUTPUT" "Scan Results for package" "scan without flags operates in preview mode"
+
+
+assert_success "$STOW_BIN scan -n scanner_pkg" "symdep scan -n scanner_pkg dry-run succeeded"
+assert_file_contains "$LAST_CMD_OUTPUT" "[DRY-RUN]" "scan -n operates in dry-run mode"
+
+assert_success "echo 'y' | $STOW_BIN scan -i scanner_pkg" "symdep scan -i scanner_pkg succeeded"
 MANIFEST_FILE="$STOW_DOTFILES_DIR/scanner_pkg/.symdeps"
 if [ ! -f "$MANIFEST_FILE" ]; then
     MANIFEST_FILE="$STOW_DOTFILES_DIR/scanner_pkg/.stowdeps"
 fi
-assert_path_exists "$MANIFEST_FILE" "Auto-generated manifest created"
+assert_path_exists "$MANIFEST_FILE" "Auto-generated manifest created in interactive mode"
 assert_file_contains "$MANIFEST_FILE" 'REQUIRED="bash"' "Manifest contains REQUIRED=\"bash\" from shebang"
 assert_file_contains "$MANIFEST_FILE" 'OPTIONAL="fzf"' "Manifest contains OPTIONAL=\"fzf\" from tool invocation"
 
+# Verify scan discards tools already in .symdeps
+assert_success "$STOW_BIN scan scanner_pkg" "symdep scan scanner_pkg second run succeeded"
+assert_file_contains "$LAST_CMD_OUTPUT" "Detected Invocations" "Scan discards tools already saved in manifest"
+
+
+# Verify combining -p and -i triggers error
+assert_failure "$STOW_BIN scan scanner_pkg -i -p" "symdep scan -i -p triggers error"
+assert_file_contains "$LAST_CMD_OUTPUT" "Cannot use performance profiling" "Error output explains conflict between -p and -i"
+
+# Verify -h / --help for scan subcommand
+assert_success "$STOW_BIN scan -h" "symdep scan -h succeeded"
+assert_file_contains "$LAST_CMD_OUTPUT" "COMMAND MANUAL (scan):" "scan -h displays subcommand manual"
+
+assert_success "$STOW_BIN scan --help" "symdep scan --help succeeded"
+assert_file_contains "$LAST_CMD_OUTPUT" "COMMAND MANUAL (scan):" "scan --help displays subcommand manual"
+
+# 6. Interactive Dependency Scanner ('scan -i [pkg]')
+
+echo -e "\n${COLOR_BOLD}[Test 6] Interactive Dependency Scanner ('scan -i [pkg]')${COLOR_RESET}"
+setup_sandbox
+mkdir -p "$STOW_DOTFILES_DIR/inter_pkg"
+cat << 'EOF' > "$STOW_DOTFILES_DIR/inter_pkg/config.conf"
+exec = fzf
+EOF
+
+assert_success "echo 'y' | $STOW_BIN scan -i inter_pkg" "symdep scan -i inter_pkg succeeded"
+
+
+INTER_MANIFEST="$STOW_DOTFILES_DIR/inter_pkg/.symdeps"
+assert_path_exists "$INTER_MANIFEST" "Auto-generated manifest created in interactive mode"
+
 print_summary
+
 

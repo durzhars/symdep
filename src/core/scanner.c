@@ -20,9 +20,11 @@
 #define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #include "core/scanner.h"
-#include "core/registry.h"
-
+#include "core/file_collector.h"
 #include "core/manifest.h"
+#include "core/registry.h"
+#include "core/scanner/scanner_parser.h"
+
 #include "utils/defs.h"
 #include "utils/fs.h"
 #include "utils/logger.h"
@@ -68,25 +70,59 @@ static void parse_shebang_interpreter(const char *first_line, StringArray *sheba
     free(copy);
 }
 
-static bool contains_word_token(const char *line, const char *word)
+static bool is_package_tool_executable(const char *source_dir, const char *pkg_name)
 {
-    if (!line || !word || *word == '\0' || *line == '\0') {
+    char path[STOW_PATH_LARGE];
+    join_path(path, sizeof(path), source_dir, pkg_name);
+    join_path(path, sizeof(path), path, pkg_name);
+    if (file_exists(path) && access(path, X_OK) == 0) {
+        return true;
+    }
+
+    join_path(path, sizeof(path), source_dir, pkg_name);
+    join_path(path, sizeof(path), path, "bin");
+    join_path(path, sizeof(path), path, pkg_name);
+    if (file_exists(path) && access(path, X_OK) == 0) {
+        return true;
+    }
+
+    return false;
+}
+
+static bool is_valid_tool_candidate(const char *source_dir, const char *tool_name)
+{
+    if (!tool_name || *tool_name == '\0') {
         return false;
     }
-    size_t wlen = strlen(word);
 
-    const char *pos = line;
-    while ((pos = strstr(pos, word)) != NULL) {
-        const char *after = pos + wlen;
-        int left_ok = (pos == line) || (!isalnum((unsigned char)*(pos - 1)) && *(pos - 1) != '_' &&
-                                        *(pos - 1) != '-');
-        int right_ok =
-            (*after == '\0') || (!isalnum((unsigned char)*after) && *after != '_' && *after != '-');
+    if (is_executable_in_path(tool_name)) {
+        return true;
+    }
 
-        if (left_ok && right_ok) {
+    if (is_tool_installed_dynamic(source_dir, tool_name)) {
+        return true;
+    }
+
+    if (is_package_tool_executable(source_dir, tool_name)) {
+        return true;
+    }
+
+    return false;
+}
+
+static bool is_binary_file(const char *filepath)
+{
+    FILE *fp = fopen(filepath, "rb");
+    if (!fp) {
+        return false;
+    }
+    unsigned char buf[1024];
+    size_t n = fread(buf, 1, sizeof(buf), fp);
+    fclose(fp);
+    for (size_t i = 0; i < n; i++) {
+        if (buf[i] == 0) {
             return true;
         }
-        pos += wlen;
     }
     return false;
 }
@@ -114,19 +150,27 @@ static void process_single_file(const char *filepath,
             parse_shebang_interpreter(linebuf, shebangs);
         }
 
-        if (candidate_tools) {
-            for (size_t t = 0; t < candidate_tools->count; t++) {
-                const char *tool = candidate_tools->items[t];
-                if (strcmp(tool, pkg_name) == 0) {
-                    continue;
-                }
-                if (!str_array_contains(invocations, tool)) {
-                    if (contains_word_token(linebuf, tool)) {
-                        str_array_append(invocations, tool);
-                    }
+        if (is_scanner_comment_line(linebuf)) {
+            continue;
+        }
+
+        StringArray line_tokens;
+        str_array_init(&line_tokens);
+        scanner_extract_line_tokens(linebuf, &line_tokens);
+
+        for (size_t k = 0; k < line_tokens.count; k++) {
+            const char *tok = line_tokens.items[k];
+            if (strcmp(tok, pkg_name) == 0) {
+                continue;
+            }
+            if (candidate_tools && str_array_contains(candidate_tools, tok)) {
+                if (!str_array_contains(invocations, tok)) {
+                    str_array_append(invocations, tok);
                 }
             }
         }
+
+        str_array_free(&line_tokens);
     }
 
     free(linebuf);
@@ -138,19 +182,68 @@ typedef struct {
     const char *pkg_name;
     StringArray *shebangs;
     StringArray *invocations;
+    const StringArray *ignore_patterns;
 } ScanFileState;
 
 static void scan_file_cb(const char *file_path, const char *rel_path, void *user_data)
 {
-    (void)rel_path;
+    ScanFileState *st = (ScanFileState *)user_data;
+    if (rel_path && *rel_path != '\0') {
+        if (is_path_ignored(rel_path, st->ignore_patterns)) {
+            return;
+        }
+    }
+
     if (file_exists(file_path) && !is_symlink(file_path)) {
-        ScanFileState *st = (ScanFileState *)user_data;
-        process_single_file(
-            file_path, st->candidate_tools, st->pkg_name, st->shebangs, st->invocations);
+        if (!is_binary_file(file_path)) {
+            process_single_file(
+                file_path, st->candidate_tools, st->pkg_name, st->shebangs, st->invocations);
+        }
     }
 }
 
-void scan_package(const char *source_dir, const char *pkg_name)
+static void parse_tool_selections(const char *input, size_t count, bool *selected)
+{
+    char buf[256];
+    snprintf(buf, sizeof(buf), "%s", input);
+    char *trimmed = trim_whitespace(buf);
+
+    if (trimmed[0] == '\0' || strcmp(trimmed, "all") == 0 || strcmp(trimmed, "a") == 0 ||
+        strcmp(trimmed, "y") == 0 || strcmp(trimmed, "Y") == 0 || strcmp(trimmed, "yes") == 0) {
+        for (size_t i = 0; i < count; i++) {
+            selected[i] = true;
+        }
+        return;
+    }
+
+    if (strcmp(trimmed, "none") == 0 || strcmp(trimmed, "n") == 0 || strcmp(trimmed, "N") == 0 ||
+        strcmp(trimmed, "no") == 0 || strcmp(trimmed, "0") == 0) {
+        for (size_t i = 0; i < count; i++) {
+            selected[i] = false;
+        }
+        return;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        selected[i] = false;
+    }
+
+    char *saveptr = NULL;
+    char *token = strtok_r(trimmed, " ,;\t", &saveptr);
+    while (token != NULL) {
+        long idx = strtol(token, NULL, 10);
+        if (idx > 0 && (size_t)idx <= count) {
+            selected[(size_t)idx - 1] = true;
+        }
+        token = strtok_r(NULL, " ,;\t", &saveptr);
+    }
+}
+
+void scan_package_opts(const char *source_dir,
+                       const char *pkg_name,
+                       bool interactive,
+                       bool write_manifest,
+                       bool dry_run)
 {
     char pkg_dir[STOW_PATH_LARGE];
     join_path(pkg_dir, sizeof(pkg_dir), source_dir, pkg_name);
@@ -165,16 +258,34 @@ void scan_package(const char *source_dir, const char *pkg_name)
     StringArray candidate_tools;
     str_array_init(&candidate_tools);
 
-    // Collect candidate tools from source packages and registry
-    get_all_packages(source_dir, &candidate_tools);
+    // Collect candidate tools from valid source packages and registry
+    StringArray all_pkgs;
+    str_array_init(&all_pkgs);
+    get_all_packages(source_dir, &all_pkgs);
+
+    for (size_t i = 0; i < all_pkgs.count; i++) {
+        const char *pname = all_pkgs.items[i];
+        if (is_valid_tool_candidate(source_dir, pname)) {
+            if (!str_array_contains(&candidate_tools, pname)) {
+                str_array_append(&candidate_tools, pname);
+            }
+        }
+    }
+    str_array_free(&all_pkgs);
+
     registry_get_all_tools(source_dir, &candidate_tools);
+
+    StringArray ignore_patterns;
+    str_array_init(&ignore_patterns);
+    get_default_ignore_patterns(&ignore_patterns);
+    parse_ignore_file_raw(source_dir, &ignore_patterns);
 
     StringArray shebangs;
     StringArray invocations;
     str_array_init(&shebangs);
     str_array_init(&invocations);
 
-    ScanFileState state = {&candidate_tools, pkg_name, &shebangs, &invocations};
+    ScanFileState state = {&candidate_tools, pkg_name, &shebangs, &invocations, &ignore_patterns};
     walk_dir_files(pkg_dir, "", scan_file_cb, &state);
 
     // If package name itself is a system tool (e.g. hyprland, zsh, tmux), ensure it is in required
@@ -183,11 +294,43 @@ void scan_package(const char *source_dir, const char *pkg_name)
         str_array_append(&shebangs, pkg_name);
     }
 
+    PackageManifest existing_manifest;
+    manifest_init(&existing_manifest, pkg_name);
+    bool manifest_exists = manifest_load(&existing_manifest, source_dir);
+
+    StringArray new_shebangs;
+    str_array_init(&new_shebangs);
+    for (size_t i = 0; i < shebangs.count; i++) {
+        const char *sh = shebangs.items[i];
+        if (manifest_exists) {
+            if (str_array_contains(&existing_manifest.required, sh) ||
+                str_array_contains(&existing_manifest.optional, sh) ||
+                str_array_contains(&existing_manifest.conflicts, sh)) {
+                continue;
+            }
+        }
+        str_array_append(&new_shebangs, sh);
+    }
+
+    StringArray new_invocations;
+    str_array_init(&new_invocations);
+    for (size_t i = 0; i < invocations.count; i++) {
+        const char *inv = invocations.items[i];
+        if (manifest_exists) {
+            if (str_array_contains(&existing_manifest.required, inv) ||
+                str_array_contains(&existing_manifest.optional, inv) ||
+                str_array_contains(&existing_manifest.conflicts, inv)) {
+                continue;
+            }
+        }
+        str_array_append(&new_invocations, inv);
+    }
+
     printf("  %sScan Results for package '%s':%s\n", COLOR_BOLD, pkg_name, COLOR_RESET);
     printf("    %sDetected Shebangs (Required):%s ", COLOR_BOLD, COLOR_RESET);
-    if (shebangs.count > 0) {
-        for (size_t i = 0; i < shebangs.count; i++) {
-            printf("%s ", shebangs.items[i]);
+    if (new_shebangs.count > 0) {
+        for (size_t i = 0; i < new_shebangs.count; i++) {
+            printf("%s ", new_shebangs.items[i]);
         }
     } else {
         printf("none");
@@ -195,41 +338,120 @@ void scan_package(const char *source_dir, const char *pkg_name)
     printf("\n");
 
     printf("    %sDetected Invocations (Optional):%s ", COLOR_BOLD, COLOR_RESET);
-    if (invocations.count > 0) {
-        for (size_t i = 0; i < invocations.count; i++) {
-            printf("%s ", invocations.items[i]);
+    if (new_invocations.count > 0) {
+        for (size_t i = 0; i < new_invocations.count; i++) {
+            printf("%s ", new_invocations.items[i]);
         }
     } else {
         printf("none");
     }
     printf("\n\n");
 
-    char manifest_path[STOW_PATH_HUGE];
-    join_path(manifest_path, sizeof(manifest_path), pkg_dir, ".symdeps");
-    if (!file_exists(manifest_path)) {
-        char legacy_manifest[STOW_PATH_HUGE];
-        join_path(legacy_manifest, sizeof(legacy_manifest), pkg_dir, ".stowdeps");
-        if (file_exists(legacy_manifest)) {
-            snprintf(manifest_path, sizeof(manifest_path), "%s", legacy_manifest);
+    if (dry_run) {
+        log_info("[DRY-RUN] Preview scan complete for package '%s'. No changes were made to disk.",
+                 pkg_name);
+        str_array_free(&shebangs);
+        str_array_free(&invocations);
+        str_array_free(&new_shebangs);
+        str_array_free(&new_invocations);
+        str_array_free(&candidate_tools);
+        str_array_free(&ignore_patterns);
+        manifest_free(&existing_manifest);
+        return;
+    }
+
+    if (!write_manifest && !interactive) {
+        str_array_free(&shebangs);
+        str_array_free(&invocations);
+        str_array_free(&new_shebangs);
+        str_array_free(&new_invocations);
+        str_array_free(&candidate_tools);
+        str_array_free(&ignore_patterns);
+        manifest_free(&existing_manifest);
+        return;
+    }
+
+    PackageManifest manifest;
+    manifest_init(&manifest, pkg_name);
+    if (manifest_exists) {
+        manifest_free(&manifest);
+        manifest = existing_manifest;
+        // zero out existing_manifest so double free doesn't occur
+        memset(&existing_manifest, 0, sizeof(PackageManifest));
+    }
+    bool modified = false;
+
+    for (size_t i = 0; i < new_shebangs.count; i++) {
+        const char *sh = new_shebangs.items[i];
+        if (!str_array_contains(&manifest.required, sh)) {
+            str_array_append(&manifest.required, sh);
+            modified = true;
         }
     }
 
-    if (!file_exists(manifest_path)) {
-        log_info("Auto-generating '.symdeps' manifest for '%s'...", pkg_name);
-        PackageManifest manifest;
-        manifest_init(&manifest, pkg_name);
-        for (size_t i = 0; i < shebangs.count; i++) {
-            str_array_append(&manifest.required, shebangs.items[i]);
+    if (interactive && new_invocations.count > 0) {
+        printf("  %s[?] Discovered %zu new tool invocation(s) in '%s':%s\n",
+               COLOR_BOLD,
+               new_invocations.count,
+               pkg_name,
+               COLOR_RESET);
+
+        for (size_t i = 0; i < new_invocations.count; i++) {
+            printf("      %zu. [x] %s\n", i + 1, new_invocations.items[i]);
         }
-        for (size_t i = 0; i < invocations.count; i++) {
-            str_array_append(&manifest.optional, invocations.items[i]);
+        printf("  %sSelect tools to add (e.g. 'all', 'none', '1,2', or press Enter [all]): %s",
+               COLOR_BOLD,
+               COLOR_RESET);
+        fflush(stdout);
+
+        bool *selected = calloc(new_invocations.count, sizeof(bool));
+        if (selected) {
+            char response[256] = {0};
+            if (fgets(response, sizeof(response), stdin)) {
+                parse_tool_selections(response, new_invocations.count, selected);
+            } else {
+                for (size_t i = 0; i < new_invocations.count; i++) {
+                    selected[i] = true;
+                }
+            }
+
+            for (size_t i = 0; i < new_invocations.count; i++) {
+                if (selected[i]) {
+                    const char *inv = new_invocations.items[i];
+                    str_array_append(&manifest.optional, inv);
+                    registry_add_tool(source_dir, inv);
+                    modified = true;
+                }
+            }
+            free(selected);
         }
-        manifest_save(&manifest, source_dir);
-        log_success("Generated '%s'", manifest_path);
-        manifest_free(&manifest);
+    } else if (write_manifest) {
+        for (size_t i = 0; i < new_invocations.count; i++) {
+            const char *inv = new_invocations.items[i];
+            str_array_append(&manifest.optional, inv);
+            modified = true;
+        }
     }
+    str_array_free(&new_invocations);
+
+    if (!manifest_exists || modified) {
+        manifest_save(&manifest, source_dir);
+        if (!manifest_exists) {
+            log_success("Auto-generated '.symdeps' manifest for '%s'", pkg_name);
+        } else {
+            log_info("Updated '.symdeps' manifest for '%s' with newly detected invocations",
+                     pkg_name);
+        }
+    }
+    manifest_free(&manifest);
 
     str_array_free(&shebangs);
     str_array_free(&invocations);
     str_array_free(&candidate_tools);
+    str_array_free(&ignore_patterns);
+}
+
+void scan_package(const char *source_dir, const char *pkg_name)
+{
+    scan_package_opts(source_dir, pkg_name, false, true, false);
 }

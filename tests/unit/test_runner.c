@@ -55,6 +55,10 @@ void test_manifest_set_target(void);
 void test_registry_parsing(void);
 void test_get_all_packages_skips_dot_dirs(void);
 void test_scan_package(void);
+void test_scan_package_excludes_non_tool_packages(void);
+void test_scan_package_comment_stripping_and_auto_registry(void);
+void test_scan_package_interactive_mode(void);
+void test_scanner_parser_token_extraction(void);
 
 /* Prototypes for core/config tests */
 void test_get_active_dotfiles_dir_cascade(void);
@@ -115,6 +119,20 @@ int main(void)
 {
     printf("\n=== Running Symlink & Dependency Manager (symdep) C Unit Tests ===\n\n");
 
+    char test_cfg_dir[PATH_MAX];
+    bool created_sandbox =
+        (create_test_tmp_dir(test_cfg_dir, sizeof(test_cfg_dir), "symdep_test_config") != NULL);
+    if (created_sandbox) {
+        char test_cfg_file[PATH_MAX];
+        snprintf(test_cfg_file, sizeof(test_cfg_file), "%s/config", test_cfg_dir);
+        char test_home_dir[PATH_MAX];
+        snprintf(test_home_dir, sizeof(test_home_dir), "%s/home", test_cfg_dir);
+        (void)mkdir(test_home_dir, 0755);
+        setenv("SYMDEP_CONFIG_FILE", test_cfg_file, 1);
+        setenv("XDG_CONFIG_HOME", test_cfg_dir, 1);
+        setenv("HOME", test_home_dir, 1);
+    }
+
     // --- cli ---
     RUN_TEST(test_parse_cli_options_flags);
     RUN_TEST(test_parse_cli_options_directory_overrides);
@@ -145,6 +163,10 @@ int main(void)
     RUN_TEST(test_registry_parsing);
     RUN_TEST(test_get_all_packages_skips_dot_dirs);
     RUN_TEST(test_scan_package);
+    RUN_TEST(test_scan_package_excludes_non_tool_packages);
+    RUN_TEST(test_scan_package_comment_stripping_and_auto_registry);
+    RUN_TEST(test_scan_package_interactive_mode);
+    RUN_TEST(test_scanner_parser_token_extraction);
 
     // --- core/config ---
     RUN_TEST(test_get_active_dotfiles_dir_cascade);
@@ -200,6 +222,10 @@ int main(void)
     RUN_TEST(test_symlink_helpers);
     RUN_TEST(test_is_symlink_pointing_to);
     RUN_TEST(test_walk_dir_files_and_cleanup);
+
+    if (created_sandbox) {
+        cleanup_test_dir(test_cfg_dir);
+    }
 
     printf("\n=== Test Results: %d Passed, %d Failed ===\n\n",
            g_tests_run - g_tests_failed,

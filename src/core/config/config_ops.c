@@ -110,31 +110,50 @@ void config_add_source_dir(const char *path)
 
 void config_remove_source_dir(const char *path)
 {
-    char abs_path[STOW_PATH_LARGE];
-    // Removal skips sanity check so users can untrack deleted/broken repos
-    if (!prepare_config_path(path, abs_path, sizeof(abs_path), "source directory", false)) {
+    if (!path || *path == '\0') {
         return;
     }
 
     Config cfg;
     config_load_active(&cfg);
 
-    if (str_array_contains(&cfg.source_dirs, abs_path)) {
-        size_t w = 0;
-        for (size_t r = 0; r < cfg.source_dirs.count; r++) {
-            if (strcmp(cfg.source_dirs.items[r], abs_path) == 0) {
-                free(cfg.source_dirs.items[r]);
-            } else {
-                cfg.source_dirs.items[w++] = cfg.source_dirs.items[r];
-            }
-        }
-        cfg.source_dirs.count = w;
+    bool removed = false;
 
-        if (config_save(&cfg)) {
-            log_success("Removed source directory: %s", abs_path);
+    if (strcmp(path, "target") == 0) {
+        if (cfg.target_dir[0] != '\0') {
+            cfg.target_dir[0] = '\0';
+            removed = true;
+            log_success("Removed target directory override from configuration.");
         }
     } else {
-        log_warn("Directory is not in configuration: %s", abs_path);
+        char abs_path[STOW_PATH_LARGE];
+        if (prepare_config_path(path, abs_path, sizeof(abs_path), "directory", false)) {
+            if (cfg.target_dir[0] != '\0' && strcmp(abs_path, cfg.target_dir) == 0) {
+                cfg.target_dir[0] = '\0';
+                removed = true;
+                log_success("Removed target directory override from configuration: %s", abs_path);
+            }
+
+            if (str_array_contains(&cfg.source_dirs, abs_path)) {
+                size_t w = 0;
+                for (size_t r = 0; r < cfg.source_dirs.count; r++) {
+                    if (strcmp(cfg.source_dirs.items[r], abs_path) == 0) {
+                        free(cfg.source_dirs.items[r]);
+                    } else {
+                        cfg.source_dirs.items[w++] = cfg.source_dirs.items[r];
+                    }
+                }
+                cfg.source_dirs.count = w;
+                removed = true;
+                log_success("Removed source directory: %s", abs_path);
+            }
+        }
+    }
+
+    if (removed) {
+        config_save(&cfg);
+    } else {
+        log_warn("Directory or setting is not in configuration: %s", path);
     }
 
     config_free(&cfg);
@@ -142,6 +161,18 @@ void config_remove_source_dir(const char *path)
 
 void config_set_target_dir(const char *path)
 {
+    if (!path || *path == '\0' || strcmp(path, "none") == 0 || strcmp(path, "clear") == 0 ||
+        strcmp(path, "unset") == 0 || strcmp(path, "reset") == 0 || strcmp(path, "\"\"") == 0) {
+        Config cfg;
+        config_load_active(&cfg);
+        cfg.target_dir[0] = '\0';
+        if (config_save(&cfg)) {
+            log_success("Cleared custom target directory override (reverting to $HOME default).");
+        }
+        config_free(&cfg);
+        return;
+    }
+
     char abs_path[STOW_PATH_MAX];
     if (!prepare_config_path(path, abs_path, sizeof(abs_path), "target directory", true)) {
         return;

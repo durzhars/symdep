@@ -312,9 +312,11 @@ void get_default_ignore_patterns(StringArray *ignore_patterns)
                                                 "README*",
                                                 "LICENSE*",
                                                 "COPYING*",
+                                                "zcompdump*",
                                                 "*~",
                                                 "#*#",
                                                 ".#*"};
+
         size_t num_defaults = sizeof(default_ignores) / sizeof(default_ignores[0]);
         for (size_t i = 0; i < num_defaults; i++) {
             if (!str_array_contains(ignore_patterns, default_ignores[i])) {

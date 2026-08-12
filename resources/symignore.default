@@ -18,7 +18,11 @@ _darcs
 README*
 LICENSE*
 COPYING*
+zcompdump*
+.cache/
+cache/
 *~
 #*#
 .#*
+
 

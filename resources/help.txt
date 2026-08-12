@@ -42,9 +42,33 @@ CONFIGURATION (config):
 OPTIONS:
   -d, --source-dir <path>   Override source repository path for current command (aliases: --src-dir, --dotfiles-dir)
   -t, --target-dir <path>   Override target directory for current command
+  -i, --interactive         Interactive menu to select and save discovered dependencies
   -y, --install             Auto-confirm installation of missing dependencies
   -n, --dry-run             Preview disk changes without modifying disk
   -s, --save                Save command-line directory overrides (-d/-t) to config
   -p, --profile             Enable execution performance profiler logging
+
   -h, --help                Display this help manual
 
+
+COMMAND MANUAL (scan):
+  Usage: symdep scan [pkg...] [options]
+
+  Description:
+    Recursively scans package content (scripts, shebangs, config DSLs)
+    for tool invocations and cross-references them against candidate packages
+    and the tool registry.
+
+  Options & Modes:
+    (default)          Preview mode. Displays detected dependencies without modifying disk.
+    -i, --interactive  Interactive wizard. Select tools to add to .symdeps & registry.
+    -n, --dry-run      Dry-run preview mode. Verify scanner output without disk changes.
+    -y, --install      Auto-save mode. Automatically saves discovered tools to .symdeps.
+    -p, --profile      Enable execution performance profiler timing metrics.
+    -h, --help         Display this help manual.
+
+  Examples:
+    $ symdep scan
+    $ symdep scan hyprland
+    $ symdep scan hyprland -i
+    $ symdep scan nvim-headless -y

@@ -19,6 +19,13 @@
 #ifndef SYMDEP_SCANNER_H
 #define SYMDEP_SCANNER_H
 
+#include <stdbool.h>
+
 void scan_package(const char *source_dir, const char *pkg_name);
+void scan_package_opts(const char *source_dir,
+                       const char *pkg_name,
+                       bool interactive,
+                       bool write_manifest,
+                       bool dry_run);
 
 #endif /* SYMDEP_SCANNER_H */

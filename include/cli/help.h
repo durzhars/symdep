@@ -20,5 +20,6 @@
 #define SYMDEP_HELP_H
 
 void show_help(void);
+void show_scan_help(void);
 
 #endif /* SYMDEP_HELP_H */

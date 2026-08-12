@@ -55,6 +55,7 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/core/manifest.c \
        $(SRC_DIR)/core/registry.c \
        $(SRC_DIR)/core/scanner.c \
+       $(SRC_DIR)/core/scanner/scanner_parser.c \
        $(SRC_DIR)/core/linker/linker_context.c \
        $(SRC_DIR)/core/linker/linker_walk.c \
        $(SRC_DIR)/core/linker/linker_conflicts.c \
@@ -72,6 +73,7 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/utils/signal.c \
        $(SRC_DIR)/utils/str.c \
        $(SRC_DIR)/utils/timer.c
+
 
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
 SRC_DEPS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/.deps/%.d,$(SRCS))

@@ -56,6 +56,8 @@ setup_sandbox() {
 
     export HOME="$MOCK_HOME"
     export XDG_CONFIG_HOME="$MOCK_CONFIG"
+    export SYMDEP_CONFIG_FILE="$MOCK_CONFIG/symdep/config"
+    export STOW_CONFIG_FILE="$MOCK_CONFIG/stow-manager/config"
     export STOW_DOTFILES_DIR="$MOCK_DOTFILES"
     export SYMDEP_SOURCE_DIR="$MOCK_DOTFILES"
 }

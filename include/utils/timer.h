@@ -52,6 +52,10 @@ void perf_timer_log_force(const PerfTimer *timer);
 
 // Convenience macros for scope profiling
 #define PERF_PROFILE_START(label) PerfTimer _timer_##label = perf_timer_start(#label)
-#define PERF_PROFILE_END(label) perf_timer_log(&_timer_##label)
+#define PERF_PROFILE_END(label)           \
+    do {                                  \
+        perf_timer_stop(&_timer_##label); \
+        perf_timer_log(&_timer_##label);  \
+    } while (0)
 
 #endif /* UTILS_TIMER_H */

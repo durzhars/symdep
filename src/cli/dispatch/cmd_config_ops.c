@@ -51,9 +51,17 @@ int cmd_config_remove(const CommandContext *ctx)
     return 0;
 }
 
+#include "cli/help.h"
+
 int cmd_help(const CommandContext *ctx)
 {
-    (void)ctx;
+    if (ctx->args->count > ctx->arg_offset) {
+        const char *topic = ctx->args->items[ctx->arg_offset];
+        if (strcmp(topic, "scan") == 0) {
+            show_scan_help();
+            return 0;
+        }
+    }
     show_help();
     return 0;
 }

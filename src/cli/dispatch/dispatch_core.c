@@ -37,9 +37,11 @@ static bool is_known_group(const char *group)
     return false;
 }
 
-static void print_group_usage_help(const char *group)
+static void print_group_usage_help(const char *group, bool is_help_cmd)
 {
-    log_error("Missing or invalid subcommand for command group '%s'.", group);
+    if (!is_help_cmd) {
+        log_error("Missing or invalid subcommand for command group '%s'.", group);
+    }
     printf("  %sAvailable subcommands for '%s':%s\n", COLOR_BOLD, group, COLOR_RESET);
     for (size_t i = 0; ROUTE_TABLE[i].handler != NULL; i++) {
         if (strcmp(group, ROUTE_TABLE[i].group) == 0 && ROUTE_TABLE[i].subcommand != NULL) {
@@ -55,7 +57,9 @@ static void print_group_usage_help(const char *group)
         }
     }
     printf("\n");
-    print_general_help_hint();
+    if (!is_help_cmd) {
+        print_general_help_hint();
+    }
 }
 
 int dispatch_command(const StringArray *args, const CliOptions *opts)
@@ -140,8 +144,11 @@ int dispatch_command(const StringArray *args, const CliOptions *opts)
     }
 
     if (is_known_group(token1)) {
-        print_group_usage_help(token1);
-        return 1;
+        bool is_help_req = (opts && opts->help_flag) ||
+                           (token2 && (strcmp(token2, "help") == 0 || strcmp(token2, "-h") == 0 ||
+                                       strcmp(token2, "--help") == 0));
+        print_group_usage_help(token1, is_help_req);
+        return is_help_req ? 0 : 1;
     }
 
     char source_dir[STOW_PATH_LARGE] = {0};

@@ -30,10 +30,16 @@ void test_config_add_remove_dotfiles_dir(void)
            "Should create temporary directory for config dirs test");
 
     const char *old_xdg = getenv("XDG_CONFIG_HOME");
+    const char *old_symdep = getenv("SYMDEP_CONFIG_FILE");
     char old_xdg_buf[PATH_MAX] = {0};
+    char old_symdep_buf[PATH_MAX] = {0};
     if (old_xdg) {
         snprintf(old_xdg_buf, sizeof(old_xdg_buf), "%s", old_xdg);
     }
+    if (old_symdep) {
+        snprintf(old_symdep_buf, sizeof(old_symdep_buf), "%s", old_symdep);
+    }
+    unsetenv("SYMDEP_CONFIG_FILE");
     setenv("XDG_CONFIG_HOME", tmp_dir, 1);
 
     char dir_a[PATH_MAX];
@@ -92,6 +98,9 @@ void test_config_add_remove_dotfiles_dir(void)
     } else {
         unsetenv("XDG_CONFIG_HOME");
     }
+    if (old_symdep_buf[0] != '\0') {
+        setenv("SYMDEP_CONFIG_FILE", old_symdep_buf, 1);
+    }
 
     cleanup_test_dir(tmp_dir);
 }
@@ -103,6 +112,12 @@ void test_config_sanity_checks(void)
            "Should create temporary test directory");
 
     const char *old_xdg = getenv("XDG_CONFIG_HOME");
+    const char *old_symdep = getenv("SYMDEP_CONFIG_FILE");
+    char old_symdep_buf[PATH_MAX] = {0};
+    if (old_symdep) {
+        snprintf(old_symdep_buf, sizeof(old_symdep_buf), "%s", old_symdep);
+    }
+    unsetenv("SYMDEP_CONFIG_FILE");
     setenv("XDG_CONFIG_HOME", tmp_dir, 1);
 
     config_set_target_dir("/nonexistent/invalid/target/path/xyz");
@@ -117,6 +132,10 @@ void test_config_sanity_checks(void)
         setenv("XDG_CONFIG_HOME", old_xdg, 1);
     else
         unsetenv("XDG_CONFIG_HOME");
+
+    if (old_symdep_buf[0] != '\0') {
+        setenv("SYMDEP_CONFIG_FILE", old_symdep_buf, 1);
+    }
 
     cleanup_test_dir(tmp_dir);
 }

@@ -112,6 +112,9 @@ static FILE *open_registry_file(const char *source_dir)
 
     FILE *rfp = open_resource_file("symdep.registry");
     if (!rfp) {
+        rfp = open_resource_file("symdep.registry.default");
+    }
+    if (!rfp) {
         rfp = open_resource_file("stow.registry");
     }
     return rfp;
@@ -245,6 +248,42 @@ void registry_get_all_tools(const char *source_dir, StringArray *tools)
     }
 
     free(linebuf);
+    fclose(fp);
+}
+
+void registry_add_tool(const char *source_dir, const char *tool)
+{
+    if (!tool || *tool == '\0') {
+        return;
+    }
+
+    StringArray existing_tools;
+    str_array_init(&existing_tools);
+    registry_get_all_tools(source_dir, &existing_tools);
+
+    if (str_array_contains(&existing_tools, tool)) {
+        str_array_free(&existing_tools);
+        return;
+    }
+    str_array_free(&existing_tools);
+
+    if (!source_dir || *source_dir == '\0') {
+        return;
+    }
+
+    char path[STOW_PATH_LARGE];
+    snprintf(path, sizeof(path), "%s/symdep.registry", source_dir);
+
+    FILE *fp = fopen(path, "a");
+    if (!fp) {
+        snprintf(path, sizeof(path), "%s/.symdepregistry", source_dir);
+        fp = fopen(path, "a");
+    }
+    if (!fp) {
+        return;
+    }
+
+    fprintf(fp, "%s=%s\n", tool, tool);
     fclose(fp);
 }
 

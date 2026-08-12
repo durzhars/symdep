@@ -21,8 +21,8 @@ CUSTOM_TARGET="$TEST_TMPDIR/custom_target"
 CUSTOM_DOTFILES="$TEST_TMPDIR/custom_dotfiles"
 mkdir -p "$CUSTOM_TARGET" "$CUSTOM_DOTFILES"
 
-assert_success "$STOW_BIN config set target $CUSTOM_TARGET" "symdep config set target succeeded"
-assert_success "$STOW_BIN config set source $CUSTOM_DOTFILES" "symdep config set source succeeded"
+assert_success "$STOW_BIN config set --target $CUSTOM_TARGET" "symdep config set target succeeded"
+assert_success "$STOW_BIN config set --source $CUSTOM_DOTFILES" "symdep config set source succeeded"
 
 CONFIG_FILE="$XDG_CONFIG_HOME/symdep/config"
 if [ ! -f "$CONFIG_FILE" ]; then

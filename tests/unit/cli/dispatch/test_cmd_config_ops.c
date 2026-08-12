@@ -56,7 +56,7 @@ void test_cmd_config_ops(void)
     str_array_init(&set_args);
     str_array_append(&set_args, "config");
     str_array_append(&set_args, "set");
-    str_array_append(&set_args, "target");
+    str_array_append(&set_args, "--target");
     str_array_append(&set_args, tmp_target);
     CommandContext set_ctx = {.opts = &opts,
                               .source_dir = tmp_dotfiles,
@@ -64,7 +64,7 @@ void test_cmd_config_ops(void)
                               .args = &set_args,
                               .arg_offset = 2};
     int res_set = cmd_config_set(&set_ctx);
-    ASSERT(res_set == 0, "cmd_config_set should return 0 success");
+    ASSERT(res_set == 0, "cmd_config_set --target should return 0 success");
     str_array_free(&set_args);
 
     StringArray mgr_args;
@@ -81,6 +81,22 @@ void test_cmd_config_ops(void)
     int res_mgr = cmd_config_set(&mgr_ctx);
     ASSERT(res_mgr == 0, "cmd_config_set --manager should return 0 success");
     str_array_free(&mgr_args);
+
+    // Invalid/Unknown flag test (--m) should fail with 1
+    StringArray invalid_args;
+    str_array_init(&invalid_args);
+    str_array_append(&invalid_args, "config");
+    str_array_append(&invalid_args, "set");
+    str_array_append(&invalid_args, "--m");
+    str_array_append(&invalid_args, "pacman");
+    CommandContext invalid_ctx = {.opts = &opts,
+                                  .source_dir = tmp_dotfiles,
+                                  .global_target_dir = tmp_target,
+                                  .args = &invalid_args,
+                                  .arg_offset = 2};
+    int res_invalid = cmd_config_set(&invalid_ctx);
+    ASSERT(res_invalid == 1, "cmd_config_set with unknown flag --m should return 1 error");
+    str_array_free(&invalid_args);
 
     StringArray add_args;
     str_array_init(&add_args);

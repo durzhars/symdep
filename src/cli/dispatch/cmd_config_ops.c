@@ -43,8 +43,8 @@ int cmd_config_set(const CommandContext *ctx)
         if (handled_flags) {
             return 0;
         }
-        log_error("Usage: symdep config set [OPTIONS] (e.g. -m/--manager <name>, -e/--elevation "
-                  "<tool>, -t/--target <path>, -d/--source <path>)");
+        log_error("Missing required options for 'config set'.");
+        show_subcommand_help("config");
         return 1;
     }
 
@@ -52,71 +52,51 @@ int cmd_config_set(const CommandContext *ctx)
         const char *arg = ctx->args->items[i];
         const char *next_arg = (i + 1 < ctx->args->count) ? ctx->args->items[i + 1] : NULL;
 
-        if (strcmp(arg, "-m") == 0 || strcmp(arg, "--manager") == 0 ||
-            strcmp(arg, "--pkg-manager") == 0 || strcmp(arg, "--pkg-mgr") == 0) {
-            if (!next_arg) {
-                log_error("Option '%s' requires a package manager name argument", arg);
+        if (arg[0] == '-') {
+            if (strcmp(arg, "-m") == 0 || strcmp(arg, "--manager") == 0 ||
+                strcmp(arg, "--pkg-manager") == 0 || strcmp(arg, "--pkg-mgr") == 0) {
+                if (!next_arg) {
+                    log_error("Option '%s' requires a package manager name argument", arg);
+                    show_subcommand_help("config");
+                    return 1;
+                }
+                config_set_pkg_manager(next_arg);
+                i++;
+            } else if (strcmp(arg, "-e") == 0 || strcmp(arg, "--elevation") == 0 ||
+                       strcmp(arg, "--elevation-tool") == 0) {
+                if (!next_arg) {
+                    log_error("Option '%s' requires an elevation tool argument (e.g. sudo, tsu, "
+                              "doas, none)",
+                              arg);
+                    show_subcommand_help("config");
+                    return 1;
+                }
+                config_set_elevation_tool(next_arg);
+                i++;
+            } else if (strcmp(arg, "-t") == 0 || strcmp(arg, "--target") == 0 ||
+                       strcmp(arg, "--target-dir") == 0) {
+                if (!next_arg) {
+                    log_error("Option '%s' requires a directory path argument", arg);
+                    show_subcommand_help("config");
+                    return 1;
+                }
+                config_set_target_dir(next_arg);
+                i++;
+            } else if (strcmp(arg, "-d") == 0 || strcmp(arg, "--source") == 0 ||
+                       strcmp(arg, "--source-dir") == 0 || strcmp(arg, "--src-dir") == 0 ||
+                       strcmp(arg, "--dotfiles-dir") == 0) {
+                if (!next_arg) {
+                    log_error("Option '%s' requires a directory path argument", arg);
+                    show_subcommand_help("config");
+                    return 1;
+                }
+                config_set_source_dir(next_arg);
+                i++;
+            } else {
+                log_error("Unknown option '%s' for 'config set'.", arg);
+                show_subcommand_help("config");
                 return 1;
             }
-            config_set_pkg_manager(next_arg);
-            i++;
-        } else if (strcmp(arg, "-e") == 0 || strcmp(arg, "--elevation") == 0 ||
-                   strcmp(arg, "--elevation-tool") == 0) {
-            if (!next_arg) {
-                log_error(
-                    "Option '%s' requires an elevation tool argument (e.g. sudo, tsu, doas, none)",
-                    arg);
-                return 1;
-            }
-            config_set_elevation_tool(next_arg);
-            i++;
-        } else if (strcmp(arg, "-t") == 0 || strcmp(arg, "--target") == 0 ||
-                   strcmp(arg, "--target-dir") == 0) {
-            if (!next_arg) {
-                log_error("Option '%s' requires a directory path argument", arg);
-                return 1;
-            }
-            config_set_target_dir(next_arg);
-            i++;
-        } else if (strcmp(arg, "-d") == 0 || strcmp(arg, "--source") == 0 ||
-                   strcmp(arg, "--source-dir") == 0 || strcmp(arg, "--src-dir") == 0) {
-            if (!next_arg) {
-                log_error("Option '%s' requires a directory path argument", arg);
-                return 1;
-            }
-            config_set_source_dir(next_arg);
-            i++;
-        } else if (strcmp(arg, "target") == 0 || strcmp(arg, "target_dir") == 0) {
-            if (!next_arg) {
-                log_error("Key 'target' requires a directory path argument");
-                return 1;
-            }
-            config_set_target_dir(next_arg);
-            i++;
-        } else if (strcmp(arg, "manager") == 0 || strcmp(arg, "pkg.manager") == 0 ||
-                   strcmp(arg, "pkg_manager") == 0 || strcmp(arg, "pkg-mgr") == 0 ||
-                   strcmp(arg, "package-manager") == 0) {
-            if (!next_arg) {
-                log_error("Key 'manager' requires a package manager name argument");
-                return 1;
-            }
-            config_set_pkg_manager(next_arg);
-            i++;
-        } else if (strcmp(arg, "elevation") == 0 || strcmp(arg, "pkg.elevation") == 0 ||
-                   strcmp(arg, "elevation_tool") == 0) {
-            if (!next_arg) {
-                log_error("Key 'elevation' requires an elevation tool argument");
-                return 1;
-            }
-            config_set_elevation_tool(next_arg);
-            i++;
-        } else if (strcmp(arg, "source") == 0 || strcmp(arg, "source_dir") == 0) {
-            if (!next_arg) {
-                log_error("Key 'source' requires a directory path argument");
-                return 1;
-            }
-            config_set_source_dir(next_arg);
-            i++;
         } else {
             config_set_source_dir(arg);
         }

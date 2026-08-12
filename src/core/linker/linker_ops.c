@@ -397,6 +397,40 @@ int relink_package(const char *source_dir,
         return -1;
     }
 
+    /* Pass 1: Pre-create unique parent directories upfront */
+    StrSet parent_dirs;
+    str_set_init(&parent_dirs);
+    for (size_t i = 0; i < pctx.pkg_files.count; i++) {
+        const char *rel = pctx.pkg_files.entries[i].rel_path;
+        if (is_path_ignored(rel, &pctx.raw_ignores)) {
+            continue;
+        }
+        char target_path[STOW_PATH_LARGE];
+        join_path(target_path, sizeof(target_path), pctx.target_dir, rel);
+        char *last_slash = strrchr(target_path, '/');
+        if (last_slash) {
+            *last_slash = '\0';
+            if (str_set_add(&parent_dirs, target_path)) {
+                mkdir_p(target_path, 0755);
+            }
+        }
+    }
+    str_set_free(&parent_dirs);
+
+    /* Pass 2: Create file symlinks */
+    if (io_uring_is_supported()) {
+        if (io_uring_link_batch(&pctx.pkg_files, &pctx) == 0) {
+            int result = (pctx.errors == 0) ? 0 : -1;
+            if (result == 0) {
+                log_success("Successfully relinked package '%s'!", pkg_name);
+            } else {
+                log_error("Failed to relink package '%s'!", pkg_name);
+            }
+            package_context_free(&pctx);
+            return result;
+        }
+    }
+
     for (size_t i = 0; i < pctx.pkg_files.count; i++) {
         native_link_cb(
             pctx.pkg_files.entries[i].full_path, pctx.pkg_files.entries[i].rel_path, &pctx);

@@ -241,11 +241,8 @@ int link_package(const char *source_dir,
     unfold_directory_symlinks(target_dir, source_dir, &pctx.pkg_files, dry_run);
     perf_timer_log(&t_unf);
 
-    PerfTimer t_prep = perf_timer_start("prepare_target_conflicts");
-    prepare_target_conflicts(target_dir, source_dir, pkg_name, &pctx.pkg_files, dry_run);
-    perf_timer_log(&t_prep);
-
     if (dry_run) {
+        prepare_target_conflicts(target_dir, source_dir, pkg_name, &pctx.pkg_files, dry_run);
         log_success(
             "[DRY-RUN] Dry run / Diff complete for package '%s'. No changes were made to disk.",
             pkg_name);

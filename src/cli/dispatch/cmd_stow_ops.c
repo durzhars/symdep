@@ -59,6 +59,25 @@ int foreach_package(const CommandContext *ctx, PackageActionFn action)
         return 0;
     }
 
+    if (pkg_count >= 2) {
+        ThreadPool *pool = thread_pool_create(0);
+        if (pool) {
+            AtomicPkgBatch batch;
+            batch.ctx = ctx;
+            batch.action = action;
+            atomic_init(&batch.current_index, ctx->arg_offset);
+            atomic_init(&batch.global_status, 0);
+
+            size_t num_workers = pool->thread_count;
+            for (size_t w = 0; w < num_workers; w++) {
+                thread_pool_add_task(pool, atomic_pkg_worker, &batch);
+            }
+            thread_pool_wait(pool);
+            thread_pool_destroy(pool);
+            return atomic_load(&batch.global_status);
+        }
+    }
+
     int status = 0;
     for (size_t i = ctx->arg_offset; i < ctx->args->count; i++) {
         const char *pkg_name = ctx->args->items[i];

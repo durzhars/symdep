@@ -108,6 +108,7 @@ void pkg_manager_get_builtins(PkgManagerArray *out_arr)
     if (!out_arr) {
         return;
     }
+    pkg_manager_array_init(out_arr);
     for (size_t i = 0; i < BUILTIN_PKG_MANAGERS_COUNT; i++) {
         pkg_manager_array_append(out_arr, &BUILTIN_PKG_MANAGERS[i]);
     }
@@ -222,7 +223,9 @@ void pkg_manager_get_all(PkgManagerArray *out_arr, const char *source_dir)
     }
     pkg_manager_array_init(out_arr);
     pkg_manager_load_custom_config(out_arr, source_dir);
-    pkg_manager_get_builtins(out_arr);
+    for (size_t i = 0; i < BUILTIN_PKG_MANAGERS_COUNT; i++) {
+        pkg_manager_array_append(out_arr, &BUILTIN_PKG_MANAGERS[i]);
+    }
 }
 
 bool pkg_manager_find_by_name(const PkgManagerArray *list,

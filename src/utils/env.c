@@ -230,14 +230,33 @@ bool app_env_resolve(AppEnvironment *env,
 
 void get_distro_id(char *buf, size_t buf_size)
 {
+    if (!buf || buf_size == 0) {
+        return;
+    }
     buf[0] = '\0';
+
+    if (getenv("TERMUX_VERSION") != NULL || access("/data/data/com.termux", F_OK) == 0) {
+        snprintf(buf, buf_size, "termux");
+        return;
+    }
+
     FILE *fp = fopen("/etc/os-release", "r");
+    if (!fp) {
+        fp = fopen("/usr/lib/os-release", "r");
+    }
     if (fp) {
         char line[256];
         while (fgets(line, sizeof(line), fp)) {
             if (strncmp(line, "ID=", 3) == 0) {
                 char *val = line + 3;
+                if (*val == '"' || *val == '\'') {
+                    val++;
+                }
                 char *trimmed = trim_whitespace(val);
+                size_t len = strlen(trimmed);
+                if (len > 0 && (trimmed[len - 1] == '"' || trimmed[len - 1] == '\'')) {
+                    trimmed[len - 1] = '\0';
+                }
                 snprintf(buf, buf_size, "%s", trimmed);
                 fclose(fp);
                 return;
@@ -245,7 +264,34 @@ void get_distro_id(char *buf, size_t buf_size)
         }
         fclose(fp);
     }
-    snprintf(buf, buf_size, "unknown");
+
+    FILE *u_fp = popen("uname -s 2>/dev/null", "r");
+    if (u_fp) {
+        char u_buf[128] = {0};
+        if (fgets(u_buf, sizeof(u_buf), u_fp)) {
+            char *trimmed = trim_whitespace(u_buf);
+            if (strcasecmp(trimmed, "Darwin") == 0) {
+                snprintf(buf, buf_size, "macos");
+                pclose(u_fp);
+                return;
+            } else if (strcasecmp(trimmed, "FreeBSD") == 0) {
+                snprintf(buf, buf_size, "freebsd");
+                pclose(u_fp);
+                return;
+            } else if (strcasecmp(trimmed, "OpenBSD") == 0) {
+                snprintf(buf, buf_size, "openbsd");
+                pclose(u_fp);
+                return;
+            } else if (strcasecmp(trimmed, "NetBSD") == 0) {
+                snprintf(buf, buf_size, "netbsd");
+                pclose(u_fp);
+                return;
+            }
+        }
+        pclose(u_fp);
+    }
+
+    snprintf(buf, buf_size, "unix");
 }
 
 bool is_executable_in_path(const char *executable)

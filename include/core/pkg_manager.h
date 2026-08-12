@@ -33,6 +33,7 @@ typedef struct {
     char binary[PKG_MGR_NAME_MAX];
     char install_cmd[PKG_MGR_CMD_MAX];
     char update_cmd[PKG_MGR_CMD_MAX];
+    bool requires_root;
     bool is_custom;
 } PkgManagerEntry;
 
@@ -58,6 +59,21 @@ void pkg_manager_detect_on_path(const PkgManagerArray *list, PkgManagerArray *ou
 
 int pkg_manager_prompt_selection(const PkgManagerArray *detected, PkgManagerEntry *out_entry);
 bool pkg_manager_prompt_fallback(PkgManagerEntry *out_entry, const char *source_dir);
+
+void pkg_manager_get_elevation_tool(const char *source_dir,
+                                    bool requires_root,
+                                    char *out_tool,
+                                    size_t out_tool_size,
+                                    bool auto_install,
+                                    bool dry_run);
+
+void pkg_manager_build_command(const PkgManagerEntry *mgr,
+                               const char *source_dir,
+                               const char *pkg_list,
+                               char *out_cmd,
+                               size_t out_cmd_size,
+                               bool auto_install,
+                               bool dry_run);
 
 bool pkg_manager_resolve(const char *source_dir,
                          const char *cli_override,

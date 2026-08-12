@@ -76,18 +76,10 @@ static void build_install_command(const char *source_dir,
         }
     }
 
-    int res = 0;
     if (resolved && mgr.install_cmd[0] != '\0') {
-        res = snprintf(cmd, cmd_size, mgr.install_cmd, pkg_list);
+        pkg_manager_build_command(&mgr, source_dir, pkg_list, cmd, cmd_size, auto_install, dry_run);
     } else {
-        res = snprintf(cmd, cmd_size, "Manual compilation/installation required for: %s", pkg_list);
-    }
-
-    if (res < 0 || (size_t)res >= cmd_size) {
-        log_error("Install command string truncated or formatting error!");
-        if (cmd_size > 0) {
-            cmd[0] = '\0';
-        }
+        snprintf(cmd, cmd_size, "Manual compilation/installation required for: %s", pkg_list);
     }
 }
 

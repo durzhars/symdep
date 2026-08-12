@@ -33,32 +33,33 @@
 #include <unistd.h>
 
 static const PkgManagerEntry BUILTIN_PKG_MANAGERS[] = {
-    {"pacman", "pacman", "sudo pacman -S --needed %s", "sudo pacman -Sy", false},
-    {"yay", "yay", "yay -S --needed %s", "yay -Sy", false},
-    {"paru", "paru", "paru -S --needed %s", "paru -Sy", false},
-    {"apt", "apt", "sudo apt update && sudo apt install -y %s", "sudo apt update", false},
+    {"pacman", "pacman", "pacman -S --needed %s", "pacman -Sy", true, false},
+    {"yay", "yay", "yay -S --needed %s", "yay -Sy", false, false},
+    {"paru", "paru", "paru -S --needed %s", "paru -Sy", false, false},
+    {"apt", "apt", "apt update && apt install -y %s", "apt update", true, false},
     {"apt-get",
      "apt-get",
-     "sudo apt-get update && sudo apt-get install -y %s",
-     "sudo apt-get update",
+     "apt-get update && apt-get install -y %s",
+     "apt-get update",
+     true,
      false},
-    {"dnf", "dnf", "sudo dnf install -y %s", "sudo dnf check-update", false},
-    {"yum", "yum", "sudo yum install -y %s", "sudo yum check-update", false},
-    {"zypper", "zypper", "sudo zypper install -y %s", "sudo zypper refresh", false},
-    {"apk", "apk", "sudo apk add %s", "sudo apk update", false},
-    {"xbps-install", "xbps-install", "sudo xbps-install -Sy %s", "sudo xbps-install -S", false},
-    {"emerge", "emerge", "sudo emerge --ask=n %s", "sudo emerge --sync", false},
-    {"eopkg", "eopkg", "sudo eopkg install -y %s", "sudo eopkg ur", false},
-    {"slackpkg", "slackpkg", "sudo slackpkg install %s", "sudo slackpkg update", false},
-    {"pkgtool", "pkgtool", "sudo installpkg %s", "", false},
-    {"brew", "brew", "brew install %s", "brew update", false},
-    {"port", "port", "sudo port install %s", "sudo port selfupdate", false},
-    {"pkg", "pkg", "pkg install -y %s", "pkg update", false},
-    {"pkg_add", "pkg_add", "sudo pkg_add %s", "", false},
-    {"pkgin", "pkgin", "sudo pkgin -y install %s", "sudo pkgin update", false},
-    {"nix-env", "nix-env", "nix-env -iA %s", "", false},
-    {"flatpak", "flatpak", "flatpak install -y %s", "", false},
-    {"snap", "snap", "sudo snap install %s", "", false},
+    {"dnf", "dnf", "dnf install -y %s", "dnf check-update", true, false},
+    {"yum", "yum", "yum install -y %s", "yum check-update", true, false},
+    {"zypper", "zypper", "zypper install -y %s", "zypper refresh", true, false},
+    {"apk", "apk", "apk add %s", "apk update", true, false},
+    {"xbps-install", "xbps-install", "xbps-install -Sy %s", "xbps-install -S", true, false},
+    {"emerge", "emerge", "emerge --ask=n %s", "emerge --sync", true, false},
+    {"eopkg", "eopkg", "eopkg install -y %s", "eopkg ur", true, false},
+    {"slackpkg", "slackpkg", "slackpkg install %s", "slackpkg update", true, false},
+    {"pkgtool", "pkgtool", "installpkg %s", "", true, false},
+    {"brew", "brew", "brew install %s", "brew update", false, false},
+    {"port", "port", "port install %s", "port selfupdate", true, false},
+    {"pkg", "pkg", "pkg install -y %s", "pkg update", false, false},
+    {"pkg_add", "pkg_add", "pkg_add %s", "", true, false},
+    {"pkgin", "pkgin", "pkgin -y install %s", "pkgin update", true, false},
+    {"nix-env", "nix-env", "nix-env -iA %s", "", false, false},
+    {"flatpak", "flatpak", "flatpak install -y %s", "", false, false},
+    {"snap", "snap", "snap install %s", "", true, false},
 };
 
 static const size_t BUILTIN_PKG_MANAGERS_COUNT =
@@ -444,4 +445,124 @@ bool pkg_manager_resolve(const char *source_dir,
     pkg_manager_array_free(&all_managers);
 
     return resolved;
+}
+
+void pkg_manager_get_elevation_tool(const char *source_dir,
+                                    bool requires_root,
+                                    char *out_tool,
+                                    size_t out_tool_size,
+                                    bool auto_install,
+                                    bool dry_run)
+{
+    (void)source_dir;
+    if (!out_tool || out_tool_size == 0) {
+        return;
+    }
+    out_tool[0] = '\0';
+
+    // If running as root or manager doesn't require root (e.g. termux pkg, brew, yay), no elevation
+    // tool needed
+    if (geteuid() == 0 || !requires_root) {
+        return;
+    }
+
+    const char *configured = getenv("SYMDEP_ELEVATION_TOOL");
+    if (configured && *configured != '\0') {
+        if (strcasecmp(configured, "none") != 0) {
+            snprintf(out_tool, out_tool_size, "%s", configured);
+        }
+        return;
+    }
+
+    bool has_sudo = is_executable_in_path("sudo");
+    bool has_tsu = is_executable_in_path("tsu");
+    bool has_doas = is_executable_in_path("doas");
+    bool has_su = is_executable_in_path("su");
+
+    if (auto_install || dry_run || !isatty(STDIN_FILENO)) {
+        if (has_sudo) {
+            snprintf(out_tool, out_tool_size, "sudo");
+        } else if (has_tsu) {
+            snprintf(out_tool, out_tool_size, "tsu");
+        } else if (has_doas) {
+            snprintf(out_tool, out_tool_size, "doas");
+        } else if (has_su) {
+            snprintf(out_tool, out_tool_size, "su");
+        }
+        return;
+    }
+
+    printf("\n%sThis package manager requires elevated (root) privileges.%s\n",
+           COLOR_BOLD,
+           COLOR_RESET);
+    printf("  %s[1]%s sudo  %s\n", COLOR_CYAN, COLOR_RESET, has_sudo ? "(Detected)" : "");
+    printf("  %s[2]%s tsu   %s\n", COLOR_CYAN, COLOR_RESET, has_tsu ? "(Detected)" : "");
+    printf("  %s[3]%s doas  %s\n", COLOR_CYAN, COLOR_RESET, has_doas ? "(Detected)" : "");
+    printf("  %s[4]%s su    %s\n", COLOR_CYAN, COLOR_RESET, has_su ? "(Detected)" : "");
+    printf("  %s[5]%s None  (run directly without root escalation)\n", COLOR_CYAN, COLOR_RESET);
+    printf("\nSelect privilege escalation method [1-5]: ");
+    fflush(stdout);
+
+    char input[64];
+    if (!fgets(input, sizeof(input), stdin)) {
+        if (has_sudo) {
+            snprintf(out_tool, out_tool_size, "sudo");
+        } else if (has_tsu) {
+            snprintf(out_tool, out_tool_size, "tsu");
+        }
+        return;
+    }
+
+    int choice = atoi(input);
+    switch (choice) {
+    case 1:
+        snprintf(out_tool, out_tool_size, "sudo");
+        break;
+    case 2:
+        snprintf(out_tool, out_tool_size, "tsu");
+        break;
+    case 3:
+        snprintf(out_tool, out_tool_size, "doas");
+        break;
+    case 4:
+        snprintf(out_tool, out_tool_size, "su");
+        break;
+    case 5:
+    default:
+        out_tool[0] = '\0';
+        break;
+    }
+}
+
+void pkg_manager_build_command(const PkgManagerEntry *mgr,
+                               const char *source_dir,
+                               const char *pkg_list,
+                               char *out_cmd,
+                               size_t out_cmd_size,
+                               bool auto_install,
+                               bool dry_run)
+{
+    if (!mgr || !out_cmd || out_cmd_size == 0) {
+        return;
+    }
+    out_cmd[0] = '\0';
+
+    char raw_cmd[2048];
+    int written = snprintf(raw_cmd, sizeof(raw_cmd), mgr->install_cmd, pkg_list ? pkg_list : "");
+    if (written <= 0 || (size_t)written >= sizeof(raw_cmd)) {
+        log_error("Failed to format package manager command template.");
+        return;
+    }
+
+    char elevation[64];
+    pkg_manager_get_elevation_tool(
+        source_dir, mgr->requires_root, elevation, sizeof(elevation), auto_install, dry_run);
+
+    if (elevation[0] == '\0' || strcasecmp(elevation, "none") == 0) {
+        snprintf(out_cmd, out_cmd_size, "%s", raw_cmd);
+    } else if (strcmp(elevation, "su") == 0) {
+        snprintf(out_cmd, out_cmd_size, "su -c \"%s\"", raw_cmd);
+    } else {
+        snprintf(out_cmd, out_cmd_size, "%s %s", elevation, raw_cmd);
+    }
 }

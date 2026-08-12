@@ -186,6 +186,14 @@ static _Thread_local IoUringRing g_tls_ring;
 static _Thread_local bool g_tls_ring_inited = false;
 static _Thread_local bool g_tls_ring_failed = false;
 
+typedef struct {
+    char target_path[STOW_PATH_LARGE];
+    char pkg_file_path[STOW_PATH_LARGE];
+    const char *rel_path;
+} PendingLink;
+
+static _Thread_local PendingLink *g_tls_batch = NULL;
+
 int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
 {
     if (!files || files->count == 0) {
@@ -207,6 +215,11 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
     }
     IoUringRing *ring = &g_tls_ring;
 
+    if (!g_tls_batch) {
+        g_tls_batch = (PendingLink *)safe_calloc(queue_depth, sizeof(PendingLink));
+    }
+    PendingLink *batch = g_tls_batch;
+
     int target_dfd = open(ctx->target_dir, O_RDONLY | O_DIRECTORY);
     if (target_dfd < 0) {
         target_dfd = AT_FDCWD;
@@ -214,14 +227,6 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
 
     size_t target_dir_len = strlen(ctx->target_dir);
     size_t pkg_dir_len = strlen(ctx->pkg_dir);
-
-    typedef struct {
-        char target_path[STOW_PATH_LARGE];
-        char pkg_file_path[STOW_PATH_LARGE];
-        const char *rel_path;
-    } PendingLink;
-
-    static _Thread_local PendingLink batch[256];
 
     size_t total = files->count;
     size_t file_idx = 0;

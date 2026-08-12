@@ -386,6 +386,9 @@ bool pkg_manager_prompt_fallback(PkgManagerEntry *out_entry, const char *source_
     return true;
 }
 
+static PkgManagerEntry g_cached_pkg_mgr;
+static bool g_cached_pkg_mgr_valid = false;
+
 bool pkg_manager_resolve(const char *source_dir,
                          const char *cli_override,
                          PkgManagerEntry *out_entry,
@@ -397,6 +400,13 @@ bool pkg_manager_resolve(const char *source_dir,
         return false;
     }
     memset(out_entry, 0, sizeof(*out_entry));
+
+    if (!cli_override || *cli_override == '\0') {
+        if (g_cached_pkg_mgr_valid) {
+            *out_entry = g_cached_pkg_mgr;
+            return true;
+        }
+    }
 
     PkgManagerArray all_managers;
     pkg_manager_get_all(&all_managers, source_dir);
@@ -422,6 +432,10 @@ bool pkg_manager_resolve(const char *source_dir,
             pkg_manager_array_free(&all_managers);
             if (loaded_cfg) {
                 config_free(&cfg);
+            }
+            if (!cli_override || *cli_override == '\0') {
+                g_cached_pkg_mgr = *out_entry;
+                g_cached_pkg_mgr_valid = true;
             }
             return true;
         }
@@ -462,6 +476,11 @@ bool pkg_manager_resolve(const char *source_dir,
 
     pkg_manager_array_free(&detected);
     pkg_manager_array_free(&all_managers);
+
+    if (resolved && (!cli_override || *cli_override == '\0')) {
+        g_cached_pkg_mgr = *out_entry;
+        g_cached_pkg_mgr_valid = true;
+    }
 
     return resolved;
 }

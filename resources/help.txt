@@ -35,14 +35,18 @@ DIAGNOSTICS & REPAIR:
 
 CONFIGURATION (config):
   config show               Display active configuration & package manager options
-  config set <key> <val>    Set config property (target, source, pkg.manager, pkg.elevation)
+  config set [OPTIONS]      Set configuration settings:
+    -m, --manager <name>    Set default package manager (alias: --pkg-manager)
+    -e, --elevation <tool>  Set default privilege elevation tool (sudo, tsu, doas, none)
+    -t, --target <path>     Set target home directory
+    -d, --source <path>     Set primary source repository directory
   config add <path>         Add an additional source repository (multi-repo)
   config remove <path>      Remove a source repository from config
 
 OPTIONS:
   -d, --source-dir <path>   Override source repository path for current command (aliases: --src-dir, --dotfiles-dir)
   -t, --target-dir <path>   Override target directory for current command
-  -m, --pkg-mgr <name>      Override package manager for current command (alias: --package-manager)
+  -m, --manager <name>      Override package manager for current command (aliases: --pkg-mgr, --package-manager)
   -i, --interactive         Interactive menu to select and save discovered dependencies
   -y, --install             Auto-confirm installation of missing dependencies
   -n, --dry-run             Preview disk changes without modifying disk

@@ -28,19 +28,89 @@ int cmd_config_show(const CommandContext *ctx)
 
 int cmd_config_set(const CommandContext *ctx)
 {
-    const char *key = ctx->args->items[ctx->arg_offset];
-    const char *val = ctx->args->items[ctx->arg_offset + 1];
+    const CliOptions *opts = ctx->opts;
+    if (opts && opts->pkg_mgr_override) {
+        config_set_pkg_manager(opts->pkg_mgr_override);
+        return 0;
+    }
 
-    if (strcmp(key, "target") == 0 || strcmp(key, "target_dir") == 0) {
-        config_set_target_dir(val);
-    } else if (strcmp(key, "pkg.manager") == 0 || strcmp(key, "pkg_manager") == 0 ||
-               strcmp(key, "pkg-mgr") == 0 || strcmp(key, "package-manager") == 0) {
-        config_set_pkg_manager(val);
-    } else if (strcmp(key, "pkg.elevation") == 0 || strcmp(key, "elevation") == 0 ||
-               strcmp(key, "elevation_tool") == 0) {
-        config_set_elevation_tool(val);
-    } else {
-        config_set_source_dir(val);
+    size_t count = ctx->args->count - ctx->arg_offset;
+    if (count == 0) {
+        log_error("Usage: symdep config set [OPTIONS] (e.g. -m/--manager <name>, -e/--elevation "
+                  "<tool>, -t/--target <path>, -d/--source <path>)");
+        return 1;
+    }
+
+    for (size_t i = ctx->arg_offset; i < ctx->args->count; i++) {
+        const char *arg = ctx->args->items[i];
+        const char *next_arg = (i + 1 < ctx->args->count) ? ctx->args->items[i + 1] : NULL;
+
+        if (strcmp(arg, "-m") == 0 || strcmp(arg, "--manager") == 0 ||
+            strcmp(arg, "--pkg-manager") == 0 || strcmp(arg, "--pkg-mgr") == 0) {
+            if (!next_arg) {
+                log_error("Option '%s' requires a package manager name argument", arg);
+                return 1;
+            }
+            config_set_pkg_manager(next_arg);
+            i++;
+        } else if (strcmp(arg, "-e") == 0 || strcmp(arg, "--elevation") == 0 ||
+                   strcmp(arg, "--elevation-tool") == 0) {
+            if (!next_arg) {
+                log_error(
+                    "Option '%s' requires an elevation tool argument (e.g. sudo, tsu, doas, none)",
+                    arg);
+                return 1;
+            }
+            config_set_elevation_tool(next_arg);
+            i++;
+        } else if (strcmp(arg, "-t") == 0 || strcmp(arg, "--target") == 0 ||
+                   strcmp(arg, "--target-dir") == 0) {
+            if (!next_arg) {
+                log_error("Option '%s' requires a directory path argument", arg);
+                return 1;
+            }
+            config_set_target_dir(next_arg);
+            i++;
+        } else if (strcmp(arg, "-d") == 0 || strcmp(arg, "--source") == 0 ||
+                   strcmp(arg, "--source-dir") == 0 || strcmp(arg, "--src-dir") == 0) {
+            if (!next_arg) {
+                log_error("Option '%s' requires a directory path argument", arg);
+                return 1;
+            }
+            config_set_source_dir(next_arg);
+            i++;
+        } else if (strcmp(arg, "target") == 0 || strcmp(arg, "target_dir") == 0) {
+            if (!next_arg) {
+                log_error("Key 'target' requires a directory path argument");
+                return 1;
+            }
+            config_set_target_dir(next_arg);
+            i++;
+        } else if (strcmp(arg, "manager") == 0 || strcmp(arg, "pkg_manager") == 0 ||
+                   strcmp(arg, "pkg-mgr") == 0 || strcmp(arg, "package-manager") == 0) {
+            if (!next_arg) {
+                log_error("Key 'manager' requires a package manager name argument");
+                return 1;
+            }
+            config_set_pkg_manager(next_arg);
+            i++;
+        } else if (strcmp(arg, "elevation") == 0 || strcmp(arg, "elevation_tool") == 0) {
+            if (!next_arg) {
+                log_error("Key 'elevation' requires an elevation tool argument");
+                return 1;
+            }
+            config_set_elevation_tool(next_arg);
+            i++;
+        } else if (strcmp(arg, "source") == 0 || strcmp(arg, "source_dir") == 0) {
+            if (!next_arg) {
+                log_error("Key 'source' requires a directory path argument");
+                return 1;
+            }
+            config_set_source_dir(next_arg);
+            i++;
+        } else {
+            config_set_source_dir(arg);
+        }
     }
     return 0;
 }

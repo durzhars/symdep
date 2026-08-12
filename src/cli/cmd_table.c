@@ -80,7 +80,7 @@ const CommandRoute ROUTE_TABLE[] = {
     {"ignore",         "clear",    ALIAS_IGNORE_CLEAR,   0,       "Usage: symdep ignore clear [pkg...]",                             cmd_ignore_clear},
 
     {"config",         "show",     ALIAS_CONFIG_SHOW,    0,       "Usage: symdep config show",                                       cmd_config_show},
-    {"config",         "set",      ALIAS_CONFIG_SET,     2,       "Usage: symdep config set <target|source> <path>",                 cmd_config_set},
+    {"config",         "set",      ALIAS_CONFIG_SET,     1,       "Usage: symdep config set [--manager <name> | --elevation <tool> | --target <path> | --source <path>]", cmd_config_set},
     {"config",         "add",      ALIAS_CONFIG_ADD,     1,       "Usage: symdep config add <path>",                                 cmd_config_add},
     {"config",         "remove",   ALIAS_CONFIG_REMOVE,  1,       "Usage: symdep config remove <path>",                              cmd_config_remove},
 

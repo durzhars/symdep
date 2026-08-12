@@ -112,7 +112,11 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
             continue;
 
         int res_m =
-            parse_string_opt(arg, next_arg, "-m", "--pkg-mgr", &opts->pkg_mgr_override, &i, argc);
+            parse_string_opt(arg, next_arg, "-m", "--manager", &opts->pkg_mgr_override, &i, argc);
+        if (res_m == 0) {
+            res_m = parse_string_opt(
+                arg, next_arg, "-m", "--pkg-mgr", &opts->pkg_mgr_override, &i, argc);
+        }
         if (res_m == 0) {
             res_m = parse_string_opt(
                 arg, next_arg, "-m", "--package-manager", &opts->pkg_mgr_override, &i, argc);

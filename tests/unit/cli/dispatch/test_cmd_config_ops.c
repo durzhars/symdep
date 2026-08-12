@@ -67,6 +67,21 @@ void test_cmd_config_ops(void)
     ASSERT(res_set == 0, "cmd_config_set should return 0 success");
     str_array_free(&set_args);
 
+    StringArray mgr_args;
+    str_array_init(&mgr_args);
+    str_array_append(&mgr_args, "config");
+    str_array_append(&mgr_args, "set");
+    str_array_append(&mgr_args, "--manager");
+    str_array_append(&mgr_args, "yay");
+    CommandContext mgr_ctx = {.opts = &opts,
+                              .source_dir = tmp_dotfiles,
+                              .global_target_dir = tmp_target,
+                              .args = &mgr_args,
+                              .arg_offset = 2};
+    int res_mgr = cmd_config_set(&mgr_ctx);
+    ASSERT(res_mgr == 0, "cmd_config_set --manager should return 0 success");
+    str_array_free(&mgr_args);
+
     StringArray add_args;
     str_array_init(&add_args);
     str_array_append(&add_args, "config");

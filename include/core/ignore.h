@@ -22,16 +22,54 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-// Batch operations taking pointer slices directly from ctx->args
+/**
+ * @brief Initialize global or package-level .symignore file(s).
+ *
+ * @param source_dir Path to active source repository.
+ * @param pkgs       Array of package names (NULL or empty count for global repository init).
+ * @param count      Number of package names in pkgs slice.
+ */
 void ignore_init(const char *source_dir, const char *const *pkgs, size_t count);
+
+/**
+ * @brief Clear/purge global or package-level .symignore file(s).
+ *
+ * @param source_dir Path to active source repository.
+ * @param pkgs       Array of package names (NULL or empty count for global repository purge).
+ * @param count      Number of package names in pkgs slice.
+ */
 void ignore_clear(const char *source_dir, const char *const *pkgs, size_t count);
+
+/**
+ * @brief Display active .symignore rules with redundancy warnings.
+ *
+ * @param source_dir Path to active source repository.
+ * @param pkgs       Array of package names (NULL or empty count for global rules display).
+ * @param count      Number of package names in pkgs slice.
+ */
 void ignore_show(const char *source_dir, const char *const *pkgs, size_t count);
 
-// Pattern operations
+/**
+ * @brief Append glob pattern(s) to package or global .symignore file.
+ *
+ * @param source_dir Path to active source repository.
+ * @param pkg_name   Package name (NULL or empty for global root .symignore).
+ * @param patterns   Array of glob pattern strings to add.
+ * @param count      Number of pattern strings.
+ */
 void ignore_add_patterns(const char *source_dir,
                          const char *pkg_name,
                          const char *const *patterns,
                          size_t count);
+
+/**
+ * @brief Remove glob pattern(s) from package or global .symignore file.
+ *
+ * @param source_dir Path to active source repository.
+ * @param pkg_name   Package name (NULL or empty for global root .symignore).
+ * @param patterns   Array of glob pattern strings to remove.
+ * @param count      Number of pattern strings.
+ */
 void ignore_remove_patterns(const char *source_dir,
                             const char *pkg_name,
                             const char *const *patterns,

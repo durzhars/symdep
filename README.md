@@ -92,6 +92,8 @@ Key technical decisions in `symdep` are documented in detail within [`docs/decis
 - **[ADR-005: Unified Command Dispatch Table](docs/decisions/ADR-005-unified-command-dispatch-table.md)** — Centralized routing architecture supporting multi-namespace, colon-separated, and legacy GNU Stow command syntaxes.
 - **[ADR-006: Hierarchical Ignore Rule Engine](docs/decisions/ADR-006-hierarchical-ignore-rule-engine.md)** — Glob pattern matching, inheritance across global and package `.symignore` files, and redundancy warnings.
 
+For complete module-by-module developer function signatures, data structures, and contract specifications, see the **[C API Reference Guide](docs/API.md)**.
+
 ### Target Directory Precedence
 
 When resolving the target destination for symlink deployment, `symdep` checks sources in strict order of precedence:

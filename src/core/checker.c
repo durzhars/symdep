@@ -24,6 +24,7 @@
 #include "core/file_collector.h"
 #include "core/linker.h"
 #include "core/manifest.h"
+#include "core/pkg_manager.h"
 #include "core/registry.h"
 
 #include "utils/defs.h"
@@ -49,8 +50,13 @@ static void build_install_command(const char *source_dir,
                                   const char *distro,
                                   const StringArray *pkgs,
                                   char *cmd,
-                                  size_t cmd_size)
+                                  size_t cmd_size,
+                                  bool auto_install,
+                                  bool dry_run)
 {
+    PkgManagerEntry mgr;
+    bool resolved = pkg_manager_resolve(source_dir, NULL, &mgr, auto_install, dry_run);
+
     char pkg_list[2048] = {0};
     size_t offset = 0;
     for (size_t i = 0; i < pkgs->count; i++) {
@@ -71,21 +77,10 @@ static void build_install_command(const char *source_dir,
     }
 
     int res = 0;
-    if (strcmp(distro, "arch") == 0 || strcmp(distro, "manjaro") == 0 ||
-        strcmp(distro, "endeavouros") == 0) {
-        res = snprintf(cmd, cmd_size, "sudo pacman -S --needed %s", pkg_list);
-    } else if (strcmp(distro, "ubuntu") == 0 || strcmp(distro, "debian") == 0 ||
-               strcmp(distro, "pop") == 0 || strcmp(distro, "mint") == 0) {
-        res = snprintf(cmd, cmd_size, "sudo apt update && sudo apt install -y %s", pkg_list);
-    } else if (strcmp(distro, "fedora") == 0 || strcmp(distro, "rhel") == 0 ||
-               strcmp(distro, "centos") == 0) {
-        res = snprintf(cmd, cmd_size, "sudo dnf install -y %s", pkg_list);
-    } else if (strcmp(distro, "alpine") == 0) {
-        res = snprintf(cmd, cmd_size, "sudo apk add %s", pkg_list);
-    } else if (strcmp(distro, "macos") == 0) {
-        res = snprintf(cmd, cmd_size, "brew install %s", pkg_list);
+    if (resolved && mgr.install_cmd[0] != '\0') {
+        res = snprintf(cmd, cmd_size, mgr.install_cmd, pkg_list);
     } else {
-        res = snprintf(cmd, cmd_size, "Install missing packages manually: %s", pkg_list);
+        res = snprintf(cmd, cmd_size, "Manual compilation/installation required for: %s", pkg_list);
     }
 
     if (res < 0 || (size_t)res >= cmd_size) {
@@ -114,7 +109,8 @@ static void handle_missing_dependencies(const char *source_dir,
     }
 
     char install_cmd[4096];
-    build_install_command(source_dir, distro, missing_pkgs, install_cmd, sizeof(install_cmd));
+    build_install_command(
+        source_dir, distro, missing_pkgs, install_cmd, sizeof(install_cmd), auto_install, dry_run);
     printf("%sInstallation Command (%s):%s %s%s%s\n\n",
            COLOR_BOLD,
            distro,

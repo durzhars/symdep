@@ -43,6 +43,9 @@ void test_cmd_config_ops(void);
 /* Prototypes for core tests */
 void test_check_package_dependencies(void);
 void test_symlink_health_check(void);
+void test_pkg_manager_builtins(void);
+void test_pkg_manager_custom_config(void);
+void test_pkg_manager_resolution_precedence(void);
 void test_default_stowignore(void);
 void test_pkg_file_list_ops(void);
 void test_collect_package_files(void);
@@ -151,6 +154,9 @@ int main(void)
     // --- core ---
     RUN_TEST(test_check_package_dependencies);
     RUN_TEST(test_symlink_health_check);
+    RUN_TEST(test_pkg_manager_builtins);
+    RUN_TEST(test_pkg_manager_custom_config);
+    RUN_TEST(test_pkg_manager_resolution_precedence);
     RUN_TEST(test_default_stowignore);
     RUN_TEST(test_pkg_file_list_ops);
     RUN_TEST(test_collect_package_files);

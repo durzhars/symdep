@@ -46,6 +46,7 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/cli/cmd_table.c \
        $(SRC_DIR)/cli/help.c \
        $(SRC_DIR)/core/checker.c \
+       $(SRC_DIR)/core/pkg_manager.c \
        $(SRC_DIR)/core/config/config_file.c \
        $(SRC_DIR)/core/config/config_ops.c \
        $(SRC_DIR)/core/config/config_active.c \

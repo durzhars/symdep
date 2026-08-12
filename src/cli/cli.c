@@ -111,6 +111,17 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
         if (res_t > 0)
             continue;
 
+        int res_m =
+            parse_string_opt(arg, next_arg, "-m", "--pkg-mgr", &opts->pkg_mgr_override, &i, argc);
+        if (res_m == 0) {
+            res_m = parse_string_opt(
+                arg, next_arg, "-m", "--package-manager", &opts->pkg_mgr_override, &i, argc);
+        }
+        if (res_m < 0)
+            return 1;
+        if (res_m > 0)
+            continue;
+
         // 2. Boolean Flags (-y, -n, -s, -p, -h)
         if (parse_bool_opt(arg, "-y", "--install", &opts->auto_install))
             continue;

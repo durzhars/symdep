@@ -189,6 +189,44 @@ void config_set_target_dir(const char *path)
     config_free(&cfg);
 }
 
+void config_set_pkg_manager(const char *mgr_name)
+{
+    Config cfg;
+    config_load_active(&cfg);
+    if (!mgr_name || *mgr_name == '\0' || strcmp(mgr_name, "none") == 0 ||
+        strcmp(mgr_name, "clear") == 0 || strcmp(mgr_name, "auto") == 0) {
+        cfg.pkg_manager[0] = '\0';
+        if (config_save(&cfg)) {
+            log_success("Cleared package manager override (reverting to auto-detection).");
+        }
+    } else {
+        snprintf(cfg.pkg_manager, sizeof(cfg.pkg_manager), "%s", mgr_name);
+        if (config_save(&cfg)) {
+            log_success("Set package manager override to: %s", mgr_name);
+        }
+    }
+    config_free(&cfg);
+}
+
+void config_set_elevation_tool(const char *tool_name)
+{
+    Config cfg;
+    config_load_active(&cfg);
+    if (!tool_name || *tool_name == '\0' || strcmp(tool_name, "auto") == 0 ||
+        strcmp(tool_name, "clear") == 0) {
+        cfg.elevation_tool[0] = '\0';
+        if (config_save(&cfg)) {
+            log_success("Cleared privilege elevation tool override (reverting to auto-detection).");
+        }
+    } else {
+        snprintf(cfg.elevation_tool, sizeof(cfg.elevation_tool), "%s", tool_name);
+        if (config_save(&cfg)) {
+            log_success("Set privilege elevation tool to: %s", tool_name);
+        }
+    }
+    config_free(&cfg);
+}
+
 void config_show(void)
 {
     Config cfg;
@@ -216,6 +254,18 @@ void config_show(void)
         } else {
             printf("  Target Directory: (none - $HOME environment variable is not set)\n");
         }
+    }
+
+    if (cfg.pkg_manager[0] != '\0') {
+        printf("  Package Manager: %s (configured)\n", cfg.pkg_manager);
+    } else {
+        printf("  Package Manager: (auto-detect via $PATH probing)\n");
+    }
+
+    if (cfg.elevation_tool[0] != '\0') {
+        printf("  Privilege Elevation: %s (configured)\n", cfg.elevation_tool);
+    } else {
+        printf("  Privilege Elevation: (auto-detect via $PATH probing)\n");
     }
     printf("\n");
 

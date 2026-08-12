@@ -31,8 +31,14 @@ int cmd_config_set(const CommandContext *ctx)
     const char *key = ctx->args->items[ctx->arg_offset];
     const char *val = ctx->args->items[ctx->arg_offset + 1];
 
-    if (strcmp(key, "target") == 0) {
+    if (strcmp(key, "target") == 0 || strcmp(key, "target_dir") == 0) {
         config_set_target_dir(val);
+    } else if (strcmp(key, "pkg.manager") == 0 || strcmp(key, "pkg_manager") == 0 ||
+               strcmp(key, "pkg-mgr") == 0 || strcmp(key, "package-manager") == 0) {
+        config_set_pkg_manager(val);
+    } else if (strcmp(key, "pkg.elevation") == 0 || strcmp(key, "elevation") == 0 ||
+               strcmp(key, "elevation_tool") == 0) {
+        config_set_elevation_tool(val);
     } else {
         config_set_source_dir(val);
     }

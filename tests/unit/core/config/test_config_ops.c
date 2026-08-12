@@ -93,6 +93,15 @@ void test_config_add_remove_dotfiles_dir(void)
            "Config count should remain 1 after removing non-registered path");
     config_free(&cfg);
 
+    // Package manager & elevation setting persistence
+    config_set_pkg_manager("yay");
+    config_set_elevation_tool("tsu");
+    config_init(&cfg);
+    config_load(&cfg);
+    ASSERT_STR_EQ(cfg.pkg_manager, "yay");
+    ASSERT_STR_EQ(cfg.elevation_tool, "tsu");
+    config_free(&cfg);
+
     if (old_xdg_buf[0] != '\0') {
         setenv("XDG_CONFIG_HOME", old_xdg_buf, 1);
     } else {

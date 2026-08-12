@@ -83,6 +83,15 @@ void test_parse_cli_options_directory_overrides(void)
     ASSERT(args.count == 1, "Should have 1 positional arg");
     ASSERT_STR_EQ(args.items[0], "diff");
     str_array_free(&args);
+
+    // 3. Package manager override (-m / --pkg-mgr)
+    char *argv3[] = {"symdep", "-m", "yay", "link", "nvim"};
+    str_array_init(&args);
+    int res3 = parse_cli_options(5, argv3, &opts, &args);
+    ASSERT(res3 == 0, "parse_cli_options should return 0");
+    ASSERT(opts.pkg_mgr_override != NULL, "pkg_mgr_override should not be NULL");
+    ASSERT_STR_EQ(opts.pkg_mgr_override, "yay");
+    str_array_free(&args);
 }
 
 void test_parse_cli_options_errors_and_help(void)

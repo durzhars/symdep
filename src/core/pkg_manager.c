@@ -21,6 +21,7 @@
 #define _DEFAULT_SOURCE
 
 #include "core/pkg_manager.h"
+#include "core/config.h"
 #include "utils/env.h"
 #include "utils/fs.h"
 #include "utils/logger.h"
@@ -400,18 +401,34 @@ bool pkg_manager_resolve(const char *source_dir,
     PkgManagerArray all_managers;
     pkg_manager_get_all(&all_managers, source_dir);
 
-    // Precedence 1: Explicit CLI override or environment variable
+    // Precedence 1: Explicit CLI override or environment variable or config file
     const char *configured = cli_override;
     if (!configured || *configured == '\0') {
         configured = getenv("SYMDEP_PKG_MANAGER");
     }
 
+    Config cfg;
+    bool loaded_cfg = false;
+    if (!configured || *configured == '\0') {
+        config_load_active(&cfg);
+        loaded_cfg = true;
+        if (cfg.pkg_manager[0] != '\0') {
+            configured = cfg.pkg_manager;
+        }
+    }
+
     if (configured && *configured != '\0') {
         if (pkg_manager_find_by_name(&all_managers, configured, out_entry)) {
             pkg_manager_array_free(&all_managers);
+            if (loaded_cfg) {
+                config_free(&cfg);
+            }
             return true;
         }
         log_warn("Configured package manager '%s' not recognized in registry.", configured);
+    }
+    if (loaded_cfg) {
+        config_free(&cfg);
     }
 
     // Precedence 2: $PATH binary probing
@@ -479,11 +496,27 @@ void pkg_manager_get_elevation_tool(const char *source_dir,
     out_tool[0] = '\0';
 
     const char *configured = getenv("SYMDEP_ELEVATION_TOOL");
+    Config cfg;
+    bool loaded_cfg = false;
+    if (!configured || *configured == '\0') {
+        config_load_active(&cfg);
+        loaded_cfg = true;
+        if (cfg.elevation_tool[0] != '\0') {
+            configured = cfg.elevation_tool;
+        }
+    }
+
     if (configured && *configured != '\0') {
         if (strcasecmp(configured, "none") != 0) {
             snprintf(out_tool, out_tool_size, "%s", configured);
         }
+        if (loaded_cfg) {
+            config_free(&cfg);
+        }
         return;
+    }
+    if (loaded_cfg) {
+        config_free(&cfg);
     }
 
     // POSIX root/elevation check:

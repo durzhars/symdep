@@ -24,6 +24,8 @@ void config_init(Config *cfg)
     memset(cfg->config_file_path, 0, sizeof(cfg->config_file_path));
     str_array_init(&cfg->source_dirs);
     memset(cfg->target_dir, 0, sizeof(cfg->target_dir));
+    memset(cfg->pkg_manager, 0, sizeof(cfg->pkg_manager));
+    memset(cfg->elevation_tool, 0, sizeof(cfg->elevation_tool));
     get_config_file_path(cfg->config_file_path, sizeof(cfg->config_file_path));
 }
 
@@ -135,6 +137,10 @@ bool config_load(Config *cfg)
                 }
             } else if (strcmp(key, "TARGET_DIR") == 0) {
                 snprintf(cfg->target_dir, sizeof(cfg->target_dir), "%s", val);
+            } else if (strcmp(key, "PKG_MANAGER") == 0 || strcmp(key, "PACKAGE_MANAGER") == 0) {
+                snprintf(cfg->pkg_manager, sizeof(cfg->pkg_manager), "%s", val);
+            } else if (strcmp(key, "ELEVATION_TOOL") == 0) {
+                snprintf(cfg->elevation_tool, sizeof(cfg->elevation_tool), "%s", val);
             }
         }
     }
@@ -176,6 +182,12 @@ bool config_save(const Config *cfg)
 
     if (cfg->target_dir[0] != '\0') {
         fprintf(fp, "TARGET_DIR=%s\n", cfg->target_dir);
+    }
+    if (cfg->pkg_manager[0] != '\0') {
+        fprintf(fp, "PKG_MANAGER=%s\n", cfg->pkg_manager);
+    }
+    if (cfg->elevation_tool[0] != '\0') {
+        fprintf(fp, "ELEVATION_TOOL=%s\n", cfg->elevation_tool);
     }
 
     fclose(fp);

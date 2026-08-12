@@ -32,6 +32,7 @@ typedef struct {
     bool help_flag;
     const char *cli_source_dir;
     const char *cli_target_dir;
+    const char *pkg_mgr_override;
 } CliOptions;
 
 int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *positional_args);

@@ -26,10 +26,13 @@ typedef struct {
     char config_file_path[STOW_PATH_MAX];
     StringArray source_dirs;
     char target_dir[STOW_PATH_MAX];
+    char pkg_manager[64];
+    char elevation_tool[64];
 } Config;
 
 void config_init(Config *cfg);
 void config_free(Config *cfg);
+void config_load_active(Config *cfg);
 void get_config_file_path(char *buf, size_t buf_size);
 bool config_load(Config *cfg);
 bool config_save(const Config *cfg);
@@ -38,6 +41,8 @@ void config_set_source_dir(const char *path);
 void config_add_source_dir(const char *path);
 void config_remove_source_dir(const char *path);
 void config_set_target_dir(const char *path);
+void config_set_pkg_manager(const char *mgr_name);
+void config_set_elevation_tool(const char *tool_name);
 void config_show(void);
 
 void get_active_source_dir(const char *cli_override, char *buf, size_t buf_size);

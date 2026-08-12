@@ -8,6 +8,7 @@ A high-performance, zero-dependency symlink manager and package dependency resol
 
 - **`-d, --source-dir`** `<path>`                    Set source repository directory for current command (aliases: `--src-dir`, `--dotfiles-dir`) (e.g. `-d ~/src`)
 - **`-t, --target-dir`** `<path>`                      Set target home directory for current command (e.g. `-t ~/`)
+- **`-m, --pkg-mgr`** `<name>`                         Override active package manager for current command (alias: `--package-manager`) (e.g. `-m yay`)
 - **`-y, --install`**                                  Auto-confirm installation of missing required dependencies & optional plugins
 - **`-n, --dry-run`**                                  Dry-run mode (preview disk changes, symlink creations & backups without modifying disk)
 - **`-s, --save`**                                     Save command-line directory overrides (`-d`/`-t`) to config
@@ -16,8 +17,8 @@ A high-performance, zero-dependency symlink manager and package dependency resol
 
 ## Configuration Commands (`config:*`)
 
-- **`config show`**                                    Display active configuration, source repositories & target directory
-- **`config set [target|source]`** `<path>`            Set primary source repository or target home directory
+- **`config show`**                                    Display active configuration, source repositories & package manager settings
+- **`config set [key]`** `<value>`                     Set config property (`target`, `source`, `pkg.manager`, `pkg.elevation`)
 - **`config add`** `<path>`                            Add an additional source repository directory (multi-repo mode)
 - **`config remove`** `<path>`                         Remove a source repository directory from config
 

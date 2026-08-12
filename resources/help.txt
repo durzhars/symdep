@@ -34,14 +34,15 @@ DIAGNOSTICS & REPAIR:
   fix                       Unfold directory symlinks to resolve collisions (alias: fix-conflicts)
 
 CONFIGURATION (config):
-  config show               Display active configuration & source repositories
-  config set <key> <val>    Set primary source repository or target directory
+  config show               Display active configuration & package manager options
+  config set <key> <val>    Set config property (target, source, pkg.manager, pkg.elevation)
   config add <path>         Add an additional source repository (multi-repo)
   config remove <path>      Remove a source repository from config
 
 OPTIONS:
   -d, --source-dir <path>   Override source repository path for current command (aliases: --src-dir, --dotfiles-dir)
   -t, --target-dir <path>   Override target directory for current command
+  -m, --pkg-mgr <name>      Override package manager for current command (alias: --package-manager)
   -i, --interactive         Interactive menu to select and save discovered dependencies
   -y, --install             Auto-confirm installation of missing dependencies
   -n, --dry-run             Preview disk changes without modifying disk

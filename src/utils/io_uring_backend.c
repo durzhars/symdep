@@ -182,17 +182,30 @@ static inline void fast_path_join(char *out, const char *dir, size_t dlen, const
     memcpy(p, rel, rlen + 1);
 }
 
+static _Thread_local IoUringRing g_tls_ring;
+static _Thread_local bool g_tls_ring_inited = false;
+static _Thread_local bool g_tls_ring_failed = false;
+
 int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
 {
     if (!files || files->count == 0) {
         return 0;
     }
 
-    uint32_t queue_depth = 256;
-    IoUringRing ring;
-    if (!init_io_uring(&ring, queue_depth)) {
+    if (g_tls_ring_failed) {
         return -1;
     }
+
+    uint32_t queue_depth = 256;
+    if (!g_tls_ring_inited) {
+        if (init_io_uring(&g_tls_ring, queue_depth)) {
+            g_tls_ring_inited = true;
+        } else {
+            g_tls_ring_failed = true;
+            return -1;
+        }
+    }
+    IoUringRing *ring = &g_tls_ring;
 
     int target_dfd = open(ctx->target_dir, O_RDONLY | O_DIRECTORY);
     if (target_dfd < 0) {
@@ -208,7 +221,7 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
         const char *rel_path;
     } PendingLink;
 
-    PendingLink *batch = (PendingLink *)safe_calloc(queue_depth, sizeof(PendingLink));
+    static _Thread_local PendingLink batch[256];
 
     size_t total = files->count;
     size_t file_idx = 0;
@@ -258,9 +271,9 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
             }
 
             // Enqueue SQE
-            uint32_t tail = *ring.sq_tail;
-            uint32_t index = tail & *ring.sq_ring_mask;
-            struct io_uring_sqe *sqe = &ring.sqes[index];
+            uint32_t tail = *ring->sq_tail;
+            uint32_t index = tail & *ring->sq_ring_mask;
+            struct io_uring_sqe *sqe = &ring->sqes[index];
             memset(sqe, 0, sizeof(*sqe));
             sqe->opcode = IORING_OP_SYMLINKAT;
             sqe->fd = target_dfd;
@@ -268,8 +281,8 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
             sqe->addr2 = (uint64_t)link->target_path;
             sqe->user_data = queued;
 
-            ring.sq_array[index] = index;
-            *ring.sq_tail = tail + 1;
+            ring->sq_array[index] = index;
+            *ring->sq_tail = tail + 1;
             queued++;
         }
 
@@ -279,7 +292,7 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
 
         // Single kernel syscall submission for the whole batch!
         int submitted = (int)syscall(
-            __NR_io_uring_enter, ring.ring_fd, queued, queued, IORING_ENTER_GETEVENTS, NULL, 0);
+            __NR_io_uring_enter, ring->ring_fd, queued, queued, IORING_ENTER_GETEVENTS, NULL, 0);
         if (submitted < 0) {
             log_error("io_uring_enter failed: %s", strerror(errno));
             ctx->errors += (size_t)queued;
@@ -287,10 +300,10 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
         }
 
         // Process completions
-        uint32_t head = *ring.cq_head;
-        uint32_t cq_tail = *ring.cq_tail;
+        uint32_t head = *ring->cq_head;
+        uint32_t cq_tail = *ring->cq_tail;
         while (head != cq_tail) {
-            struct io_uring_cqe *cqe = &ring.cqes[head & *ring.cq_ring_mask];
+            struct io_uring_cqe *cqe = &ring->cqes[head & *ring->cq_ring_mask];
             if (cqe->res == 0) {
                 ctx->created_count++;
             } else {
@@ -304,14 +317,12 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
             }
             head++;
         }
-        *ring.cq_head = head;
+        *ring->cq_head = head;
     }
 
     if (target_dfd >= 0 && target_dfd != AT_FDCWD) {
         close(target_dfd);
     }
-    free(batch);
-    free_io_uring(&ring);
     return (ctx->errors == 0) ? 0 : -1;
 }
 

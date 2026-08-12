@@ -193,36 +193,155 @@ make format-check
 
 ---
 
-## Commands Summary
+### Symlink & Deployment Commands
 
-| Command | Subcommand / Alias | Description |
-| :--- | :--- | :--- |
-| `link <pkg...>` | `stow`, `deploy` | Deploy symlinks for package(s) with dependency resolution. |
-| `unlink <pkg...>` | `unstow` | Remove stowed symlinks for package(s). |
-| `relink <pkg...>` | `restow` | Relink package(s) (unlink then link). |
-| `all` | — | Deploy symlinks for all packages in source repository. |
-| `diff [pkg...]` | — | Dry-run preview of pending symlink, backup, and dependency changes. |
-| `scan [pkg...]` | — | Recursively scan scripts/configs for shebangs and command invocations. |
-| `check [pkg...]` | — | Verify required/optional tools, plugins, and symlink integrity. |
-| `check-symlinks` | `check symlinks` | Audit repository and target home for broken/orphan symlinks. |
-| `fix-conflicts` | `fix` | Unfold directory symlinks in target to resolve folding collisions. |
-| `pkg create <name>` | `pkg:create`, `make:pkg` | Scaffold a package directory & initialize `.symdeps` manifest. |
-| `pkg remove <name...>`| `pkg:remove`, `pkg:rm`, `rm` | Safely unlink and remove package directory from disk. |
-| `pkg list` | `pkg:list`, `pkg:show`, `ls` | List packages with status (`[LINKED]`, `[PARTIAL]`, `[UNLINKED]`). |
-| `deps add <pkg> <dep>`| `deps:add` | Add dependency (`--required`, `--optional`, `--conflict`) to `.symdeps`. |
-| `deps edit <pkg> <dep>`| `deps:edit`, `deps:set` | Edit dependency classification (`--required`, `--optional`, `--conflict`). |
-| `deps remove <pkg> <dep>`| `deps:remove`, `deps:rm` | Remove a dependency or conflict entry from package manifest. |
-| `deps show <pkg>` | `deps:show`, `deps:list` | Display raw `.symdeps` manifest contents for a package. |
-| `deps target <pkg> <path>`| `deps:target` | Set per-package target directory override in `.symdeps`. |
-| `ignore init [pkg...]`| `ignore:init`, `ignore:create`| Scaffold global or package-level `.symignore` template. |
-| `ignore add [pkg] <pat>`| `ignore:add` | Append glob pattern(s) to package or global (`-g`) `.symignore`. |
-| `ignore remove [pkg] <pat>`| `ignore:remove`, `ignore:rm` | Remove glob pattern(s) from `.symignore` (`-g` for global). |
-| `ignore clear [pkg...]`| `ignore:clear`, `ignore:purge`| Purge `.symignore` file(s) for package(s) or repository root. |
-| `ignore show [pkg...]`| `ignore:show`, `ignore:list` | Display active `.symignore` rules with redundancy warnings. |
-| `config show` | `config:show`, `config:get` | Display active configuration, package manager, and repo paths. |
-| `config set [OPTIONS]`| `config:set` | Set default manager (`-m`), elevation (`-e`), target (`-t`), or source (`-d`). |
-| `config add <path>` | `config:add` | Add an additional source repository directory (multi-repo mode). |
-| `config remove <path>`| `config:remove`, `config:rm` | Remove a source repository directory from configuration. |
+```bash
+# Link / deploy one or multiple packages (with automatic dependency & conflict handling)
+symdep link <pkg...>
+# Aliases: stow, deploy
+
+# Shorthand invocation (omitting command keyword defaults to linking valid packages)
+symdep <pkg...>
+
+# Unlink / remove symlinks for one or multiple packages
+symdep unlink <pkg...>
+# Alias: unstow
+
+# Relink (unlink & link) one or multiple packages
+symdep relink <pkg...>
+# Alias: restow
+
+# Link all packages present in source repository
+symdep all
+
+# Preview pending symlink creations, backups, and missing dependencies (dry-run)
+symdep diff [pkg...]
+```
+
+---
+
+### Package Management (`pkg`)
+
+Namespace: `pkg` (aliases: `package`). Supports space-separated (`pkg create`), colon-separated (`pkg:create`), and top-level shorthand syntaxes.
+
+```bash
+# Scaffold a new package directory & initialize a default .symdeps manifest
+symdep pkg create <name>
+# Aliases: pkg:create, package:create, make:pkg
+
+# Safely unlink and remove package directory from disk
+symdep pkg remove <name...>
+# Aliases: pkg:remove, package:remove, pkg:rm, remove, delete
+
+# List all packages with active symlink status ([LINKED], [PARTIAL], [UNLINKED])
+symdep pkg list
+# Aliases: pkg:list, package:list, pkg:show, list, ls
+```
+
+---
+
+### Dependency Management (`deps`)
+
+Namespace: `deps`. Supports space-separated (`deps add`) and colon-separated (`deps:add`) syntaxes.
+
+```bash
+# Add a dependency or conflict entry to package .symdeps manifest
+symdep deps add <pkg> <dep> [--required | --optional | --conflict]
+# Aliases: deps:add (default classification: --optional)
+
+# Edit existing dependency classification
+symdep deps edit <pkg> <dep> <type>
+# Aliases: deps:edit, deps:set (type: --required, --optional, or --conflict)
+
+# Remove a dependency or conflict entry from package manifest
+symdep deps remove <pkg> <dep>
+# Aliases: deps:remove, deps:rm, remove, delete
+
+# Display raw .symdeps manifest contents for a package
+symdep deps show <pkg>
+# Aliases: deps:show, deps:list
+
+# Set per-package target directory override in package manifest
+symdep deps target <pkg> <path>
+# Aliases: deps:target
+
+# Recursively scan package scripts/configs to auto-detect missing tools & plugins (AST scanner)
+symdep scan [pkg...] [-i | -n | -y]
+```
+
+---
+
+### File Filtering (`ignore`)
+
+Namespace: `ignore`. Manages `.symignore` files at repository root (global) or inside individual packages.
+
+```bash
+# Scaffold global or package-level .symignore template
+symdep ignore init [pkg...]
+# Aliases: ignore:init, ignore:create
+
+# Append glob pattern(s) to package or global (-g) .symignore
+symdep ignore add [pkg] <pattern...>
+symdep ignore add -g <pattern...>
+# Aliases: ignore:add
+
+# Remove glob pattern(s) from package or global (-g) .symignore
+symdep ignore remove [pkg] <pattern...>
+symdep ignore remove -g <pattern...>
+# Aliases: ignore:remove, ignore:rm, delete
+
+# Purge .symignore file(s) for package(s) or repository root
+symdep ignore clear [pkg...]
+# Aliases: ignore:clear, ignore:purge
+
+# Display active .symignore rules with redundancy warnings
+symdep ignore show [pkg...]
+# Aliases: ignore:show, ignore:list
+```
+
+---
+
+### Diagnostics & Repair (`check`)
+
+```bash
+# Verify required/optional tools, plugins, and symlink integrity for packages
+symdep check [pkg...]
+
+# Scan repository & target home for broken symlinks and unmanaged orphan symlinks
+symdep check-symlinks
+# Alias: symdep check symlinks
+
+# Unfold directory symlinks in target into real directories to resolve folding collisions
+symdep fix-conflicts
+# Alias: symdep fix
+```
+
+---
+
+### Configuration (`config`)
+
+Namespace: `config`. Manages settings in `~/.config/symdep/config`.
+
+```bash
+# Display active configuration, source repositories, and target directory
+symdep config show
+# Aliases: config:show, config:list, config:get, show, list, get
+
+# Set primary source repository, default target directory, package manager, or elevation tool
+symdep config set --manager <name>
+symdep config set --elevation <tool>
+symdep config set --target <path>
+symdep config set --source <path>
+# Aliases: config:set, config:target, config:source
+
+# Add an additional source repository directory (multi-repository setup)
+symdep config add <path>
+# Aliases: config:add
+
+# Remove a source repository directory from configuration
+symdep config remove <path>
+# Aliases: config:remove, config:rm
+```
 
 ---
 

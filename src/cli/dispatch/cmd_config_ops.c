@@ -29,13 +29,20 @@ int cmd_config_show(const CommandContext *ctx)
 int cmd_config_set(const CommandContext *ctx)
 {
     const CliOptions *opts = ctx->opts;
-    if (opts && opts->pkg_mgr_override) {
-        config_set_pkg_manager(opts->pkg_mgr_override);
-        return 0;
+    bool handled_flags = false;
+
+    if (opts) {
+        if (opts->pkg_mgr_override && *opts->pkg_mgr_override != '\0') {
+            config_set_pkg_manager(opts->pkg_mgr_override);
+            handled_flags = true;
+        }
     }
 
     size_t count = ctx->args->count - ctx->arg_offset;
     if (count == 0) {
+        if (handled_flags) {
+            return 0;
+        }
         log_error("Usage: symdep config set [OPTIONS] (e.g. -m/--manager <name>, -e/--elevation "
                   "<tool>, -t/--target <path>, -d/--source <path>)");
         return 1;
@@ -86,15 +93,17 @@ int cmd_config_set(const CommandContext *ctx)
             }
             config_set_target_dir(next_arg);
             i++;
-        } else if (strcmp(arg, "manager") == 0 || strcmp(arg, "pkg_manager") == 0 ||
-                   strcmp(arg, "pkg-mgr") == 0 || strcmp(arg, "package-manager") == 0) {
+        } else if (strcmp(arg, "manager") == 0 || strcmp(arg, "pkg.manager") == 0 ||
+                   strcmp(arg, "pkg_manager") == 0 || strcmp(arg, "pkg-mgr") == 0 ||
+                   strcmp(arg, "package-manager") == 0) {
             if (!next_arg) {
                 log_error("Key 'manager' requires a package manager name argument");
                 return 1;
             }
             config_set_pkg_manager(next_arg);
             i++;
-        } else if (strcmp(arg, "elevation") == 0 || strcmp(arg, "elevation_tool") == 0) {
+        } else if (strcmp(arg, "elevation") == 0 || strcmp(arg, "pkg.elevation") == 0 ||
+                   strcmp(arg, "elevation_tool") == 0) {
             if (!next_arg) {
                 log_error("Key 'elevation' requires an elevation tool argument");
                 return 1;

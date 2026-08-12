@@ -447,6 +447,18 @@ bool pkg_manager_resolve(const char *source_dir,
     return resolved;
 }
 
+static bool is_termux_environment(void)
+{
+    const char *prefix = getenv("PREFIX");
+    if (prefix && strstr(prefix, "com.termux") != NULL) {
+        return true;
+    }
+    if (getenv("TERMUX_VERSION") != NULL) {
+        return true;
+    }
+    return false;
+}
+
 void pkg_manager_get_elevation_tool(const char *source_dir,
                                     bool requires_root,
                                     char *out_tool,
@@ -460,17 +472,16 @@ void pkg_manager_get_elevation_tool(const char *source_dir,
     }
     out_tool[0] = '\0';
 
-    // If running as root or manager doesn't require root (e.g. termux pkg, brew, yay), no elevation
-    // tool needed
-    if (geteuid() == 0 || !requires_root) {
-        return;
-    }
-
     const char *configured = getenv("SYMDEP_ELEVATION_TOOL");
     if (configured && *configured != '\0') {
         if (strcasecmp(configured, "none") != 0) {
             snprintf(out_tool, out_tool_size, "%s", configured);
         }
+        return;
+    }
+
+    // If running as root, or manager doesn't require root (e.g. brew, yay), or running in Termux user-space:
+    if (geteuid() == 0 || !requires_root || is_termux_environment()) {
         return;
     }
 

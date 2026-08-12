@@ -93,3 +93,12 @@ void test_pkg_manager_resolution_precedence(void)
     ASSERT(resolved, "CLI override for 'pacman' should resolve successfully");
     ASSERT(strcmp(entry.name, "pacman") == 0, "Resolved package manager name should be 'pacman'");
 }
+
+void test_pkg_manager_termux_elevation(void)
+{
+    setenv("TERMUX_VERSION", "0.118.0", 1);
+    char tool[64] = "initial";
+    pkg_manager_get_elevation_tool(NULL, true, tool, sizeof(tool), true, true);
+    ASSERT(tool[0] == '\0', "Elevation tool should be empty in Termux environment even if manager requires root");
+    unsetenv("TERMUX_VERSION");
+}

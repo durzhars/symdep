@@ -71,22 +71,24 @@ void walk_target_dir_symlinks_targeted(const char *target_dir,
     state.cb = cb;
     state.user_data = user_data;
 
-    // 1. Scan top-level entries directly inside target_dir (depth 1)
-    DIR *dir = opendir(target_dir);
-    if (dir) {
-        struct dirent *entry;
-        while ((entry = readdir(dir)) != NULL) {
-            const char *name = entry->d_name;
-            if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
-                continue;
+    // 1. Scan top-level entries directly inside target_dir only when pkg_files is NULL (e.g. check-symlinks)
+    if (!pkg_files) {
+        DIR *dir = opendir(target_dir);
+        if (dir) {
+            struct dirent *entry;
+            while ((entry = readdir(dir)) != NULL) {
+                const char *name = entry->d_name;
+                if (name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'))) {
+                    continue;
+                }
+                if (entry->d_type == DT_LNK || entry->d_type == DT_UNKNOWN) {
+                    char path[STOW_PATH_LARGE];
+                    join_path(path, sizeof(path), target_dir, name);
+                    check_and_notify_symlink(path, &state);
+                }
             }
-            if (entry->d_type == DT_LNK || entry->d_type == DT_UNKNOWN) {
-                char path[STOW_PATH_LARGE];
-                join_path(path, sizeof(path), target_dir, name);
-                check_and_notify_symlink(path, &state);
-            }
+            closedir(dir);
         }
-        closedir(dir);
     }
 
     // 2. Collect relative paths across target package or all packages in source_dir

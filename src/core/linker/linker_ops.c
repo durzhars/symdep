@@ -18,6 +18,7 @@
  */
 
 #include "core/linker/internal.h"
+#include "utils/io_uring_backend.h"
 #include "utils/mem.h"
 #include "utils/thread_pool.h"
 #include <stdatomic.h>
@@ -273,8 +274,17 @@ int link_package(const char *source_dir,
     }
     str_set_free(&parent_dirs);
 
-    /* Pass 2: Create file symlinks (Zero-allocation parallel dispatch if count >= 2 and not nested)
-     */
+    /* Pass 2: Create file symlinks (Linux io_uring kernel ring-buffer vectoring with POSIX
+     * ThreadPool fallback) */
+    if (io_uring_is_supported()) {
+        if (io_uring_link_batch(&pctx.pkg_files, &pctx) == 0) {
+            int result = (pctx.errors == 0) ? 0 : -1;
+            package_context_free(&pctx);
+            perf_timer_log(&t_stow);
+            return result;
+        }
+    }
+
     if (!is_in_worker_thread() && pctx.pkg_files.count >= 2) {
         ThreadPool *pool = thread_pool_create(0);
         if (pool) {

@@ -74,6 +74,7 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/utils/signal.c \
        $(SRC_DIR)/utils/str.c \
        $(SRC_DIR)/utils/thread_pool.c \
+       $(SRC_DIR)/utils/io_uring_backend.c \
        $(SRC_DIR)/utils/timer.c
 
 

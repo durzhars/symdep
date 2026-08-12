@@ -33,7 +33,7 @@ CLANG_SIZE_FLAGS   = -Oz -ffunction-sections -fdata-sections -fomit-frame-pointe
 CLANG_SIZE_LDFLAGS = -flto=thin -fuse-ld=lld -Wl,--gc-sections -Wl,--icf=all -Wl,-s
 
 DEPFLAGS = -MMD -MP
-LDFLAGS ?=
+LDFLAGS ?= -pthread
 
 SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/cli/cli.c \
@@ -73,6 +73,7 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/utils/path.c \
        $(SRC_DIR)/utils/signal.c \
        $(SRC_DIR)/utils/str.c \
+       $(SRC_DIR)/utils/thread_pool.c \
        $(SRC_DIR)/utils/timer.c
 
 
@@ -87,7 +88,7 @@ TEST_OBJS = $(patsubst $(TEST_UNIT_DIR)/%.c,$(BUILD_TEST_DIR)/%.o,$(TEST_SRCS)) 
 TEST_DEPS = $(patsubst $(TEST_UNIT_DIR)/%.c,$(BUILD_TEST_DIR)/.deps/%.d,$(TEST_SRCS))
 TEST_TARGET = $(BIN_DIR)/test_runner
 
-.PHONY: all clean static install test test-feature uninstall tidy format format-check build-clang-opt build-sanitize build-pgo help
+.PHONY: all clean static install test test-feature bench bench-clean uninstall tidy format format-check build-clang-opt build-sanitize build-pgo help
 
 all: $(TARGET)
 
@@ -97,6 +98,8 @@ help:
 	@echo "  make                    Build release binary using default compiler ($(CC))"
 	@echo "  make test               Run unit test suite"
 	@echo "  make test-feature       Run end-to-end integration feature tests"
+	@echo "  make bench              Run sterilized benchmark suite (symdep vs GNU Stow vs Dotbot)"
+	@echo "  make bench-clean        Clean benchmark report and temporary vendor artifacts"
 	@echo "  make clean              Clean build and bin output directories"
 	@echo ""
 	@echo "  Clang Optimization & Diagnostics Targets:"
@@ -211,4 +214,10 @@ install: $(TARGET)
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(BIN_NAME)
 	rm -rf $(DESTDIR)$(DATADIR)/$(BIN_NAME)
+
+bench: $(TARGET)
+	@bash tests/benchmark/run_benchmark.sh
+
+bench-clean:
+	rm -rf tests/benchmark/vendor tests/benchmark/BENCHMARK_REPORT.md tests/benchmark/*.json /tmp/symdep_benchmark_workspace
 

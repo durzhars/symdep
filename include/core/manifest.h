@@ -26,11 +26,11 @@
  * @brief Represents a parsed package .symdeps manifest.
  */
 typedef struct {
-    char *package_name;  /**< Name of the package */
-    char *target_path;   /**< Custom target path override (or NULL) */
-    StringArray required;/**< List of required CLI binary dependencies */
-    StringArray optional;/**< List of optional plugins or secondary utilities */
-    StringArray conflicts;/**< List of mutually exclusive conflicting packages */
+    char *package_name;    /**< Name of the package */
+    char *target_path;     /**< Custom target path override (or NULL) */
+    StringArray required;  /**< List of required CLI binary dependencies */
+    StringArray optional;  /**< List of optional plugins or secondary utilities */
+    StringArray conflicts; /**< List of mutually exclusive conflicting packages */
 } PackageManifest;
 
 /**

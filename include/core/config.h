@@ -28,10 +28,10 @@
  */
 typedef struct {
     char config_file_path[STOW_PATH_MAX]; /**< Absolute path to active config file */
-    StringArray source_dirs;               /**< Multi-repository source directories */
+    StringArray source_dirs;              /**< Multi-repository source directories */
     char target_dir[STOW_PATH_MAX];       /**< Default target home directory */
-    char pkg_manager[64];                  /**< Configured package manager override */
-    char elevation_tool[64];               /**< Configured privilege elevation tool */
+    char pkg_manager[64];                 /**< Configured package manager override */
+    char elevation_tool[64];              /**< Configured privilege elevation tool */
 } Config;
 
 /** Initialize an empty Config struct */

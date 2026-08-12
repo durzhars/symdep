@@ -29,11 +29,11 @@
  * @brief Context structure passed to every subcommand handler function.
  */
 typedef struct {
-    const CliOptions *opts;      /**< Parsed global CLI options */
-    const char *source_dir;      /**< Resolved active source repository directory */
-    const char *global_target_dir;/**< Resolved active target home directory */
-    const StringArray *args;     /**< Positional arguments slice */
-    size_t arg_offset;           /**< Index where subcommand payload arguments begin */
+    const CliOptions *opts;        /**< Parsed global CLI options */
+    const char *source_dir;        /**< Resolved active source repository directory */
+    const char *global_target_dir; /**< Resolved active target home directory */
+    const StringArray *args;       /**< Positional arguments slice */
+    size_t arg_offset;             /**< Index where subcommand payload arguments begin */
 } CommandContext;
 
 /**
@@ -47,13 +47,13 @@ typedef int (*CommandHandler)(const CommandContext *ctx);
  * @brief Declarative descriptor entry in CLI command routing table.
  */
 typedef struct {
-    const char *group;      /**< Group namespace (e.g. "config", "pkg", "deps", "ignore", "stow") */
-    const char *subcommand; /**< Subcommand name (e.g. "create", "add", "show") or NULL for top-level */
-    const char *const
-        *aliases;           /**< NULL-terminated list of alias strings */
-    size_t min_args;        /**< Minimum required payload arguments after group/subcommand */
-    const char *usage;      /**< Usage string displayed on argument count failure */
-    CommandHandler handler; /**< Function pointer handler */
+    const char *group; /**< Group namespace (e.g. "config", "pkg", "deps", "ignore", "stow") */
+    const char
+        *subcommand; /**< Subcommand name (e.g. "create", "add", "show") or NULL for top-level */
+    const char *const *aliases; /**< NULL-terminated list of alias strings */
+    size_t min_args;            /**< Minimum required payload arguments after group/subcommand */
+    const char *usage;          /**< Usage string displayed on argument count failure */
+    CommandHandler handler;     /**< Function pointer handler */
 } CommandRoute;
 
 /**

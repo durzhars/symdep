@@ -29,14 +29,14 @@
  * @brief Holds global command-line options and overrides.
  */
 typedef struct {
-    bool auto_install;       /**< -y, --install: Auto-confirm dependency installation */
-    bool dry_run;            /**< -n, --dry-run: Preview disk operations */
-    bool save_flag;          /**< -s, --save: Save CLI directory overrides to config */
-    bool profile;            /**< -p, --profile: Enable performance profiler */
-    bool interactive;        /**< -i, --interactive: Launch interactive scanner wizard */
-    bool help_flag;          /**< -h, --help: Display help manual */
-    const char *cli_source_dir; /**< -d, --source-dir: Source directory override */
-    const char *cli_target_dir; /**< -t, --target-dir: Target directory override */
+    bool auto_install;            /**< -y, --install: Auto-confirm dependency installation */
+    bool dry_run;                 /**< -n, --dry-run: Preview disk operations */
+    bool save_flag;               /**< -s, --save: Save CLI directory overrides to config */
+    bool profile;                 /**< -p, --profile: Enable performance profiler */
+    bool interactive;             /**< -i, --interactive: Launch interactive scanner wizard */
+    bool help_flag;               /**< -h, --help: Display help manual */
+    const char *cli_source_dir;   /**< -d, --source-dir: Source directory override */
+    const char *cli_target_dir;   /**< -t, --target-dir: Target directory override */
     const char *pkg_mgr_override; /**< -m, --manager: Package manager override */
 } CliOptions;
 

@@ -137,6 +137,7 @@ void test_pkg_manager_build_command_format_safety(void)
     char cmd[512] = {0};
     pkg_manager_build_command(&mgr, NULL, "pkg1 pkg2", cmd, sizeof(cmd), false, true);
 
-    ASSERT(strcmp(cmd, "custom_tool --fmt %x pkg1 pkg2 --flag") == 0,
-           "Format specifiers in template should be treated as literal strings, not format arguments");
+    ASSERT(
+        strcmp(cmd, "custom_tool --fmt %x pkg1 pkg2 --flag") == 0,
+        "Format specifiers in template should be treated as literal strings, not format arguments");
 }

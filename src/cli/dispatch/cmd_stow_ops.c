@@ -18,10 +18,66 @@
  */
 
 #include "cli/dispatch/internal.h"
+#include "utils/mem.h"
+#include "utils/thread_pool.h"
 #include "utils/timer.h"
+#include <stdatomic.h>
+#include <stdlib.h>
+
+typedef struct {
+    const CommandContext *ctx;
+    PackageActionFn action;
+    atomic_size_t current_index;
+    atomic_int global_status;
+} AtomicPkgBatch;
+
+static void atomic_pkg_worker(void *arg)
+{
+    AtomicPkgBatch *batch = (AtomicPkgBatch *)arg;
+    const CommandContext *ctx = batch->ctx;
+    size_t total = ctx->args->count;
+    while (1) {
+        size_t idx = atomic_fetch_add(&batch->current_index, 1);
+        if (idx >= total) {
+            break;
+        }
+        const char *pkg_name = ctx->args->items[idx];
+        char target_dir[STOW_PATH_LARGE];
+        get_active_target_dir_for_pkg(
+            ctx->opts->cli_target_dir, ctx->source_dir, pkg_name, target_dir, sizeof(target_dir));
+        int res = batch->action(ctx->source_dir, target_dir, pkg_name, ctx);
+        if (res != 0) {
+            atomic_store(&batch->global_status, res);
+        }
+    }
+}
 
 int foreach_package(const CommandContext *ctx, PackageActionFn action)
 {
+    size_t pkg_count = ctx->args->count - ctx->arg_offset;
+    if (pkg_count == 0) {
+        return 0;
+    }
+
+    if (pkg_count >= 2) {
+        ThreadPool *pool = thread_pool_create(0);
+        if (pool) {
+            AtomicPkgBatch batch;
+            batch.ctx = ctx;
+            batch.action = action;
+            atomic_init(&batch.current_index, ctx->arg_offset);
+            atomic_init(&batch.global_status, 0);
+
+            size_t num_workers = pool->thread_count;
+            for (size_t w = 0; w < num_workers; w++) {
+                thread_pool_add_task(pool, atomic_pkg_worker, &batch);
+            }
+            thread_pool_wait(pool);
+            thread_pool_destroy(pool);
+            return atomic_load(&batch.global_status);
+        }
+    }
+
     int status = 0;
     for (size_t i = ctx->arg_offset; i < ctx->args->count; i++) {
         const char *pkg_name = ctx->args->items[i];

@@ -3,21 +3,23 @@
 [![ISO C17](https://img.shields.io/badge/C-ISO%20C17-blue.svg)](https://en.wikipedia.org/wiki/C17_(C_standard_revision))
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-A high-performance, zero-dependency symlink manager and package dependency resolver written in C.
+A high-performance, zero-dependency symlink manager and cross-distro package dependency resolver written in native ISO C17.
 
-`symdep` automates source package deployment, cross-distro package manager dependency installation (`pacman`, `apt`, `dnf`, `apk`, `brew`), mutual exclusion conflicts (e.g. `terminal` vs `headless`), directory symlink folding collisions, multi-repository management, and broken/orphan symlink integrity checking.
+`symdep` automates source package deployment, cross-distro package manager dependency installation (`pacman`, `apt`, `dnf`, `apk`, `brew`), mutual exclusion conflict resolution (e.g., `terminal` vs `headless`), directory symlink folding collision handling (`fix-conflicts`), multi-repository management, AST/shebang script dependency scanning (`scan`), and broken/orphan symlink health auditing (`check-symlinks`).
 
 ---
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
 - [Features](#features)
-- [Architecture & Resolution Order](#architecture--resolution-order)
+- [Architecture & Design Rationale](#architecture--design-rationale)
+  - [Architectural Decision Records (ADRs)](#architectural-decision-records-adrs)
   - [Target Directory Precedence](#target-directory-precedence)
   - [Source Repository Precedence](#source-repository-precedence)
 - [Build & Installation](#build--installation)
-  - [Standard Build Commands](#standard-build-commands)
-  - [Advanced Clang Optimization & Diagnostic Profiles](#advanced-clang-optimization--diagnostic-profiles)
+  - [Standard Build Targets](#standard-build-targets)
+  - [Clang Optimization & Sanitizer Profiles](#clang-optimization--sanitizer-profiles)
 - [Command Line Reference](#command-line-reference)
   - [Global Options](#global-options)
   - [Symlink & Deployment Commands](#symlink--deployment-commands)
@@ -29,38 +31,75 @@ A high-performance, zero-dependency symlink manager and package dependency resol
 - [Configuration & Manifest File Formats](#configuration--manifest-file-formats)
   - [Package Manifest (`.symdeps`)](#package-manifest-symdeps)
   - [Ignore Rules (`.symignore`)](#ignore-rules-symignore)
-  - [Tool Registry (`symdep.registry`)](#tool-registry-symdepregistry)
+  - [Tool & Plugin Registry (`symdep.registry`)](#tool--plugin-registry-symdepregistry)
+  - [Global User Configuration (`~/.config/symdep/config`)](#global-user-configuration-configsymdepconfig)
 - [Environment Variables](#environment-variables)
+- [Contributing](#contributing)
 - [License](#license)
+
+---
+
+## Quick Start
+
+```bash
+# Clone and build symdep binary (output: bin/symdep)
+git clone https://github.com/durzhars/symdep.git
+cd symdep
+make
+
+# Run full test suite (unit + feature tests)
+make test
+make test-feature
+
+# Scaffold a new dotfile package manifest
+./bin/symdep pkg create hyprland
+
+# Auto-scan script dependencies inside package and save to manifest
+./bin/symdep scan hyprland -y
+
+# Link package and auto-install any missing dependencies via active system package manager
+./bin/symdep link hyprland -y
+```
 
 ---
 
 ## Features
 
-- **Zero-Dependency Standalone ISO C17**: Lightweight, high-performance C binary compiled with `-std=c17`. Manages symlinks directly with zero external tool dependencies.
-- **Symlink Unfolding & Collision Prevention (`fix`)**: Automatically detects and unfolds directory symlinks in target directories to prevent directory folding collisions.
-- **Dependency & Plugin Resolution (`deps`, `scan`)**: Auto-detects missing tools across Linux and macOS package managers (`pacman`, `apt`, `dnf`, `apk`, `brew`) and shell plugins (`symdep.registry`).
-- **Automated Dependency Scanner (`scan`)**: Recursively scans package scripts and configs for shebang interpreters and command invocations to auto-generate `.symdeps` manifests.
+- **Zero-Dependency ISO C17 Architecture**: Lightweight, sub-millisecond C binary compiled with `-std=c17`. Manages symlinks directly with zero external tool or interpreter requirements.
+- **Symlink Unfolding & Collision Prevention (`fix`)**: Automatically detects and unfolds directory symlinks in target directories to resolve directory folding collisions cleanly.
+- **Cross-Distro Dependency Resolution (`deps`, `scan`)**: Auto-detects missing tools across Linux and macOS package managers (`pacman`, `apt`, `dnf`, `apk`, `brew`) and shell plugins (`symdep.registry`).
+- **AST & Shebang Code Analysis Scanner (`scan`)**: Recursively parses package scripts and configs for shebang interpreters and command invocations to auto-generate `.symdeps` manifests.
 - **Conflict & Mutual Exclusion Management**: Auto-unlinks conflicting source packages (defined in `.symdeps` `CONFLICTS` or detected dynamically when target paths collide) prior to linking.
-- **Standardized Command Namespaces**: Intuitive CRUD command namespaces for package management (`pkg`), dependencies (`deps`), file filtering (`ignore`), and system settings (`config`).
+- **Standardized Command Namespaces**: Intuitive CRUD command namespaces for package management (`pkg`), dependencies (`deps`), file filtering (`ignore`), and system settings (`config`), supporting space-separated, colon-separated, and legacy Stow syntaxes.
 - **Multi-Repository & Per-Package Target Configuration**: Manage multiple source repositories simultaneously and assign custom target directories per package (e.g., `/etc` or custom system paths).
 - **Global & Package File Filtering (`ignore`)**: Manage `.symignore` glob patterns at repository root or package level with inheritance and redundant pattern detection.
 - **Symlink Health & Integrity Audit (`check-symlinks`)**: Scans repository for broken symlinks and target home for unmanaged orphan symlinks.
 - **Safety & Signal Cleanups**: Built-in signal handlers (`SIGINT`/`Ctrl+C`) perform atomic temp directory cleanups on unexpected exits.
-- **Performance Profiling (`-p`, `--profile`)**: High-precision nanosecond execution profiling for benchmarking deployment steps.
+- **Nanosecond Performance Profiling (`-p`, `--profile`)**: High-precision nanosecond execution profiling for benchmarking deployment steps.
 
 ---
 
-## Architecture & Resolution Order
+## Architecture & Design Rationale
+
+### Architectural Decision Records (ADRs)
+
+Key technical decisions in `symdep` are documented in detail within [`docs/decisions/`](docs/decisions/):
+
+- **[ADR-001: Zero-Dependency ISO C17 Architecture](docs/decisions/ADR-001-zero-dependency-c17-architecture.md)** — Rationale for choosing ISO C17 over Perl (GNU Stow), Python, or Rust/Go for execution speed and portability in minimal system environments.
+- **[ADR-002: Dynamic Symlink Unfolding Engine](docs/decisions/ADR-002-symlink-unfolding-and-collision-engine.md)** — Design of the automatic directory unfolding mechanism to prevent symlink tree folding collisions.
+- **[ADR-003: Cross-Distro Package & Plugin Registry Engine](docs/decisions/ADR-003-cross-distro-package-and-plugin-registry.md)** — Multi-distro package manager detection, privilege elevation abstraction (`sudo`, `doas`, `tsu`), and custom tool registry mapping.
+- **[ADR-004: AST / Shebang Code-Analysis Dependency Scanner Engine](docs/decisions/ADR-004-static-analysis-dependency-scanner.md)** — Static code parsing for shebangs and tool calls to eliminate manual manifest creation.
+- **[ADR-005: Unified Command Dispatch Table](docs/decisions/ADR-005-unified-command-dispatch-table.md)** — Centralized routing architecture supporting multi-namespace, colon-separated, and legacy GNU Stow command syntaxes.
+- **[ADR-006: Hierarchical Ignore Rule Engine](docs/decisions/ADR-006-hierarchical-ignore-rule-engine.md)** — Glob pattern matching, inheritance across global and package `.symignore` files, and redundancy warnings.
 
 ### Target Directory Precedence
 
-When resolving the target destination for symlink deployment, `symdep` checks sources in the following strict order of precedence:
+When resolving the target destination for symlink deployment, `symdep` checks sources in strict order of precedence:
 
 1. **CLI Flag**: `-t, --target-dir <path>`
 2. **Package Manifest**: `TARGET="/path"` entry in `.symdeps` (when evaluating a specific package)
 3. **Environment Variable**: `SYMDEP_TARGET_DIR` or `TARGET_DIR`
-4. **Configuration File**: `TARGET_DIR` set via `symdep config set target <path>`
+4. **Configuration File**: `TARGET_DIR` set via `symdep config set --target <path>`
 5. **Fallback Environment**: `$HOME`
 
 ### Source Repository Precedence
@@ -70,23 +109,23 @@ When locating the active source repository directory:
 1. **CLI Flag**: `-d, --source-dir <path>` (aliases: `--src-dir`, `--dotfiles-dir`)
 2. **Environment Variable**: `SYMDEP_SOURCE_DIR` or `SOURCE_DIR`
 3. **Working Directory Marker**: Current working directory if `symdep.registry` or `.symdepregistry` is present
-4. **Configuration File**: Primary entry in `SOURCE_DIRS` set via `symdep config set source <path>`
+4. **Configuration File**: Primary entry in `SOURCE_DIRS` set via `symdep config set --source <path>`
 5. **Fallback Environment**: Current working directory (`getcwd`)
 
 ---
 
 ## Build & Installation
 
-### Standard Build Commands
+### Standard Build Targets
 
 ```bash
 # Build release binary (bin/symdep)
 make
 
-# Run unit test suite (bin/test_runner)
+# Run unit test suite (79 unit tests)
 make test
 
-# Run end-to-end integration feature tests
+# Run end-to-end integration feature tests (6 test suites)
 make test-feature
 
 # Build static binary for standalone distribution
@@ -105,9 +144,9 @@ make install PREFIX=$HOME/.local
 sudo make uninstall
 ```
 
-### Advanced Clang Optimization & Diagnostic Profiles
+### Clang Optimization & Sanitizer Profiles
 
-The build system includes pre-configured Clang targets for performance tuning, sanitizer instrumentation, and static analysis:
+The build system includes pre-configured targets for performance tuning, sanitizer instrumentation, and static analysis:
 
 ```bash
 # Build with Clang ThinLTO, -O3, and optimization remarks
@@ -138,165 +177,50 @@ make format-check
 
 ### Global Options
 
-| Flag | Description |
-| :--- | :--- |
-| `-d, --source-dir <path>` | Set source repository directory for current command (aliases: `--src-dir`, `--dotfiles-dir`). |
-| `-t, --target-dir <path>` | Set target home directory for current command (e.g., `-t ~/`). |
-| `-y, --install` | Auto-confirm installation of missing required dependencies & optional plugins without prompting. |
-| `-n, --dry-run` | Preview disk changes, symlink creations, backups, and actions without modifying disk. |
-| `-s, --save` | Save command-line directory overrides (`-d`/`-t`) directly to user configuration file. |
-| `-p, --profile` | Enable nanosecond execution performance profiler logging (also enabled via `SYMDEP_PROFILE=1`). |
-| `-h, --help` | Display comprehensive help manual. |
+| Flag | Long Option / Aliases | Description |
+| :--- | :--- | :--- |
+| `-d` | `--source-dir`, `--src-dir`, `--dotfiles-dir` | Set source repository directory for current command. |
+| `-t` | `--target-dir` | Set target home directory for current command (e.g., `-t ~/`). |
+| `-m` | `--manager`, `--pkg-mgr`, `--package-manager` | Override active package manager for current command (e.g., `-m yay`). |
+| `-i` | `--interactive` | Launch interactive wizard for scanner dependency confirmation. |
+| `-y` | `--install` | Auto-confirm installation of missing dependencies & optional plugins without prompting. |
+| `-n` | `--dry-run` | Preview disk changes, symlink creations, backups, and actions without modifying disk. |
+| `-s` | `--save` | Save command-line directory overrides (`-d`/`-t`) directly to user configuration file. |
+| `-p` | `--profile`, `--perf`, `--performance`, `--profiler` | Enable nanosecond execution profiler logging (also enabled via `SYMDEP_PROFILE=1`). |
+| `-h` | `--help` | Display comprehensive help manual. |
 
 ---
 
-### Symlink & Deployment Commands
+## Commands Summary
 
-```bash
-# Link / deploy one or multiple packages (with automatic dependency & conflict handling)
-symdep link <pkg...>
-# Aliases: stow, deploy
-
-# Short invocation (omitting command keyword defaults to linking valid packages)
-symdep <pkg...>
-
-# Unlink / remove symlinks for one or multiple packages
-symdep unlink <pkg...>
-# Alias: unstow
-
-# Relink (unlink & link) one or multiple packages
-symdep relink <pkg...>
-# Alias: restow
-
-# Link all packages present in source repository
-symdep all
-
-# Preview pending symlink creations, backups, and missing dependencies (dry-run)
-symdep diff [pkg...]
-```
-
----
-
-### Package Management (`pkg`)
-
-Namespace: `pkg` (aliases: `package`). Supports both space-separated (`pkg create`) and colon-separated (`pkg:create`) syntaxes.
-
-```bash
-# Scaffold a new package directory & initialize a default .symdeps manifest
-symdep pkg create <name>
-# Aliases: pkg:create, package:create, make:pkg
-
-# Safely unlink and remove package directory from disk
-symdep pkg remove <name...>
-# Aliases: pkg:remove, package:remove, pkg:rm, remove
-
-# List all packages with active symlink status ([LINKED], [PARTIAL], [UNLINKED])
-symdep pkg list
-# Aliases: pkg:list, package:list, pkg:show, list
-```
-
----
-
-### Dependency Management (`deps`)
-
-Namespace: `deps`. Supports both space-separated (`deps add`) and colon-separated (`deps:add`) syntaxes.
-
-```bash
-# Add a dependency or conflict entry to package .symdeps manifest
-symdep deps add <pkg> <dep> [--required | --optional | --conflict]
-# Aliases: deps:add (default classification: --optional)
-
-# Edit existing dependency classification
-symdep deps edit <pkg> <dep> <type>
-# Aliases: deps:edit, deps:set (type: --required, --optional, or --conflict)
-
-# Remove a dependency or conflict entry from package manifest
-symdep deps remove <pkg> <dep>
-# Aliases: deps:remove, deps:rm
-
-# Display raw .symdeps manifest contents for a package
-symdep deps show <pkg>
-# Aliases: deps:show, deps:list
-
-# Set per-package target directory override in package manifest
-symdep deps target <pkg> <path>
-# Aliases: deps:target
-
-# Recursively scan package scripts/configs to auto-detect missing tools & plugins
-symdep scan [pkg...]
-```
-
----
-
-### File Filtering (`ignore`)
-
-Namespace: `ignore`. Manages `.symignore` files at repository root (global) or inside individual packages.
-
-```bash
-# Scaffold global or package-level .symignore template
-symdep ignore init [pkg...]
-# Aliases: ignore:init, ignore:create
-
-# Append glob pattern(s) to package or global (-g) .symignore
-symdep ignore add [pkg] <pattern...>
-symdep ignore add -g <pattern...>
-# Aliases: ignore:add
-
-# Remove glob pattern(s) from package or global (-g) .symignore
-symdep ignore remove [pkg] <pattern...>
-symdep ignore remove -g <pattern...>
-# Aliases: ignore:remove, ignore:rm, ignore:delete
-
-# Purge .symignore file(s) for package(s) or repository root
-symdep ignore clear [pkg...]
-# Aliases: ignore:clear, ignore:purge
-
-# Display active .symignore rules (indicates redundant package rules covered globally)
-symdep ignore show [pkg...]
-# Aliases: ignore:show, ignore:list
-```
-
----
-
-### Diagnostics & Repair (`check`)
-
-```bash
-# Verify required/optional tools, plugins, and symlink integrity for packages
-symdep check [pkg...]
-
-# Scan repository & target home for broken symlinks and unmanaged orphan symlinks
-symdep check-symlinks
-# Alias: symdep check symlinks
-
-# Unfold directory symlinks in target into real directories to resolve folding collisions
-symdep fix-conflicts
-# Alias: symdep fix
-```
-
----
-
-### Configuration (`config`)
-
-Namespace: `config`. Manages global settings in `~/.config/symdep/config`.
-
-```bash
-# Display active configuration, source repositories, and target directory
-symdep config show
-# Aliases: config:show, config:list, config:get
-
-# Set primary source repository or default target directory
-symdep config set target <path>
-symdep config set source <path>
-# Aliases: config:set, config:target
-
-# Add an additional source repository directory (multi-repository setup)
-symdep config add <path>
-# Aliases: config:add
-
-# Remove a source repository directory from configuration
-symdep config remove <path>
-# Aliases: config:remove, config:rm
-```
+| Command | Subcommand / Alias | Description |
+| :--- | :--- | :--- |
+| `link <pkg...>` | `stow`, `deploy` | Deploy symlinks for package(s) with dependency resolution. |
+| `unlink <pkg...>` | `unstow` | Remove stowed symlinks for package(s). |
+| `relink <pkg...>` | `restow` | Relink package(s) (unlink then link). |
+| `all` | — | Deploy symlinks for all packages in source repository. |
+| `diff [pkg...]` | — | Dry-run preview of pending symlink, backup, and dependency changes. |
+| `scan [pkg...]` | — | Recursively scan scripts/configs for shebangs and command invocations. |
+| `check [pkg...]` | — | Verify required/optional tools, plugins, and symlink integrity. |
+| `check-symlinks` | `check symlinks` | Audit repository and target home for broken/orphan symlinks. |
+| `fix-conflicts` | `fix` | Unfold directory symlinks in target to resolve folding collisions. |
+| `pkg create <name>` | `pkg:create`, `make:pkg` | Scaffold a package directory & initialize `.symdeps` manifest. |
+| `pkg remove <name...>`| `pkg:remove`, `pkg:rm`, `rm` | Safely unlink and remove package directory from disk. |
+| `pkg list` | `pkg:list`, `pkg:show`, `ls` | List packages with status (`[LINKED]`, `[PARTIAL]`, `[UNLINKED]`). |
+| `deps add <pkg> <dep>`| `deps:add` | Add dependency (`--required`, `--optional`, `--conflict`) to `.symdeps`. |
+| `deps edit <pkg> <dep>`| `deps:edit`, `deps:set` | Edit dependency classification (`--required`, `--optional`, `--conflict`). |
+| `deps remove <pkg> <dep>`| `deps:remove`, `deps:rm` | Remove a dependency or conflict entry from package manifest. |
+| `deps show <pkg>` | `deps:show`, `deps:list` | Display raw `.symdeps` manifest contents for a package. |
+| `deps target <pkg> <path>`| `deps:target` | Set per-package target directory override in `.symdeps`. |
+| `ignore init [pkg...]`| `ignore:init`, `ignore:create`| Scaffold global or package-level `.symignore` template. |
+| `ignore add [pkg] <pat>`| `ignore:add` | Append glob pattern(s) to package or global (`-g`) `.symignore`. |
+| `ignore remove [pkg] <pat>`| `ignore:remove`, `ignore:rm` | Remove glob pattern(s) from `.symignore` (`-g` for global). |
+| `ignore clear [pkg...]`| `ignore:clear`, `ignore:purge`| Purge `.symignore` file(s) for package(s) or repository root. |
+| `ignore show [pkg...]`| `ignore:show`, `ignore:list` | Display active `.symignore` rules with redundancy warnings. |
+| `config show` | `config:show`, `config:get` | Display active configuration, package manager, and repo paths. |
+| `config set [OPTIONS]`| `config:set` | Set default manager (`-m`), elevation (`-e`), target (`-t`), or source (`-d`). |
+| `config add <path>` | `config:add` | Add an additional source repository directory (multi-repo mode). |
+| `config remove <path>`| `config:remove`, `config:rm` | Remove a source repository directory from configuration. |
 
 ---
 
@@ -304,7 +228,7 @@ symdep config remove <path>
 
 ### Package Manifest (`.symdeps`)
 
-Located inside individual package directories (e.g. `~/src/hyprland/.symdeps`). Legacy `.stowdeps` files are supported as fallbacks.
+Located inside individual package directories (e.g. `~/dotfiles/hyprland/.symdeps`). Legacy `.stowdeps` files are supported as fallbacks.
 
 ```ini
 # Package Dependency Manifest for 'hyprland'
@@ -340,7 +264,7 @@ Default ignored patterns: `.symdeps`, `.symignore`, `.stowdeps`, `.stowignore`, 
 
 ---
 
-### Tool Registry (`symdep.registry`)
+### Tool & Plugin Registry (`symdep.registry`)
 
 Optionally placed in source repository root (`symdep.registry` or `.symdepregistry`, fallback `stow.registry`) to map tool names to distro package manager names and shell plugin locations.
 
@@ -349,11 +273,25 @@ Optionally placed in source repository root (`symdep.registry` or `.symdepregist
 neovim@arch=neovim
 neovim@ubuntu=neovim
 fd@ubuntu=fd-find
+bat@ubuntu=batcat
 ripgrep@debian=ripgrep
 
 # Tool alias & shell plugin path mapping (tool=alias1|alias2|plugin:~/.zsh/plugins/tool)
 zsh-autosuggestions=plugin:~/.zsh/plugins/zsh-autosuggestions
 bat=bat|batcat
+```
+
+---
+
+### Global User Configuration (`~/.config/symdep/config`)
+
+Manages global settings in `~/.config/symdep/config` (or `$XDG_CONFIG_HOME/symdep/config`).
+
+```ini
+TARGET_DIR=/home/user
+SOURCE_DIRS=/home/user/dotfiles:/home/user/dotfiles-work
+PACKAGE_MANAGER=pacman
+ELEVATION_TOOL=sudo
 ```
 
 ---
@@ -364,15 +302,20 @@ bat=bat|batcat
 | :--- | :--- |
 | `SYMDEP_SOURCE_DIR` / `SOURCE_DIR` / `DOTFILES_DIR` | Override active source repository directory path. |
 | `SYMDEP_TARGET_DIR` / `TARGET_DIR` | Override target destination home directory path. |
-| `SYMDEP_PROFILE` / `PROFILE` | Set to non-empty string to enable execution profiling. |
+| `SYMDEP_PROFILE` / `PROFILE` / `STOW_PROFILE` | Set to non-empty string to enable execution profiling. |
 | `HOME` | Default target home directory when no override is configured. |
 | `XDG_CONFIG_HOME` | Primary directory for `symdep/config` (`~/.config`). |
 | `XDG_CONFIG_DIRS` | System-wide search directories for `symdep/config`. |
-| `NO_COLOR` | Disable ANSI color codes in terminal help output. |
+| `NO_COLOR` | Disable ANSI color codes in terminal output. |
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) for details on code style (ISO C17, `clang-format`), testing procedures (`make test`, `make test-feature`), static analysis (`make tidy`), and pull request guidelines.
 
 ---
 
 ## License
 
 Licensed under the [GNU General Public License v3.0](LICENSE).
-

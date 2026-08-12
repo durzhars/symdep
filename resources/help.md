@@ -9,6 +9,7 @@ A high-performance, zero-dependency symlink manager and package dependency resol
 - **`-d, --source-dir`** `<path>`                    Set source repository directory for current command (aliases: `--src-dir`, `--dotfiles-dir`) (e.g. `-d ~/src`)
 - **`-t, --target-dir`** `<path>`                      Set target home directory for current command (e.g. `-t ~/`)
 - **`-m, --manager`** `<name>`                         Override active package manager for current command (aliases: `--pkg-mgr`, `--package-manager`) (e.g. `-m yay`)
+- **`-i, --interactive`**                              Interactive wizard to confirm discovered scanner dependencies
 - **`-y, --install`**                                  Auto-confirm installation of missing required dependencies & optional plugins
 - **`-n, --dry-run`**                                  Dry-run mode (preview disk changes, symlink creations & backups without modifying disk)
 - **`-s, --save`**                                     Save command-line directory overrides (`-d`/`-t`) to config
@@ -75,5 +76,3 @@ A high-performance, zero-dependency symlink manager and package dependency resol
 
 - **Unlink & Delete Package**:
   `symdep pkg remove hyprland`
-
-

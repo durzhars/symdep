@@ -262,7 +262,18 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
                     if (is_symlink_pointing_to(link->target_path, link->pkg_file_path, real_pkg)) {
                         continue;
                     }
-                    unlink(link->target_path);
+
+                    /* Atomically replace stale symlink via temp symlink + rename to eliminate TOCTOU race condition */
+                    char tmp_symlink[STOW_PATH_HUGE];
+                    snprintf(tmp_symlink, sizeof(tmp_symlink), "%s.symdep_tmp_%d", link->target_path, (int)getpid());
+                    if (symlink(link->pkg_file_path, tmp_symlink) == 0) {
+                        if (rename(tmp_symlink, link->target_path) == 0) {
+                            log_info("LINK: %s => %s", link->rel_path, link->pkg_file_path);
+                            ctx->created_count++;
+                            continue;
+                        }
+                        unlink(tmp_symlink);
+                    }
                 } else {
                     char backup_path[STOW_PATH_HUGE];
                     build_unique_backup_path(link->target_path, backup_path, sizeof(backup_path));

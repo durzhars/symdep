@@ -91,6 +91,10 @@ Key technical decisions in `symdep` are documented in detail within [`docs/decis
 - **[ADR-004: AST / Shebang Code-Analysis Dependency Scanner Engine](docs/decisions/ADR-004-static-analysis-dependency-scanner.md)** — Static code parsing for shebangs and tool calls to eliminate manual manifest creation.
 - **[ADR-005: Unified Command Dispatch Table](docs/decisions/ADR-005-unified-command-dispatch-table.md)** — Centralized routing architecture supporting multi-namespace, colon-separated, and legacy GNU Stow command syntaxes.
 - **[ADR-006: Hierarchical Ignore Rule Engine](docs/decisions/ADR-006-hierarchical-ignore-rule-engine.md)** — Glob pattern matching, inheritance across global and package `.symignore` files, and redundancy warnings.
+- **[ADR-007: Dual-Driver Asynchronous Symlink Execution Engine](docs/decisions/ADR-007-dual-driver-asynchronous-symlink-execution-engine.md)** — Linux `io_uring` kernel submission queue driver & POSIX pthread work-stealing pool for multi-threaded parallel deployment.
+- **[ADR-008: TOCTOU-Safe Atomic Symlink Replacement](docs/decisions/ADR-008-toctou-safe-atomic-symlink-replacement.md)** — Atomic temporary symlink creation and `renameat` replacement to eliminate TOCTOU race conditions.
+- **[ADR-009: Targeted Traversal & Two-Pass Directory Creation](docs/decisions/ADR-009-targeted-traversal-and-two-pass-directory-creation.md)** — Pre-creation of target directory tree hierarchy upfront to eliminate thread lock contention and redundant per-file `mkdir_p` syscalls.
+- **[ADR-010: Process-Level Lookup Caching Engine](docs/decisions/ADR-010-process-level-lookup-caching-engine.md)** — In-memory caching for `$PATH` binary lookups and registry configuration memoization.
 
 For complete module-by-module developer function signatures, data structures, and contract specifications, see the **[C API Reference Guide](docs/API.md)**.
 

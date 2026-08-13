@@ -26,6 +26,6 @@ skills-lock.json
 perf.data*
 
 # Benchmark Reports & Vendored Benchmark Workspace
-BENCHMARK_REPORT.md
+tests/benchmark/BENCHMARK_REPORT.md
 tests/benchmark/vendor/
 tests/benchmark/output/

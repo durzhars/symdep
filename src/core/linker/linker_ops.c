@@ -115,17 +115,7 @@ static void native_link_cb(const char *file_path, const char *rel_path, void *us
         }
     }
 
-    /* Ensure parent directory exists (in case unstow/rmdir cleaned it up) */
-    char parent_dir[STOW_PATH_LARGE];
-    size_t tlen = strlen(target_path);
-    if (tlen < sizeof(parent_dir)) {
-        memcpy(parent_dir, target_path, tlen + 1);
-        char *last_slash = strrchr(parent_dir, '/');
-        if (last_slash && last_slash != parent_dir) {
-            *last_slash = '\0';
-            mkdir_p(parent_dir, 0755);
-        }
-    }
+    /* Parent directory is pre-created in Pass 1 upfront */
 
     PerfTimer op_timer = perf_timer_start("symlink");
     int sym_res = symlink(pkg_file_path, target_path);

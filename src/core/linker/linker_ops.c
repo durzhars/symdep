@@ -89,7 +89,18 @@ static void native_link_cb(const char *file_path, const char *rel_path, void *us
             if (is_symlink_pointing_to(target_path, pkg_file_path, real_pkg_file_path)) {
                 return;
             }
-            unlink(target_path);
+
+            /* Atomically replace stale symlink via temp symlink + rename to eliminate TOCTOU race condition */
+            char tmp_symlink[STOW_PATH_HUGE];
+            snprintf(tmp_symlink, sizeof(tmp_symlink), "%s.symdep_tmp_%d", target_path, (int)getpid());
+            if (symlink(pkg_file_path, tmp_symlink) == 0) {
+                if (rename(tmp_symlink, target_path) == 0) {
+                    log_info("LINK: %s => %s", rel_path, pkg_file_path);
+                    __atomic_fetch_add(&ctx->created_count, 1, __ATOMIC_RELAXED);
+                    return;
+                }
+                unlink(tmp_symlink);
+            }
         } else {
             char backup_path[STOW_PATH_HUGE];
             build_unique_backup_path(target_path, backup_path, sizeof(backup_path));
@@ -104,7 +115,17 @@ static void native_link_cb(const char *file_path, const char *rel_path, void *us
         }
     }
 
-    /* Parent directory is pre-created in Pass 1 upfront */
+    /* Ensure parent directory exists (in case unstow/rmdir cleaned it up) */
+    char parent_dir[STOW_PATH_LARGE];
+    size_t tlen = strlen(target_path);
+    if (tlen < sizeof(parent_dir)) {
+        memcpy(parent_dir, target_path, tlen + 1);
+        char *last_slash = strrchr(parent_dir, '/');
+        if (last_slash && last_slash != parent_dir) {
+            *last_slash = '\0';
+            mkdir_p(parent_dir, 0755);
+        }
+    }
 
     PerfTimer op_timer = perf_timer_start("symlink");
     int sym_res = symlink(pkg_file_path, target_path);
@@ -370,47 +391,14 @@ int relink_package(const char *source_dir,
 {
     if (dry_run) {
         log_info("[DRY-RUN] Relinking package '%s'...", pkg_name);
-    } else {
-        log_info("Relinking package '%s'...", pkg_name);
-    }
-
-    check_package_dependencies(source_dir, pkg_name, auto_install, dry_run);
-    handle_mutual_exclusions(target_dir, source_dir, pkg_name, dry_run);
-    handle_dynamic_package_conflicts(target_dir, source_dir, pkg_name, NULL, dry_run);
-    unfold_directory_symlinks(target_dir, source_dir, NULL, dry_run);
-
-    if (dry_run) {
         unlink_package(source_dir, target_dir, pkg_name, true);
-        prepare_target_conflicts(target_dir, source_dir, pkg_name, NULL, true);
-        log_success(
-            "[DRY-RUN] Dry run / Diff complete for package '%s'. No changes were made to disk.",
-            pkg_name);
+        link_package(source_dir, target_dir, pkg_name, auto_install, true);
         return 0;
     }
 
+    log_info("Relinking package '%s'...", pkg_name);
     unlink_package(source_dir, target_dir, pkg_name, false);
-    prepare_target_conflicts(target_dir, source_dir, pkg_name, NULL, dry_run);
-
-    PackageContext pctx;
-    if (!package_context_init(&pctx, source_dir, target_dir, pkg_name, auto_install, dry_run)) {
-        log_error("Package directory does not exist: %s/%s", source_dir, pkg_name);
-        return -1;
-    }
-
-    for (size_t i = 0; i < pctx.pkg_files.count; i++) {
-        native_link_cb(
-            pctx.pkg_files.entries[i].full_path, pctx.pkg_files.entries[i].rel_path, &pctx);
-    }
-
-    int result = (pctx.errors == 0) ? 0 : -1;
-    if (result == 0) {
-        log_success("Successfully relinked package '%s'!", pkg_name);
-    } else {
-        log_error("Failed to relink package '%s'!", pkg_name);
-    }
-
-    package_context_free(&pctx);
-    return result;
+    return link_package(source_dir, target_dir, pkg_name, auto_install, false);
 }
 
 void link_all_packages(const char *source_dir,

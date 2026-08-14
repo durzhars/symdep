@@ -144,18 +144,23 @@ build-sanitize:
 build-pgo:
 	@echo 'int main(void){return 0;}' | clang -x c - -fprofile-instr-generate -o /dev/null 2>/dev/null || \
 		(echo "Error: Clang profiling runtime library (libclang_rt.profile.a) is missing." && exit 1)
+	@command -v llvm-profdata >/dev/null 2>&1 || \
+		(echo "Error: llvm-profdata tool is missing." && exit 1)
 	@echo "=== Stage 1: Building instrumented binary ==="
 	$(MAKE) clean
 	mkdir -p $(OPT_DIR)
 	$(MAKE) CC=clang CFLAGS="$(CFLAGS) $(CLANG_OPT_FLAGS) -fprofile-instr-generate" LDFLAGS="$(LDFLAGS) $(CLANG_OPT_LDFLAGS) -fprofile-instr-generate" $(TARGET)
 	@echo "=== Stage 2: Collecting execution workload profile ==="
-	-@bash $(TEST_FEATURE_DIR)/run_feature_tests.sh > /dev/null 2>&1
-	@llvm-profdata merge -output=symdep_app.profdata default.profraw 2>/dev/null || true
+	@rm -rf $(BUILD_DIR)/profiles symdep_app.profdata
+	@mkdir -p $(BUILD_DIR)/profiles
+	-@LLVM_PROFILE_FILE="$(CURDIR)/$(BUILD_DIR)/profiles/symdep_%p_%m.profraw" bash $(TEST_FEATURE_DIR)/run_feature_tests.sh > /dev/null 2>&1
+	@llvm-profdata merge -output=symdep_app.profdata $(BUILD_DIR)/profiles/*.profraw
+	@test -s symdep_app.profdata || (echo "Error: Failed to generate symdep_app.profdata profile feedback file." && exit 1)
 	@echo "=== Stage 3: Compiling PGO production binary with profile feedback ==="
 	$(MAKE) clean
 	mkdir -p $(OPT_DIR)
 	$(MAKE) CC=clang CFLAGS="$(CFLAGS) $(CLANG_OPT_FLAGS) -fprofile-instr-use=symdep_app.profdata" LDFLAGS="$(LDFLAGS) $(CLANG_OPT_LDFLAGS) -fprofile-instr-use=symdep_app.profdata" $(TARGET)
-	@rm -f default.profraw symdep_app.profdata
+	@rm -rf $(BUILD_DIR)/profiles symdep_app.profdata
 	@echo "=== PGO build complete ==="
 
 build-size:

@@ -31,7 +31,7 @@
 #endif
 
 #ifndef IORING_OP_SYMLINKAT
-#define IORING_OP_SYMLINKAT 13
+#define IORING_OP_SYMLINKAT 38
 #endif
 
 typedef struct {
@@ -53,6 +53,15 @@ typedef struct {
     uint32_t entries;
 } IoUringRing;
 
+static inline size_t page_align_size(size_t size)
+{
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size <= 0) {
+        page_size = 4096;
+    }
+    return (size + (size_t)page_size - 1) & ~((size_t)page_size - 1);
+}
+
 static bool init_io_uring(IoUringRing *ring, uint32_t entries)
 {
     memset(ring, 0, sizeof(*ring));
@@ -67,26 +76,26 @@ static bool init_io_uring(IoUringRing *ring, uint32_t entries)
     ring->ring_fd = ring_fd;
     ring->entries = p.sq_entries;
 
-    ring->sq_size = p.sq_off.array + p.sq_entries * sizeof(uint32_t);
-    ring->cq_size = p.cq_off.cqes + p.cq_entries * sizeof(struct io_uring_cqe);
-    ring->sqes_size = p.sq_entries * sizeof(struct io_uring_sqe);
+    ring->sq_size = page_align_size(p.sq_off.array + p.sq_entries * sizeof(uint32_t));
+    ring->cq_size = page_align_size(p.cq_off.cqes + p.cq_entries * sizeof(struct io_uring_cqe));
+    ring->sqes_size = page_align_size(p.sq_entries * sizeof(struct io_uring_sqe));
 
     ring->sq_ptr = mmap(0,
                         ring->sq_size,
                         PROT_READ | PROT_WRITE,
-                        MAP_SHARED | MAP_POPULATE,
+                        MAP_SHARED,
                         ring_fd,
                         IORING_OFF_SQ_RING);
     ring->cq_ptr = mmap(0,
                         ring->cq_size,
                         PROT_READ | PROT_WRITE,
-                        MAP_SHARED | MAP_POPULATE,
+                        MAP_SHARED,
                         ring_fd,
                         IORING_OFF_CQ_RING);
     ring->sqes = (struct io_uring_sqe *)mmap(0,
                                              ring->sqes_size,
                                              PROT_READ | PROT_WRITE,
-                                             MAP_SHARED | MAP_POPULATE,
+                                             MAP_SHARED,
                                              ring_fd,
                                              IORING_OFF_SQES);
 
@@ -152,8 +161,8 @@ bool io_uring_is_supported(void)
     sqe->addr = (uint64_t)test_src;
     sqe->addr2 = (uint64_t)test_tgt;
 
-    *ring.sq_tail = 1;
     ring.sq_array[0] = 0;
+    __atomic_store_n(ring.sq_tail, 1, __ATOMIC_RELEASE);
 
     int ret =
         (int)syscall(__NR_io_uring_enter, ring.ring_fd, 1, 1, IORING_ENTER_GETEVENTS, NULL, 0);
@@ -298,7 +307,7 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
             sqe->user_data = queued;
 
             ring->sq_array[index] = index;
-            *ring->sq_tail = tail + 1;
+            __atomic_store_n(ring->sq_tail, tail + 1, __ATOMIC_RELEASE);
             queued++;
         }
 

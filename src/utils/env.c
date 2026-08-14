@@ -83,6 +83,51 @@ resolve_xdg_path(const char *env_var, const char *default_rel, char *buf, size_t
     return false;
 }
 
+static bool get_home_from_passwd_file(uid_t target_uid, char *buf, size_t buf_size)
+{
+    FILE *fp = fopen("/etc/passwd", "r");
+    if (!fp) {
+        return false;
+    }
+
+    char line[1024];
+    bool found = false;
+
+    while (fgets(line, sizeof(line), fp)) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if (line[0] == '#' || line[0] == '\0') {
+            continue;
+        }
+
+        char *line_ptr = line;
+        char *username = strsep(&line_ptr, ":");
+        char *password = strsep(&line_ptr, ":");
+        char *uid_str = strsep(&line_ptr, ":");
+        char *gid_str = strsep(&line_ptr, ":");
+        char *gecos = strsep(&line_ptr, ":");
+        char *homedir = strsep(&line_ptr, ":");
+
+        (void)username;
+        (void)password;
+        (void)gid_str;
+        (void)gecos;
+
+        if (!uid_str || !homedir) {
+            continue;
+        }
+
+        uid_t uid = (uid_t)strtoul(uid_str, NULL, 10);
+        if (uid == target_uid && verify_path_sanity(homedir) == PATH_VALID) {
+            snprintf(buf, buf_size, "%s", homedir);
+            found = true;
+            break;
+        }
+    }
+
+    fclose(fp);
+    return found;
+}
+
 bool get_user_home_dir(char *buf, size_t buf_size)
 {
     if (!buf || buf_size == 0) {
@@ -97,6 +142,11 @@ bool get_user_home_dir(char *buf, size_t buf_size)
         }
     }
 
+#if defined(NO_NSS_FALLBACK)
+    if (get_home_from_passwd_file(getuid(), buf, buf_size)) {
+        return true;
+    }
+#else
     struct passwd pwd;
     struct passwd *result = NULL;
     char pwbuf[1024];
@@ -107,6 +157,11 @@ bool get_user_home_dir(char *buf, size_t buf_size)
             return true;
         }
     }
+
+    if (get_home_from_passwd_file(getuid(), buf, buf_size)) {
+        return true;
+    }
+#endif
 
     buf[0] = '\0';
     return false;

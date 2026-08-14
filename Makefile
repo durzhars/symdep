@@ -23,14 +23,15 @@ CC ?= gcc
 CFLAGS ?= -Wall -Wextra -pedantic -Wconversion -Wsign-conversion \
           -Wno-overlength-strings -std=c17 -O2 -Iinclude -I$(BUILD_DIR) \
           -DDATADIR=$(DATADIR) -DSYSCONFDIR=$(SYSCONFDIR)
+USE_LLD = $(shell $(CC) -fuse-ld=lld -Wl,--version 2>&1 | grep -E -q 'LLD|ld.lld' && echo "-fuse-ld=lld -Wl,--icf=all" || echo "")
 CLANG_OPT_FLAGS = -O3 -fomit-frame-pointer -flto=thin -fsave-optimization-record=yaml \
                   -foptimization-record-file=$(OPT_DIR)/opt.yaml \
                   -Rpass=inline -Rpass-missed=loop-vectorize \
                   -Oz -ffunction-sections -fdata-sections -fomit-frame-pointer -flto=thin
-CLANG_OPT_LDFLAGS = -flto=thin -fuse-ld=lld -Wl,--gc-sections -Wl,--icf=all -Wl,-s
+CLANG_OPT_LDFLAGS = -flto=thin $(USE_LLD) -Wl,--gc-sections -Wl,-s
 CLANG_SAN_FLAGS = -fsanitize=address,undefined -fno-omit-frame-pointer -g
 CLANG_SIZE_FLAGS   = -Oz -ffunction-sections -fdata-sections -fomit-frame-pointer -flto=thin
-CLANG_SIZE_LDFLAGS = -flto=thin -fuse-ld=lld -Wl,--gc-sections -Wl,--icf=all -Wl,-s
+CLANG_SIZE_LDFLAGS = -flto=thin $(USE_LLD) -Wl,--gc-sections -Wl,-s
 
 DEPFLAGS = -MMD -MP
 LDFLAGS ?= -pthread
@@ -135,10 +136,14 @@ build-clang-opt:
 	$(MAKE) CC=clang CFLAGS="$(CFLAGS) $(CLANG_OPT_FLAGS)" LDFLAGS="$(LDFLAGS) $(CLANG_OPT_LDFLAGS)" $(TARGET)
 
 build-sanitize:
+	@echo 'int main(void){return 0;}' | clang -x c - -fsanitize=address,undefined -o /dev/null 2>/dev/null || \
+		(echo "Error: Clang sanitizer runtime library (compiler-rt / libclang_rt) is missing." && exit 1)
 	$(MAKE) clean
 	$(MAKE) CC=clang CFLAGS="$(CFLAGS) $(CLANG_SAN_FLAGS)" LDFLAGS="$(LDFLAGS) $(CLANG_SAN_FLAGS)" $(TARGET)
 
 build-pgo:
+	@echo 'int main(void){return 0;}' | clang -x c - -fprofile-instr-generate -o /dev/null 2>/dev/null || \
+		(echo "Error: Clang profiling runtime library (libclang_rt.profile.a) is missing." && exit 1)
 	@echo "=== Stage 1: Building instrumented binary ==="
 	$(MAKE) clean
 	mkdir -p $(OPT_DIR)

@@ -7,7 +7,12 @@ set -euo pipefail
 
 BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$BENCH_DIR/../.." && pwd)"
-WORK_DIR="${SYMDEP_BENCH_DIR:-/tmp/symdep_benchmark_workspace}"
+
+DEFAULT_WORK_DIR="/tmp/symdep_benchmark_workspace"
+if [ -d "/dev/shm" ] && [ -w "/dev/shm" ]; then
+    DEFAULT_WORK_DIR="/dev/shm/symdep_benchmark_workspace"
+fi
+WORK_DIR="${SYMDEP_BENCH_DIR:-$DEFAULT_WORK_DIR}"
 VENDOR_DIR="$BENCH_DIR/vendor"
 REPORT_FILE="$BENCH_DIR/BENCHMARK_REPORT.md"
 JSON_FILE="$BENCH_DIR/benchmark_results.json"
@@ -27,6 +32,8 @@ CUSTOM_RUNS_DS=20
 
 SKIP_DOTBOT=0
 FORCE_FETCH_DOTBOT=0
+INCLUDE_ULTRA=0
+INCLUDE_MEGA=0
 
 usage() {
     cat << 'EOF'
@@ -38,6 +45,9 @@ Options:
   -r, --runs N        Set custom measurement runs count
       --skip-dotbot   Skip Dotbot benchmarks (useful for offline/minimal setups)
       --fetch-dotbot  Force re-fetching Dotbot repository into vendor/dotbot
+      --workdir DIR   Custom workspace directory (default: /dev/shm in-RAM tmpfs)
+      --ultra         Include Ultra dataset benchmark (100,000 files)
+      --mega          Include Ultra (100,000 files) and Mega (1,000,000 files) benchmarks
   -h, --help          Show this help message
 EOF
     exit 0
@@ -69,6 +79,19 @@ while [[ $# -gt 0 ]]; do
             ;;
         --fetch-dotbot)
             FORCE_FETCH_DOTBOT=1
+            shift
+            ;;
+        --workdir)
+            WORK_DIR="$2"
+            shift 2
+            ;;
+        --ultra)
+            INCLUDE_ULTRA=1
+            shift
+            ;;
+        --mega)
+            INCLUDE_ULTRA=1
+            INCLUDE_MEGA=1
             shift
             ;;
         -h|--help)
@@ -125,7 +148,14 @@ else
 fi
 
 # Clean & recreate workspace
-rm -rf "$WORK_DIR"
+cleanup_workspace() {
+    if [ -d "$WORK_DIR" ]; then
+        rm -rf "$WORK_DIR"
+    fi
+}
+trap cleanup_workspace EXIT INT TERM
+
+cleanup_workspace
 mkdir -p "$WORK_DIR"
 
 DOTBOT_STATUS="N/A"
@@ -133,7 +163,13 @@ if [ "$SKIP_DOTBOT" -eq 0 ] && [ -n "$PYTHON_BIN" ] && [ -f "$DOTBOT_BIN" ]; the
     DOTBOT_STATUS="$DOTBOT_BIN"
 fi
 
+IS_TMPFS="NO"
+if [[ "$WORK_DIR" == /dev/shm* ]]; then
+    IS_TMPFS="YES (in-RAM tmpfs)"
+fi
+
 echo "Workdir:   $WORK_DIR"
+echo "RAMDisk:   $IS_TMPFS"
 echo "symdep:    $SYMDEP_BIN"
 echo "GNU Stow:  ${STOW_BIN:-N/A}"
 echo "Dotbot:    $DOTBOT_STATUS"
@@ -215,6 +251,14 @@ DATASETS=(
     "Large 100 100"     # 10,000 files
 )
 
+if [ "$INCLUDE_ULTRA" -eq 1 ]; then
+    DATASETS+=("Ultra 100 1000")  # 100,000 files
+fi
+
+if [ "$INCLUDE_MEGA" -eq 1 ]; then
+    DATASETS+=("Mega 1000 1000")  # 1,000,000 files
+fi
+
 REPORT_SECTIONS=""
 
 for ds_spec in "${DATASETS[@]}"; do
@@ -245,23 +289,31 @@ EOF
     # 1. symdep command
     BENCH_CMDS+=("$SYMDEP_BIN -d $src_dir -t $target_dir link $pkg_args")
     
-    # 2. GNU Stow command
+    # 2. GNU Stow command (with --no-folding to force per-file symlinks for 1-to-1 comparison)
     if [ -n "$STOW_BIN" ]; then
-        BENCH_CMDS+=("$STOW_BIN -d $src_dir -t $target_dir $pkg_args")
+        BENCH_CMDS+=("$STOW_BIN --no-folding -d $src_dir -t $target_dir $pkg_args")
     fi
     
-    # 3. Dotbot command
-    if [ -n "$PYTHON_BIN" ] && [ -f "$DOTBOT_BIN" ]; then
+    # 3. Dotbot command (Skip Dotbot for Ultra/Mega datasets >= 100K files due to extreme Python runtime)
+    if [ -n "$PYTHON_BIN" ] && [ -f "$DOTBOT_BIN" ] && [ "$total_files" -lt 100000 ]; then
         BENCH_CMDS+=("HOME=$target_dir $PYTHON_BIN $DOTBOT_BIN -d $ds_dir -c $dotbot_cfg")
     fi
     
+    ds_warmup="$CUSTOM_WARMUP_DS"
     ds_runs="$CUSTOM_RUNS_DS"
-    if [ "$QUICK_MODE" -eq 0 ] && [ "$total_files" -ge 10000 ]; then
+    if [ "$total_files" -ge 1000000 ]; then
+        ds_warmup=0
+        ds_runs=1
+    elif [ "$total_files" -ge 100000 ]; then
+        ds_warmup=1
+        ds_runs=2
+    elif [ "$QUICK_MODE" -eq 0 ] && [ "$total_files" -ge 10000 ]; then
         ds_runs=10
     fi
     
     hyperfine \
-        --warmup "$CUSTOM_WARMUP_DS" \
+        --ignore-failure \
+        --warmup "$ds_warmup" \
         --runs "$ds_runs" \
         --prepare "$PREPARE_SCRIPT" \
         --export-markdown "$WORK_DIR/${ds_name}_results.md" \
@@ -299,7 +351,7 @@ SYMDEP_RSS="$(get_peak_rss "$SYMDEP_BIN -d '$MEM_SRC' -t '$MEM_TARGET' link $MEM
 
 STOW_RSS="N/A"
 if [ -n "$STOW_BIN" ]; then
-    STOW_RSS="$(get_peak_rss "$STOW_BIN -d '$MEM_SRC' -t '$MEM_TARGET' $MEM_PKGS" "$PREPARE_CMD")"
+    STOW_RSS="$(get_peak_rss "$STOW_BIN --no-folding -d '$MEM_SRC' -t '$MEM_TARGET' $MEM_PKGS" "$PREPARE_CMD")"
 fi
 
 DOTBOT_RSS="N/A"
@@ -405,6 +457,10 @@ phases = [
     ('Medium (2,500 files)', 'Medium_results.json'),
     ('Large (10,000 files)', 'Large_results.json'),
 ]
+if os.path.exists(os.path.join(work_dir, 'Ultra_results.json')):
+    phases.append(('Ultra (100,000 files)', 'Ultra_results.json'))
+if os.path.exists(os.path.join(work_dir, 'Mega_results.json')):
+    phases.append(('Mega (1,000,000 files)', 'Mega_results.json'))
 
 targets = ['ISO C17']
 if has_stow:

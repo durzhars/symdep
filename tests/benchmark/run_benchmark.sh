@@ -19,8 +19,59 @@ DOTBOT_BIN="$DOTBOT_REPO/bin/dotbot"
 PYTHON_BIN="$(which python3 2>/dev/null || echo "")"
 HYPERFINE_BIN="$(which hyperfine 2>/dev/null || echo "")"
 
+QUICK_MODE=0
+CUSTOM_WARMUP_STARTUP=10
+CUSTOM_RUNS_STARTUP=50
+CUSTOM_WARMUP_DS=2
+CUSTOM_RUNS_DS=20
+
+usage() {
+    echo "Usage: $0 [options]"
+    echo ""
+    echo "Options:"
+    echo "  -q, --quick      Run in quick mode (1 warmup, 3-5 runs for fast evaluation)"
+    echo "  -w, --warmup N   Set custom warmup count"
+    echo "  -r, --runs N     Set custom measurement runs count"
+    echo "  -h, --help       Show this help message"
+    echo ""
+    exit 0
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -q|--quick)
+            QUICK_MODE=1
+            CUSTOM_WARMUP_STARTUP=1
+            CUSTOM_RUNS_STARTUP=5
+            CUSTOM_WARMUP_DS=1
+            CUSTOM_RUNS_DS=3
+            shift
+            ;;
+        -w|--warmup)
+            CUSTOM_WARMUP_STARTUP="$2"
+            CUSTOM_WARMUP_DS="$2"
+            shift 2
+            ;;
+        -r|--runs)
+            CUSTOM_RUNS_STARTUP="$2"
+            CUSTOM_RUNS_DS="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "[ERROR] Unknown option: $1"
+            usage
+            ;;
+    esac
+done
+
 echo "=============================================================================="
 echo "               Symdep Sterilized Benchmark Suite Initializing                 "
+if [ "$QUICK_MODE" -eq 1 ]; then
+    echo "               [QUICK MODE ACTIVE: 1 Warmup, Fast Iterations]                "
+fi
 echo "=============================================================================="
 
 # 1. Dependency Checks
@@ -55,6 +106,7 @@ echo "symdep:    $SYMDEP_BIN"
 echo "GNU Stow:  ${STOW_BIN:-N/A}"
 echo "Dotbot:    ${DOTBOT_BIN:-N/A}"
 echo "Hyperfine: $HYPERFINE_BIN"
+echo "QuickMode: $([ "$QUICK_MODE" -eq 1 ] && echo "YES (Fast)" || echo "NO (Full)")"
 echo "------------------------------------------------------------------------------"
 
 # Helper: Generate Workload Dataset
@@ -114,8 +166,8 @@ if [ -n "$PYTHON_BIN" ] && [ -f "$DOTBOT_BIN" ]; then
 fi
 
 hyperfine \
-    --warmup 10 \
-    --runs 50 \
+    --warmup "$CUSTOM_WARMUP_STARTUP" \
+    --runs "$CUSTOM_RUNS_STARTUP" \
     --export-markdown "$WORK_DIR/startup_results.md" \
     --export-json "$WORK_DIR/startup_results.json" \
     "${STARTUP_CMDS[@]}"
@@ -171,14 +223,14 @@ EOF
         BENCH_CMDS+=("HOME=$target_dir $PYTHON_BIN $DOTBOT_BIN -d $ds_dir -c $dotbot_cfg")
     fi
     
-    runs=20
-    if [ "$total_files" -ge 10000 ]; then
-        runs=10
+    ds_runs="$CUSTOM_RUNS_DS"
+    if [ "$QUICK_MODE" -eq 0 ] && [ "$total_files" -ge 10000 ]; then
+        ds_runs=10
     fi
     
     hyperfine \
-        --warmup 2 \
-        --runs "$runs" \
+        --warmup "$CUSTOM_WARMUP_DS" \
+        --runs "$ds_runs" \
         --prepare "$PREPARE_SCRIPT" \
         --export-markdown "$WORK_DIR/${ds_name}_results.md" \
         --export-json "$WORK_DIR/${ds_name}_results.json" \
@@ -287,7 +339,77 @@ EOF
 chmod +x "$BENCH_DIR/run_benchmark.sh"
 
 echo ""
-echo "=============================================================================="
-echo "         Benchmark Suite Complete! Report saved to: BENCHMARK_REPORT.md        "
-echo "=============================================================================="
-cat "$REPORT_FILE"
+echo "================================================================================"
+echo "          SYMDEP BENCHMARK EXECUTIVE SUMMARY (ISO C17 vs STOW vs DOTBOT)          "
+echo "================================================================================"
+
+python3 -c "
+import json, os, sys
+
+work_dir = '$WORK_DIR'
+symdep_rss = '$SYMDEP_RSS'
+stow_rss = '$STOW_RSS'
+dotbot_rss = '$DOTBOT_RSS'
+
+def get_mean_ms(json_path, cmd_substr):
+    if not os.path.exists(json_path):
+        return None
+    try:
+        with open(json_path) as f:
+            data = json.load(f)
+        for res in data.get('results', []):
+            cmd = res.get('command', '')
+            if cmd_substr in cmd:
+                return res.get('mean', 0.0) * 1000.0
+    except Exception:
+        pass
+    return None
+
+phases = [
+    ('Cold-Start (--help)', 'startup_results.json'),
+    ('Small (100 files)', 'Small_results.json'),
+    ('Medium (2,500 files)', 'Medium_results.json'),
+    ('Large (10,000 files)', 'Large_results.json'),
+]
+
+header = f'| {\"Benchmark Workload\":<24} | {\"symdep (C17)\":<14} | {\"Stow (Perl)\":<14} | {\"Dotbot (Py3)\":<14} |'
+sep = '+' + '-'*26 + '+' + '-'*16 + '+' + '-'*16 + '+' + '-'*16 + '+'
+
+print(sep)
+print(header)
+print(sep)
+
+for label, json_name in phases:
+    jpath = os.path.join(work_dir, json_name)
+    sym_t = get_mean_ms(jpath, 'symdep')
+    stow_t = get_mean_ms(jpath, 'stow')
+    dot_t = get_mean_ms(jpath, 'dotbot')
+    
+    sym_str = f'{sym_t:.2f} ms' if sym_t is not None else 'N/A'
+    stow_str = f'{stow_t:.2f} ms' if stow_t is not None else 'N/A'
+    dot_str = f'{dot_t:.2f} ms' if dot_t is not None else 'N/A'
+    
+    print(f'| {label:<24} | {sym_str:<14} | {stow_str:<14} | {dot_str:<14} |')
+
+print(sep)
+
+def rss_str(rss_val):
+    try:
+        val = float(rss_val) / 1024.0
+        return f'{val:.2f} MB'
+    except Exception:
+        return 'N/A'
+
+rss_sym = rss_str(symdep_rss)
+rss_stow = rss_str(stow_rss)
+rss_dot = rss_str(dotbot_rss)
+
+print(f'| {\"Peak Memory (RSS)\":<24} | {rss_sym:<14} | {rss_stow:<14} | {rss_dot:<14} |')
+print(sep)
+"
+
+echo ""
+echo "[SUCCESS] Full markdown report saved to: $REPORT_FILE"
+echo "[SUCCESS] Benchmark JSON results saved to: $WORK_DIR/*.json"
+echo "================================================================================"
+

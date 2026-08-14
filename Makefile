@@ -2,6 +2,7 @@
 
 PREFIX ?= /usr/local
 BIN_NAME ?= symdep
+VERSION ?= 1.0.0
 EXEC_PREFIX ?= $(PREFIX)
 BINDIR ?= $(EXEC_PREFIX)/bin
 DATAROOTDIR ?= $(PREFIX)/share
@@ -90,7 +91,7 @@ TEST_OBJS = $(patsubst $(TEST_UNIT_DIR)/%.c,$(BUILD_TEST_DIR)/%.o,$(TEST_SRCS)) 
 TEST_DEPS = $(patsubst $(TEST_UNIT_DIR)/%.c,$(BUILD_TEST_DIR)/.deps/%.d,$(TEST_SRCS))
 TEST_TARGET = $(BIN_DIR)/test_runner
 
-.PHONY: all clean static install test test-feature bench bench-clean uninstall tidy format format-check build-clang-opt build-sanitize build-pgo help
+.PHONY: all clean static static-musl dist install test test-feature bench bench-clean uninstall tidy format format-check build-clang-opt build-sanitize build-pgo help
 
 all: $(TARGET)
 
@@ -98,6 +99,9 @@ help:
 	@echo "  Build Targets:"
 	@echo ""
 	@echo "  make                    Build release binary using default compiler ($(CC))"
+	@echo "  make static             Build standalone statically linked binary (glibc)"
+	@echo "  make static-musl        Build ultra-small static binary using musl-gcc (~230KB)"
+	@echo "  make dist               Create release tarball (.tar.gz) and SHA256 checksum"
 	@echo "  make test               Run unit test suite"
 	@echo "  make test-feature       Run end-to-end integration feature tests"
 	@echo "  make bench              Run sterilized benchmark suite (symdep vs GNU Stow vs Dotbot)"
@@ -167,8 +171,36 @@ build-size:
 	$(MAKE) clean
 	$(MAKE) CC=clang CFLAGS="$(filter-out -O2 -O3,$(CFLAGS)) $(CLANG_SIZE_FLAGS)" LDFLAGS="$(LDFLAGS) $(CLANG_SIZE_LDFLAGS)" $(TARGET)
 
-static: CFLAGS += -static
-static: $(TARGET)
+static:
+	$(MAKE) clean
+	$(MAKE) CFLAGS="$(CFLAGS) -static -DNO_NSS_FALLBACK" LDFLAGS="$(LDFLAGS) -static" $(TARGET)
+
+static-musl:
+	@command -v musl-gcc >/dev/null 2>&1 || \
+		(echo "Error: musl-gcc is not installed. Install it via 'sudo apt install musl-tools' or your package manager." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=musl-gcc CFLAGS="$(filter-out -O2,$(CFLAGS)) -O3 -ffunction-sections -fdata-sections -static -DNO_NSS_FALLBACK" LDFLAGS="$(LDFLAGS) -static -Wl,--gc-sections" $(TARGET)
+	@strip $(TARGET) 2>/dev/null || true
+
+RELEASE_DIR = release
+DIST_DIR = symdep-v$(VERSION)-linux-x86_64
+DIST_TARBALL = $(DIST_DIR).tar.gz
+DIST_HASH = $(DIST_TARBALL).sha256
+
+dist: static-musl
+	rm -rf $(DIST_DIR) $(DIST_TARBALL) $(DIST_TARBALL).sha256
+	mkdir -p $(DIST_DIR)
+	cp $(TARGET) $(DIST_DIR)/
+	cp README.md LICENSE CHANGELOG.md $(DIST_DIR)/
+	cp -r resources $(DIST_DIR)/
+	tar -czvf $(DIST_TARBALL) $(DIST_DIR)
+	sha256sum $(DIST_TARBALL) > $(DIST_HASH)
+	rm -rf $(DIST_DIR)
+	mkdir -p $(RELEASE_DIR)
+	mv $(DIST_TARBALL) $(RELEASE_DIR)
+	mv $(DIST_HASH) $(RELEASE_DIR)
+	@echo "=== Created distribution tarball: $(DIST_TARBALL) ==="
+	@echo "=== SHA256 Checksum: $$(cat $(RELEASE_DIR)/$(DIST_HASH)) ==="
 
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)

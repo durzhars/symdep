@@ -20,6 +20,7 @@ diffs.txt
 build/
 bin/
 profiles/
+release/
 Testing/
 
 .agents/

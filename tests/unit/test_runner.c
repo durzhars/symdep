@@ -112,6 +112,7 @@ void test_trim_whitespace(void);
 void test_string_array(void);
 void test_str_set(void);
 void test_perf_timer(void);
+void test_io_uring_backend_probe(void);
 
 /* Prototypes for utils/fs tests */
 void test_mkdir_p(void);
@@ -226,6 +227,7 @@ int main(void)
     RUN_TEST(test_string_array);
     RUN_TEST(test_str_set);
     RUN_TEST(test_perf_timer);
+    RUN_TEST(test_io_uring_backend_probe);
 
     // --- utils/fs ---
     RUN_TEST(test_mkdir_p);

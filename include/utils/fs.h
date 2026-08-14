@@ -48,7 +48,7 @@ char *read_symlink_target(const char *path);
 bool is_symlink_pointing_to(const char *symlink_path,
                             const char *pkg_file_path,
                             const char *real_pkg_file_path);
-int mkdir_p(const char *path, __mode_t mode);
+int mkdir_p(const char *path, mode_t mode);
 
 typedef void (*WalkSymlinkCallback)(const char *symlink_path, void *user_data);
 typedef void (*WalkFileCallback)(const char *file_path, const char *rel_path, void *user_data);

@@ -25,15 +25,21 @@ CUSTOM_RUNS_STARTUP=50
 CUSTOM_WARMUP_DS=2
 CUSTOM_RUNS_DS=20
 
+SKIP_DOTBOT=0
+FORCE_FETCH_DOTBOT=0
+
 usage() {
-    echo "Usage: $0 [options]"
-    echo ""
-    echo "Options:"
-    echo "  -q, --quick      Run in quick mode (1 warmup, 3-5 runs for fast evaluation)"
-    echo "  -w, --warmup N   Set custom warmup count"
-    echo "  -r, --runs N     Set custom measurement runs count"
-    echo "  -h, --help       Show this help message"
-    echo ""
+    cat << 'EOF'
+Usage: run_benchmark.sh [options]
+
+Options:
+  -q, --quick         Run in quick mode (1 warmup, 3-5 runs for fast evaluation)
+  -w, --warmup N      Set custom warmup count
+  -r, --runs N        Set custom measurement runs count
+      --skip-dotbot   Skip Dotbot benchmarks (useful for offline/minimal setups)
+      --fetch-dotbot  Force re-fetching Dotbot repository into vendor/dotbot
+  -h, --help          Show this help message
+EOF
     exit 0
 }
 
@@ -56,6 +62,14 @@ while [[ $# -gt 0 ]]; do
             CUSTOM_RUNS_STARTUP="$2"
             CUSTOM_RUNS_DS="$2"
             shift 2
+            ;;
+        --skip-dotbot)
+            SKIP_DOTBOT=1
+            shift
+            ;;
+        --fetch-dotbot)
+            FORCE_FETCH_DOTBOT=1
+            shift
             ;;
         -h|--help)
             usage
@@ -90,21 +104,39 @@ if [ -z "$STOW_BIN" ]; then
     echo "[WARNING] 'stow' (GNU Stow) not found in PATH. GNU Stow benchmarks will be skipped."
 fi
 
-# Set up Dotbot vendor
-if [ ! -d "$DOTBOT_REPO" ]; then
-    echo "[!] Fetching Dotbot for benchmark comparison..."
-    mkdir -p "$VENDOR_DIR"
-    git clone --depth=1 https://github.com/anishathalye/dotbot.git "$DOTBOT_REPO" >/dev/null 2>&1
+# 2. Set up Dotbot vendor repository
+if [ "$SKIP_DOTBOT" -eq 1 ]; then
+    echo "[INFO] Skipping Dotbot benchmarks (--skip-dotbot specified)."
+else
+    if [ "$FORCE_FETCH_DOTBOT" -eq 1 ] && [ -d "$DOTBOT_REPO" ]; then
+        echo "[!] Re-fetching Dotbot repository..."
+        rm -rf "$DOTBOT_REPO"
+    fi
+
+    if [ ! -d "$DOTBOT_REPO" ]; then
+        echo "[!] Fetching Dotbot repository into vendor/dotbot for comparison..."
+        mkdir -p "$VENDOR_DIR"
+        if git clone --depth=1 https://github.com/anishathalye/dotbot.git "$DOTBOT_REPO" >/dev/null 2>&1; then
+            echo "[SUCCESS] Dotbot repository fetched successfully."
+        else
+            echo "[WARNING] Failed to clone Dotbot repository (network offline or git error). Skipping Dotbot benchmarks."
+        fi
+    fi
 fi
 
 # Clean & recreate workspace
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
 
+DOTBOT_STATUS="N/A"
+if [ "$SKIP_DOTBOT" -eq 0 ] && [ -n "$PYTHON_BIN" ] && [ -f "$DOTBOT_BIN" ]; then
+    DOTBOT_STATUS="$DOTBOT_BIN"
+fi
+
 echo "Workdir:   $WORK_DIR"
 echo "symdep:    $SYMDEP_BIN"
 echo "GNU Stow:  ${STOW_BIN:-N/A}"
-echo "Dotbot:    ${DOTBOT_BIN:-N/A}"
+echo "Dotbot:    $DOTBOT_STATUS"
 echo "Hyperfine: $HYPERFINE_BIN"
 echo "QuickMode: $([ "$QUICK_MODE" -eq 1 ] && echo "YES (Fast)" || echo "NO (Full)")"
 echo "------------------------------------------------------------------------------"
@@ -339,9 +371,6 @@ EOF
 chmod +x "$BENCH_DIR/run_benchmark.sh"
 
 echo ""
-echo "================================================================================"
-echo "          SYMDEP BENCHMARK EXECUTIVE SUMMARY (ISO C17 vs STOW vs DOTBOT)          "
-echo "================================================================================"
 
 python3 -c "
 import json, os, sys
@@ -350,6 +379,11 @@ work_dir = '$WORK_DIR'
 symdep_rss = '$SYMDEP_RSS'
 stow_rss = '$STOW_RSS'
 dotbot_rss = '$DOTBOT_RSS'
+stow_bin = '$STOW_BIN'
+dotbot_status = '$DOTBOT_STATUS'
+
+has_stow = bool(stow_bin and stow_bin != 'N/A')
+has_dotbot = bool(dotbot_status and dotbot_status != 'N/A')
 
 def get_mean_ms(json_path, cmd_substr):
     if not os.path.exists(json_path):
@@ -372,8 +406,30 @@ phases = [
     ('Large (10,000 files)', 'Large_results.json'),
 ]
 
-header = f'| {\"Benchmark Workload\":<24} | {\"symdep (C17)\":<14} | {\"Stow (Perl)\":<14} | {\"Dotbot (Py3)\":<14} |'
-sep = '+' + '-'*26 + '+' + '-'*16 + '+' + '-'*16 + '+' + '-'*16 + '+'
+targets = ['ISO C17']
+if has_stow:
+    targets.append('STOW')
+if has_dotbot:
+    targets.append('DOTBOT')
+
+title_text = f\"SYMDEP BENCHMARK EXECUTIVE SUMMARY ({' vs '.join(targets)})\"
+
+cols = [('Benchmark Workload', 24), ('symdep (C17)', 14)]
+if has_stow:
+    cols.append(('Stow (Perl)', 14))
+if has_dotbot:
+    cols.append(('Dotbot (Py3)', 14))
+
+sep = '+' + '+'.join('-' * (w + 2) for _, w in cols) + '+'
+table_width = len(sep)
+banner_border = '=' * table_width
+
+print(banner_border)
+print(f\"{title_text:^{table_width}}\")
+print(banner_border)
+
+header = '| ' + ' | '.join(f'{title:<{w}}' for title, w in cols) + ' |'
+sep = '+' + '+'.join('-' * (w + 2) for _, w in cols) + '+'
 
 print(sep)
 print(header)
@@ -382,14 +438,17 @@ print(sep)
 for label, json_name in phases:
     jpath = os.path.join(work_dir, json_name)
     sym_t = get_mean_ms(jpath, 'symdep')
-    stow_t = get_mean_ms(jpath, 'stow')
-    dot_t = get_mean_ms(jpath, 'dotbot')
     
-    sym_str = f'{sym_t:.2f} ms' if sym_t is not None else 'N/A'
-    stow_str = f'{stow_t:.2f} ms' if stow_t is not None else 'N/A'
-    dot_str = f'{dot_t:.2f} ms' if dot_t is not None else 'N/A'
+    row = [f'{label:<24}', f'{f\"{sym_t:.2f} ms\" if sym_t is not None else \"N/A\":<14}']
     
-    print(f'| {label:<24} | {sym_str:<14} | {stow_str:<14} | {dot_str:<14} |')
+    if has_stow:
+        stow_t = get_mean_ms(jpath, 'stow')
+        row.append(f'{f\"{stow_t:.2f} ms\" if stow_t is not None else \"N/A\":<14}')
+    if has_dotbot:
+        dot_t = get_mean_ms(jpath, 'dotbot')
+        row.append(f'{f\"{dot_t:.2f} ms\" if dot_t is not None else \"N/A\":<14}')
+        
+    print('| ' + ' | '.join(row) + ' |')
 
 print(sep)
 
@@ -400,11 +459,13 @@ def rss_str(rss_val):
     except Exception:
         return 'N/A'
 
-rss_sym = rss_str(symdep_rss)
-rss_stow = rss_str(stow_rss)
-rss_dot = rss_str(dotbot_rss)
+mem_row = [f'{\"Peak Memory (RSS)\":<24}', f'{rss_str(symdep_rss):<14}']
+if has_stow:
+    mem_row.append(f'{rss_str(stow_rss):<14}')
+if has_dotbot:
+    mem_row.append(f'{rss_str(dotbot_rss):<14}')
 
-print(f'| {\"Peak Memory (RSS)\":<24} | {rss_sym:<14} | {rss_stow:<14} | {rss_dot:<14} |')
+print('| ' + ' | '.join(mem_row) + ' |')
 print(sep)
 "
 

@@ -56,3 +56,47 @@ void test_scanner_parser_token_extraction(void)
     ASSERT(tokens.count == 0, "Comment line starting with '//' should yield 0 tokens");
     str_array_free(&tokens);
 }
+
+void test_scanner_comment_detection_edge_cases(void)
+{
+    ASSERT(!is_scanner_comment_line(NULL), "NULL line should not be a comment");
+    ASSERT(!is_scanner_comment_line(""), "Empty line should not be a comment");
+    ASSERT(!is_scanner_comment_line("   \t  "), "Whitespace-only line should not be a comment");
+
+    ASSERT(is_scanner_comment_line("# bash comment"), "'# ...' should be a comment");
+    ASSERT(is_scanner_comment_line("   # indented bash"), "'   # ...' should be a comment");
+    ASSERT(is_scanner_comment_line("; ini comment"), "'; ...' should be a comment");
+    ASSERT(is_scanner_comment_line("\t; tabbed ini"), "'\\t; ...' should be a comment");
+    ASSERT(is_scanner_comment_line("// c/c++ comment"), "'// ...' should be a comment");
+    ASSERT(is_scanner_comment_line("  // indented c"), "'  // ...' should be a comment");
+    ASSERT(is_scanner_comment_line("-- lua/sql comment"), "'-- ...' should be a comment");
+    ASSERT(is_scanner_comment_line("   -- indented lua"), "'   -- ...' should be a comment");
+
+    ASSERT(!is_scanner_comment_line("-single-dash-flag"), "'-...' single dash is not a comment");
+    ASSERT(!is_scanner_comment_line("/path/to/file"), "'/path...' is not a comment");
+    ASSERT(!is_scanner_comment_line("exec = alacritty"), "regular config line is not a comment");
+}
+
+void test_scanner_extract_tokens_edge_cases(void)
+{
+    StringArray tokens;
+    str_array_init(&tokens);
+
+    // NULL line safety
+    scanner_extract_line_tokens(NULL, &tokens);
+    ASSERT(tokens.count == 0, "NULL line should yield 0 tokens");
+
+    // Hyphenated and underscore identifiers, multiple clauses separated by pipe/ampersand
+    scanner_extract_line_tokens("cargo-clippy --all-targets | tee output && python3_check",
+                                &tokens);
+    ASSERT(str_array_contains(&tokens, "cargo-clippy"),
+           "Should extract hyphenated tool 'cargo-clippy'");
+    ASSERT(str_array_contains(&tokens, "tee"), "Should extract pipeline command 'tee'");
+    ASSERT(str_array_contains(&tokens, "output"), "Should extract argument 'output'");
+    ASSERT(str_array_contains(&tokens, "python3_check"),
+           "Should extract underscore identifier 'python3_check'");
+    ASSERT(!str_array_contains(&tokens, "--all-targets"),
+           "Flags starting with '-' should not be tokens");
+
+    str_array_free(&tokens);
+}

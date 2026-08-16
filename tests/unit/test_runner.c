@@ -43,6 +43,7 @@ void test_cmd_config_ops(void);
 /* Prototypes for core tests */
 void test_check_package_dependencies(void);
 void test_symlink_health_check(void);
+void test_symlink_health_check_clean(void);
 void test_pkg_manager_builtins(void);
 void test_pkg_manager_custom_config(void);
 void test_pkg_manager_resolution_precedence(void);
@@ -59,12 +60,16 @@ void test_manifest_edit_dep(void);
 void test_package_remove(void);
 void test_manifest_set_target(void);
 void test_registry_parsing(void);
+void test_registry_add_tool(void);
+void test_is_tool_installed_dynamic(void);
 void test_get_all_packages_skips_dot_dirs(void);
 void test_scan_package(void);
 void test_scan_package_excludes_non_tool_packages(void);
 void test_scan_package_comment_stripping_and_auto_registry(void);
 void test_scan_package_interactive_mode(void);
 void test_scanner_parser_token_extraction(void);
+void test_scanner_comment_detection_edge_cases(void);
+void test_scanner_extract_tokens_edge_cases(void);
 
 /* Prototypes for core/config tests */
 void test_get_active_dotfiles_dir_cascade(void);
@@ -91,12 +96,17 @@ void test_restow_package(void);
 void test_package_stow_status(void);
 void test_unfold_directory_symlinks(void);
 void test_native_unstow_recursive_directory_cleanup(void);
+void test_link_all_packages(void);
+void test_linker_ops_invalid_package(void);
 
 /* Prototypes for utils tests */
 void test_xdg_paths(void);
 void test_expand_env_vars(void);
 void test_degraded_env_path_resolution(void);
 void test_logger_output(void);
+void test_logger_file_logging_and_filtering(void);
+void test_logger_level_switching(void);
+void test_logger_close_idempotent(void);
 void test_safe_allocators(void);
 void test_normalize_path(void);
 void test_collapse_path(void);
@@ -108,11 +118,19 @@ void test_path_sanity_strerror(void);
 void test_path_parsing_traversal_and_naming_edge_cases(void);
 void test_is_executable_in_path(void);
 void test_temp_path_registration(void);
+void test_signal_safe_temp_cleanup(void);
+void test_signal_handlers_setup(void);
 void test_trim_whitespace(void);
 void test_string_array(void);
 void test_str_set(void);
 void test_perf_timer(void);
+void test_perf_timer_edge_cases_and_null_guards(void);
 void test_io_uring_backend_probe(void);
+void test_io_uring_null_and_empty_batch(void);
+void test_io_uring_link_batch_execution(void);
+void test_thread_pool_lifecycle(void);
+void test_thread_pool_concurrency(void);
+void test_thread_pool_null_and_error_guards(void);
 
 /* Prototypes for utils/fs tests */
 void test_mkdir_p(void);
@@ -158,6 +176,7 @@ int main(void)
     // --- core ---
     RUN_TEST(test_check_package_dependencies);
     RUN_TEST(test_symlink_health_check);
+    RUN_TEST(test_symlink_health_check_clean);
     RUN_TEST(test_pkg_manager_builtins);
     RUN_TEST(test_pkg_manager_custom_config);
     RUN_TEST(test_pkg_manager_resolution_precedence);
@@ -174,12 +193,16 @@ int main(void)
     RUN_TEST(test_package_remove);
     RUN_TEST(test_manifest_set_target);
     RUN_TEST(test_registry_parsing);
+    RUN_TEST(test_registry_add_tool);
+    RUN_TEST(test_is_tool_installed_dynamic);
     RUN_TEST(test_get_all_packages_skips_dot_dirs);
     RUN_TEST(test_scan_package);
     RUN_TEST(test_scan_package_excludes_non_tool_packages);
     RUN_TEST(test_scan_package_comment_stripping_and_auto_registry);
     RUN_TEST(test_scan_package_interactive_mode);
     RUN_TEST(test_scanner_parser_token_extraction);
+    RUN_TEST(test_scanner_comment_detection_edge_cases);
+    RUN_TEST(test_scanner_extract_tokens_edge_cases);
 
     // --- core/config ---
     RUN_TEST(test_get_active_dotfiles_dir_cascade);
@@ -206,12 +229,17 @@ int main(void)
     RUN_TEST(test_package_stow_status);
     RUN_TEST(test_unfold_directory_symlinks);
     RUN_TEST(test_native_unstow_recursive_directory_cleanup);
+    RUN_TEST(test_link_all_packages);
+    RUN_TEST(test_linker_ops_invalid_package);
 
     // --- utils ---
     RUN_TEST(test_xdg_paths);
     RUN_TEST(test_expand_env_vars);
     RUN_TEST(test_degraded_env_path_resolution);
     RUN_TEST(test_logger_output);
+    RUN_TEST(test_logger_file_logging_and_filtering);
+    RUN_TEST(test_logger_level_switching);
+    RUN_TEST(test_logger_close_idempotent);
     RUN_TEST(test_safe_allocators);
     RUN_TEST(test_normalize_path);
     RUN_TEST(test_collapse_path);
@@ -223,11 +251,19 @@ int main(void)
     RUN_TEST(test_path_parsing_traversal_and_naming_edge_cases);
     RUN_TEST(test_is_executable_in_path);
     RUN_TEST(test_temp_path_registration);
+    RUN_TEST(test_signal_safe_temp_cleanup);
+    RUN_TEST(test_signal_handlers_setup);
     RUN_TEST(test_trim_whitespace);
     RUN_TEST(test_string_array);
     RUN_TEST(test_str_set);
     RUN_TEST(test_perf_timer);
+    RUN_TEST(test_perf_timer_edge_cases_and_null_guards);
     RUN_TEST(test_io_uring_backend_probe);
+    RUN_TEST(test_io_uring_null_and_empty_batch);
+    RUN_TEST(test_io_uring_link_batch_execution);
+    RUN_TEST(test_thread_pool_lifecycle);
+    RUN_TEST(test_thread_pool_concurrency);
+    RUN_TEST(test_thread_pool_null_and_error_guards);
 
     // --- utils/fs ---
     RUN_TEST(test_mkdir_p);

@@ -23,6 +23,7 @@
 #include "../test_framework.h"
 #include "core/checker.h"
 #include "core/manifest.h"
+#include "utils/fs.h"
 
 void test_check_package_dependencies(void)
 {
@@ -68,6 +69,37 @@ void test_symlink_health_check(void)
     snprintf(orphan_link, sizeof(orphan_link), "%s/orphan.symlink", tmp_target);
     symlink(del_file, orphan_link);
 
+    check_symlink_health(tmp_dotfiles, tmp_target);
+
+    cleanup_test_dir(tmp_dotfiles);
+    cleanup_test_dir(tmp_target);
+}
+
+void test_symlink_health_check_clean(void)
+{
+    char tmp_dotfiles[PATH_MAX];
+    char tmp_target[PATH_MAX];
+    ASSERT(create_test_tmp_dir(tmp_dotfiles, sizeof(tmp_dotfiles), "sym_clean_dot") != NULL,
+           "Should create temporary dotfiles directory");
+    ASSERT(create_test_tmp_dir(tmp_target, sizeof(tmp_target), "sym_clean_tgt") != NULL,
+           "Should create temporary target directory");
+
+    char pkg_dir[PATH_MAX];
+    snprintf(pkg_dir, sizeof(pkg_dir), "%s/mypkg", tmp_dotfiles);
+    mkdir(pkg_dir, 0755);
+    char real_file[PATH_MAX];
+    snprintf(real_file, sizeof(real_file), "%s/valid.conf", pkg_dir);
+    FILE *fp = fopen(real_file, "w");
+    if (fp) {
+        fprintf(fp, "valid\n");
+        fclose(fp);
+    }
+
+    char valid_symlink[PATH_MAX];
+    snprintf(valid_symlink, sizeof(valid_symlink), "%s/valid.conf", tmp_target);
+    symlink(real_file, valid_symlink);
+
+    // Health check on valid setup
     check_symlink_health(tmp_dotfiles, tmp_target);
 
     cleanup_test_dir(tmp_dotfiles);

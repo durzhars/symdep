@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -22,6 +22,8 @@
 
 #include "../test_framework.h"
 #include "core/registry.h"
+#include "utils/fs.h"
+#include <stdio.h>
 
 void test_registry_parsing(void)
 {
@@ -30,7 +32,7 @@ void test_registry_parsing(void)
            "Should create temporary test directory");
 
     char reg_path[PATH_MAX * 4];
-    snprintf(reg_path, sizeof(reg_path), "%s/stow.registry", tmp_dir);
+    snprintf(reg_path, sizeof(reg_path), "%s/symdep.registry", tmp_dir);
     FILE *fp = fopen(reg_path, "w");
     ASSERT(fp != NULL, "Should open registry file for writing");
 
@@ -49,6 +51,39 @@ void test_registry_parsing(void)
     char distro_pkg[256];
     registry_get_distro_pkg(tmp_dir, "tool_a", "ubuntu", distro_pkg, sizeof(distro_pkg));
     ASSERT_STR_EQ(distro_pkg, "pkg_a_ubuntu");
+
+    cleanup_test_dir(tmp_dir);
+}
+
+void test_registry_add_tool(void)
+{
+    char tmp_dir[PATH_MAX];
+    ASSERT(create_test_tmp_dir(tmp_dir, sizeof(tmp_dir), "reg_add") != NULL,
+           "Should create temporary test directory for registry add");
+
+    registry_add_tool(tmp_dir, "custom_new_tool");
+    registry_add_tool(tmp_dir, "custom_new_tool"); // duplicate addition
+
+    StringArray tools;
+    str_array_init(&tools);
+    registry_get_all_tools(tmp_dir, &tools);
+
+    ASSERT(str_array_contains(&tools, "custom_new_tool"),
+           "Registry should contain added tool 'custom_new_tool'");
+
+    str_array_free(&tools);
+    cleanup_test_dir(tmp_dir);
+}
+
+void test_is_tool_installed_dynamic(void)
+{
+    char tmp_dir[PATH_MAX];
+    ASSERT(create_test_tmp_dir(tmp_dir, sizeof(tmp_dir), "reg_inst") != NULL,
+           "Should create temporary test directory");
+
+    ASSERT(is_tool_installed_dynamic(tmp_dir, "sh"), "sh should be reported as installed");
+    ASSERT(!is_tool_installed_dynamic(tmp_dir, "nonexistent_binary_xyz_123"),
+           "nonexistent binary should not be reported as installed");
 
     cleanup_test_dir(tmp_dir);
 }

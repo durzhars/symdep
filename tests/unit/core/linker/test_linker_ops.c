@@ -22,6 +22,7 @@
 
 #include "../../test_framework.h"
 #include "core/linker.h"
+#include "utils/fs.h"
 
 void test_native_unstow_edited_user_file(void)
 {
@@ -176,18 +177,57 @@ void test_link_all_packages(void)
     ASSERT(create_test_tmp_dir(tmp_target, sizeof(tmp_target), "all_tgt") != NULL,
            "Should create temporary target directory");
 
-    char pkg1[PATH_MAX];
+    char pkg1[PATH_MAX], pkg2[PATH_MAX];
     snprintf(pkg1, sizeof(pkg1), "%s/pkg1", tmp_dotfiles);
+    snprintf(pkg2, sizeof(pkg2), "%s/pkg2", tmp_dotfiles);
     mkdir(pkg1, 0755);
-    char f1[PATH_MAX];
+    mkdir(pkg2, 0755);
+
+    char f1[PATH_MAX], f2[PATH_MAX];
     snprintf(f1, sizeof(f1), "%s/.f1", pkg1);
+    snprintf(f2, sizeof(f2), "%s/.f2", pkg2);
     FILE *fp1 = fopen(f1, "w");
     if (fp1) {
         fprintf(fp1, "1\n");
         fclose(fp1);
     }
+    FILE *fp2 = fopen(f2, "w");
+    if (fp2) {
+        fprintf(fp2, "2\n");
+        fclose(fp2);
+    }
 
+    // Dry-run mode
     link_all_packages(tmp_dotfiles, tmp_target, false, true);
+    char tgt1[PATH_MAX], tgt2[PATH_MAX];
+    snprintf(tgt1, sizeof(tgt1), "%s/.f1", tmp_target);
+    snprintf(tgt2, sizeof(tgt2), "%s/.f2", tmp_target);
+    ASSERT(!file_exists(tgt1), "Dry run should not create tgt1");
+    ASSERT(!file_exists(tgt2), "Dry run should not create tgt2");
+
+    // Real mode
+    link_all_packages(tmp_dotfiles, tmp_target, false, false);
+    ASSERT(is_symlink(tgt1), "link_all_packages should create symlink tgt1");
+    ASSERT(is_symlink(tgt2), "link_all_packages should create symlink tgt2");
+
+    cleanup_test_dir(tmp_dotfiles);
+    cleanup_test_dir(tmp_target);
+}
+
+void test_linker_ops_invalid_package(void)
+{
+    char tmp_dotfiles[PATH_MAX];
+    char tmp_target[PATH_MAX];
+    ASSERT(create_test_tmp_dir(tmp_dotfiles, sizeof(tmp_dotfiles), "inv_dot") != NULL,
+           "Should create temporary dotfiles directory");
+    ASSERT(create_test_tmp_dir(tmp_target, sizeof(tmp_target), "inv_tgt") != NULL,
+           "Should create temporary target directory");
+
+    int res_link = link_package(tmp_dotfiles, tmp_target, "nonexistent_pkg_xyz", false, false);
+    ASSERT(res_link == -1, "link_package on nonexistent package should return -1");
+
+    int res_unlink = unlink_package(tmp_dotfiles, tmp_target, "nonexistent_pkg_xyz", false);
+    ASSERT(res_unlink == -1, "unlink_package on nonexistent package should return -1");
 
     cleanup_test_dir(tmp_dotfiles);
     cleanup_test_dir(tmp_target);

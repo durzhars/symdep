@@ -23,6 +23,7 @@
 #include "../test_framework.h"
 #include "utils/logger.h"
 #include "utils/timer.h"
+#include <string.h>
 #include <time.h>
 
 void test_perf_timer(void)
@@ -43,6 +44,48 @@ void test_perf_timer(void)
     double elapsed_us = perf_timer_elapsed_us(&timer);
     ASSERT(elapsed_us >= 1000.0, "Elapsed us should be >= 1000 us");
 
+    // Idempotent stop: calling perf_timer_stop again returns identical result
+    double elapsed_ms_again = perf_timer_stop(&timer);
+    ASSERT(elapsed_ms_again == elapsed_ms,
+           "Subsequent stop on stopped timer should return same elapsed time");
+    ASSERT(timer.running == false, "Timer should remain not running");
+
     perf_timer_log(&timer);
+    perf_profiler_set_enabled(false);
+}
+
+void test_perf_timer_edge_cases_and_null_guards(void)
+{
+    // 1. NULL pointer safety
+    ASSERT(perf_timer_stop(NULL) == 0.0, "perf_timer_stop(NULL) should return 0.0");
+    ASSERT(perf_timer_elapsed_us(NULL) == 0.0, "perf_timer_elapsed_us(NULL) should return 0.0");
+    ASSERT(perf_timer_elapsed_ms(NULL) == 0.0, "perf_timer_elapsed_ms(NULL) should return 0.0");
+
+    // NULL log calls should not crash
+    perf_timer_log(NULL);
+    perf_timer_log_force(NULL);
+
+    // 2. Start timer with NULL name
+    PerfTimer null_name_timer = perf_timer_start(NULL);
+    ASSERT(null_name_timer.name != NULL, "Timer name should default to non-NULL string");
+    ASSERT_STR_EQ(null_name_timer.name, "unnamed_operation");
+    ASSERT(null_name_timer.running == true, "Timer with default name should be running");
+    perf_timer_stop(&null_name_timer);
+
+    // 3. Log behavior with profiler enabled vs disabled
+    PerfTimer quick_timer = perf_timer_start("quick_op");
+    perf_timer_stop(&quick_timer);
+
+    perf_profiler_set_enabled(false);
+    ASSERT(!perf_profiler_is_enabled(), "Profiler should report disabled");
+    perf_timer_log(&quick_timer); // Silent no-op
+
+    perf_profiler_set_enabled(true);
+    ASSERT(perf_profiler_is_enabled(), "Profiler should report enabled");
+    perf_timer_log(&quick_timer);
+
+    // 4. Force log
+    perf_timer_log_force(&quick_timer);
+
     perf_profiler_set_enabled(false);
 }

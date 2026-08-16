@@ -146,3 +146,44 @@ bool is_symlink_pointing_to(const char *symlink_path,
 
     return false;
 }
+
+#ifdef __linux__
+#include <fcntl.h>
+#include <sys/syscall.h>
+#ifndef SYS_renameat2
+#define SYS_renameat2 316
+#endif
+#ifndef RENAME_EXCHANGE
+#define RENAME_EXCHANGE (1 << 1)
+#endif
+#endif
+
+bool fs_atomic_swap_or_replace(const char *src_tmp, const char *dst_target, bool is_dir_over_symlink)
+{
+    if (!src_tmp || !dst_target) {
+        return false;
+    }
+
+    if (!is_dir_over_symlink) {
+        /* Standard non-directory (symlink-to-symlink, file-to-file) replacement */
+        return (rename(src_tmp, dst_target) == 0);
+    }
+
+#if defined(__linux__) && defined(SYS_renameat2)
+    /* Tier 1: Linux raw kernel dentry exchange (0-window physical atomicity) */
+    if (syscall(SYS_renameat2, AT_FDCWD, src_tmp, AT_FDCWD, dst_target, RENAME_EXCHANGE) == 0) {
+        unlink(src_tmp); /* Clean up old symlink swapped into src_tmp */
+        return true;
+    }
+#elif defined(__APPLE__)
+    /* Tier 1: Darwin / macOS APFS atomic dentry exchange */
+    if (renameatx_np(AT_FDCWD, src_tmp, AT_FDCWD, dst_target, RENAME_EXCHANGE) == 0) {
+        unlink(src_tmp);
+        return true;
+    }
+#endif
+
+    /* Tier 2: Generic POSIX fallback (unlink + rename) */
+    unlink(dst_target);
+    return (rename(src_tmp, dst_target) == 0);
+}

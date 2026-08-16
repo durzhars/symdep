@@ -74,45 +74,18 @@ static void native_link_cb(const char *file_path, const char *rel_path, void *us
     char pkg_file_path[STOW_PATH_LARGE];
     fast_path_join(pkg_file_path, ctx->pkg_dir, pkg_dir_len, rel_path);
 
-    struct stat st;
-    if (lstat(target_path, &st) == 0) {
-        if (S_ISLNK(st.st_mode)) {
-            char real_pkg_file_path[STOW_PATH_LARGE];
-            if (is_symlink(pkg_file_path)) {
-                if (realpath(pkg_file_path, real_pkg_file_path) == NULL) {
-                    snprintf(real_pkg_file_path, sizeof(real_pkg_file_path), "%s", pkg_file_path);
-                }
-            } else {
-                snprintf(real_pkg_file_path, sizeof(real_pkg_file_path), "%s", pkg_file_path);
-            }
-
-            if (is_symlink_pointing_to(target_path, pkg_file_path, real_pkg_file_path)) {
-                return;
-            }
-
-            /* Atomically replace stale symlink via temp symlink + rename to eliminate TOCTOU race condition */
-            char tmp_symlink[STOW_PATH_HUGE];
-            snprintf(tmp_symlink, sizeof(tmp_symlink), "%s.symdep_tmp_%d", target_path, (int)getpid());
-            if (symlink(pkg_file_path, tmp_symlink) == 0) {
-                if (rename(tmp_symlink, target_path) == 0) {
-                    log_info("LINK: %s => %s", rel_path, pkg_file_path);
-                    __atomic_fetch_add(&ctx->created_count, 1, __ATOMIC_RELAXED);
-                    return;
-                }
-                unlink(tmp_symlink);
-            }
-        } else {
-            char backup_path[STOW_PATH_HUGE];
-            build_unique_backup_path(target_path, backup_path, sizeof(backup_path));
-
-            log_warn("Conflict! Backing up file: %s -> %s", target_path, backup_path);
-            if (rename(target_path, backup_path) != 0) {
-                log_error(
-                    "Failed to backup conflicting file: %s: %s", target_path, strerror(errno));
-                __atomic_fetch_add(&ctx->errors, 1, __ATOMIC_RELAXED);
-                return;
-            }
-        }
+    TargetResolveResult res =
+        resolve_target_conflict_or_replace(target_path, pkg_file_path, rel_path);
+    if (res == TARGET_RESOLVE_ALREADY_LINKED) {
+        return;
+    }
+    if (res == TARGET_RESOLVE_REPLACED) {
+        atomic_fetch_add_explicit(&ctx->created_count, 1, memory_order_relaxed);
+        return;
+    }
+    if (res == TARGET_RESOLVE_ERROR) {
+        atomic_fetch_add_explicit(&ctx->errors, 1, memory_order_relaxed);
+        return;
     }
 
     /* Parent directory is pre-created in Pass 1 upfront */
@@ -135,11 +108,11 @@ static void native_link_cb(const char *file_path, const char *rel_path, void *us
         } else {
             log_info("LINK: %s => %s", rel_path, pkg_file_path);
         }
-        __atomic_fetch_add(&ctx->created_count, 1, __ATOMIC_RELAXED);
+        atomic_fetch_add_explicit(&ctx->created_count, 1, memory_order_relaxed);
     } else {
         log_error(
             "Failed to create symlink: %s -> %s: %s", target_path, pkg_file_path, strerror(errno));
-        __atomic_fetch_add(&ctx->errors, 1, __ATOMIC_RELAXED);
+        atomic_fetch_add_explicit(&ctx->errors, 1, memory_order_relaxed);
     }
 }
 

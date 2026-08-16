@@ -80,24 +80,12 @@ static bool init_io_uring(IoUringRing *ring, uint32_t entries)
     ring->cq_size = page_align_size(p.cq_off.cqes + p.cq_entries * sizeof(struct io_uring_cqe));
     ring->sqes_size = page_align_size(p.sq_entries * sizeof(struct io_uring_sqe));
 
-    ring->sq_ptr = mmap(0,
-                        ring->sq_size,
-                        PROT_READ | PROT_WRITE,
-                        MAP_SHARED,
-                        ring_fd,
-                        IORING_OFF_SQ_RING);
-    ring->cq_ptr = mmap(0,
-                        ring->cq_size,
-                        PROT_READ | PROT_WRITE,
-                        MAP_SHARED,
-                        ring_fd,
-                        IORING_OFF_CQ_RING);
-    ring->sqes = (struct io_uring_sqe *)mmap(0,
-                                             ring->sqes_size,
-                                             PROT_READ | PROT_WRITE,
-                                             MAP_SHARED,
-                                             ring_fd,
-                                             IORING_OFF_SQES);
+    ring->sq_ptr =
+        mmap(0, ring->sq_size, PROT_READ | PROT_WRITE, MAP_SHARED, ring_fd, IORING_OFF_SQ_RING);
+    ring->cq_ptr =
+        mmap(0, ring->cq_size, PROT_READ | PROT_WRITE, MAP_SHARED, ring_fd, IORING_OFF_CQ_RING);
+    ring->sqes = (struct io_uring_sqe *)mmap(
+        0, ring->sqes_size, PROT_READ | PROT_WRITE, MAP_SHARED, ring_fd, IORING_OFF_SQES);
 
     if (ring->sq_ptr == MAP_FAILED || ring->cq_ptr == MAP_FAILED || ring->sqes == MAP_FAILED) {
         if (ring->sq_ptr != MAP_FAILED)
@@ -162,7 +150,7 @@ bool io_uring_is_supported(void)
     sqe->addr2 = (uint64_t)test_tgt;
 
     ring.sq_array[0] = 0;
-    __atomic_store_n(ring.sq_tail, 1, __ATOMIC_RELEASE);
+    atomic_store_explicit((_Atomic uint32_t *)ring.sq_tail, 1, memory_order_release);
 
     int ret =
         (int)syscall(__NR_io_uring_enter, ring.ring_fd, 1, 1, IORING_ENTER_GETEVENTS, NULL, 0);
@@ -256,43 +244,18 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
             fast_path_join(link->target_path, ctx->target_dir, target_dir_len, rel_path);
             fast_path_join(link->pkg_file_path, ctx->pkg_dir, pkg_dir_len, rel_path);
 
-            struct stat st;
-            if (lstat(link->target_path, &st) == 0) {
-                if (S_ISLNK(st.st_mode)) {
-                    char real_pkg[STOW_PATH_LARGE];
-                    if (is_symlink(link->pkg_file_path)) {
-                        if (realpath(link->pkg_file_path, real_pkg) == NULL) {
-                            snprintf(real_pkg, sizeof(real_pkg), "%s", link->pkg_file_path);
-                        }
-                    } else {
-                        snprintf(real_pkg, sizeof(real_pkg), "%s", link->pkg_file_path);
-                    }
-
-                    if (is_symlink_pointing_to(link->target_path, link->pkg_file_path, real_pkg)) {
-                        continue;
-                    }
-
-                    /* Atomically replace stale symlink via temp symlink + rename to eliminate TOCTOU race condition */
-                    char tmp_symlink[STOW_PATH_HUGE];
-                    snprintf(tmp_symlink, sizeof(tmp_symlink), "%s.symdep_tmp_%d", link->target_path, (int)getpid());
-                    if (symlink(link->pkg_file_path, tmp_symlink) == 0) {
-                        if (rename(tmp_symlink, link->target_path) == 0) {
-                            log_info("LINK: %s => %s", link->rel_path, link->pkg_file_path);
-                            ctx->created_count++;
-                            continue;
-                        }
-                        unlink(tmp_symlink);
-                    }
-                } else {
-                    char backup_path[STOW_PATH_HUGE];
-                    build_unique_backup_path(link->target_path, backup_path, sizeof(backup_path));
-                    log_warn("Conflict! Backing up file: %s -> %s", link->target_path, backup_path);
-                    if (rename(link->target_path, backup_path) != 0) {
-                        log_error("Failed to backup file: %s", link->target_path);
-                        ctx->errors++;
-                        continue;
-                    }
-                }
+            TargetResolveResult res = resolve_target_conflict_or_replace(
+                link->target_path, link->pkg_file_path, link->rel_path);
+            if (res == TARGET_RESOLVE_ALREADY_LINKED) {
+                continue;
+            }
+            if (res == TARGET_RESOLVE_REPLACED) {
+                atomic_fetch_add_explicit(&ctx->created_count, 1, memory_order_relaxed);
+                continue;
+            }
+            if (res == TARGET_RESOLVE_ERROR) {
+                atomic_fetch_add_explicit(&ctx->errors, 1, memory_order_relaxed);
+                continue;
             }
 
             // Enqueue SQE
@@ -307,7 +270,8 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
             sqe->user_data = queued;
 
             ring->sq_array[index] = index;
-            __atomic_store_n(ring->sq_tail, tail + 1, __ATOMIC_RELEASE);
+            atomic_store_explicit(
+                (_Atomic uint32_t *)ring->sq_tail, tail + 1, memory_order_release);
             queued++;
         }
 
@@ -320,7 +284,7 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
             __NR_io_uring_enter, ring->ring_fd, queued, queued, IORING_ENTER_GETEVENTS, NULL, 0);
         if (submitted < 0) {
             log_error("io_uring_enter failed: %s", strerror(errno));
-            ctx->errors += (size_t)queued;
+            atomic_fetch_add_explicit(&ctx->errors, (int)queued, memory_order_relaxed);
             break;
         }
 
@@ -330,7 +294,7 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
         while (head != cq_tail) {
             struct io_uring_cqe *cqe = &ring->cqes[head & *ring->cq_ring_mask];
             if (cqe->res == 0) {
-                ctx->created_count++;
+                atomic_fetch_add_explicit(&ctx->created_count, 1, memory_order_relaxed);
             } else {
                 size_t b_idx = (size_t)cqe->user_data;
                 log_error("io_uring symlink failed (target=%s -> pkg=%s) cqe_res=%d: %s",
@@ -338,7 +302,7 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
                           batch[b_idx].pkg_file_path,
                           cqe->res,
                           strerror(-cqe->res));
-                ctx->errors++;
+                atomic_fetch_add_explicit(&ctx->errors, 1, memory_order_relaxed);
             }
             head++;
         }

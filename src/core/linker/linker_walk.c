@@ -71,7 +71,8 @@ void walk_target_dir_symlinks_targeted(const char *target_dir,
     state.cb = cb;
     state.user_data = user_data;
 
-    // 1. Scan top-level entries directly inside target_dir only when pkg_files is NULL (e.g. check-symlinks)
+    // 1. Scan top-level entries directly inside target_dir only when pkg_files is NULL (e.g.
+    // check-symlinks)
     if (!pkg_files) {
         DIR *dir = opendir(target_dir);
         if (dir) {
@@ -231,13 +232,10 @@ static void unfold_symlink_cb(const char *symlink_path, void *user_data)
                     closedir(tdir);
 
                     if (copy_success) {
-                        if (rename(tmp_dir, symlink_path) != 0) {
-                            unlink(symlink_path);
-                            if (rename(tmp_dir, symlink_path) != 0) {
-                                log_error("Failed to rename unfolded directory '%s': %s",
-                                          tmp_dir,
-                                          strerror(errno));
-                            }
+                        if (!fs_atomic_swap_or_replace(tmp_dir, symlink_path, true)) {
+                            log_error("Failed to rename unfolded directory '%s': %s",
+                                      tmp_dir,
+                                      strerror(errno));
                         }
                     } else {
                         cleanup_temp_dir_contents(tmp_dir);

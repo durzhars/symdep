@@ -271,3 +271,52 @@ void handle_dynamic_package_conflicts(const char *target_dir,
     str_array_free(&ctx.conflicting_pkgs);
     str_array_free(&raw_ignores);
 }
+
+TargetResolveResult resolve_target_conflict_or_replace(const char *target_path,
+                                                       const char *pkg_file_path,
+                                                       const char *rel_path)
+{
+    struct stat st;
+    if (lstat(target_path, &st) != 0) {
+        return TARGET_RESOLVE_PROCEED_LINK;
+    }
+
+    if (S_ISLNK(st.st_mode)) {
+        char real_pkg_file_path[STOW_PATH_LARGE];
+        if (is_symlink(pkg_file_path)) {
+            if (realpath(pkg_file_path, real_pkg_file_path) == NULL) {
+                snprintf(real_pkg_file_path, sizeof(real_pkg_file_path), "%s", pkg_file_path);
+            }
+        } else {
+            snprintf(real_pkg_file_path, sizeof(real_pkg_file_path), "%s", pkg_file_path);
+        }
+
+        if (is_symlink_pointing_to(target_path, pkg_file_path, real_pkg_file_path)) {
+            return TARGET_RESOLVE_ALREADY_LINKED;
+        }
+
+        /* Atomically replace stale symlink via temp symlink + rename to eliminate TOCTOU race
+         * condition */
+        char tmp_symlink[STOW_PATH_HUGE];
+        snprintf(tmp_symlink, sizeof(tmp_symlink), "%s.symdep_tmp_%d", target_path, (int)getpid());
+        if (symlink(pkg_file_path, tmp_symlink) == 0) {
+            if (fs_atomic_swap_or_replace(tmp_symlink, target_path, false)) {
+                log_info("LINK: %s => %s", rel_path, pkg_file_path);
+                return TARGET_RESOLVE_REPLACED;
+            }
+            unlink(tmp_symlink);
+        }
+        return TARGET_RESOLVE_ERROR;
+    }
+
+    char backup_path[STOW_PATH_HUGE];
+    build_unique_backup_path(target_path, backup_path, sizeof(backup_path));
+
+    log_warn("Conflict! Backing up file: %s -> %s", target_path, backup_path);
+    if (rename(target_path, backup_path) != 0) {
+        log_error("Failed to backup conflicting file: %s: %s", target_path, strerror(errno));
+        return TARGET_RESOLVE_ERROR;
+    }
+
+    return TARGET_RESOLVE_PROCEED_LINK;
+}

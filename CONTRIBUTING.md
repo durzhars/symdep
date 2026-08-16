@@ -13,8 +13,13 @@ Before introducing architectural changes, please review our **Architecture Decis
 - [ADR-002: Dynamic Symlink Unfolding & Collision Engine](docs/decisions/ADR-002-symlink-unfolding-and-collision-engine.md)
 - [ADR-003: Cross-Distro Package & Plugin Registry Engine](docs/decisions/ADR-003-cross-distro-package-and-plugin-registry.md)
 - [ADR-004: AST / Shebang Code-Analysis Dependency Scanner Engine](docs/decisions/ADR-004-static-analysis-dependency-scanner.md)
-- [ADR-005: Unified Command Dispatch Table & Multi-Namespace Syntax](docs/decisions/ADR-005-unified-command-dispatch-table.md)
+- [ADR-005: Multi-Syntax CLI Interface & Drop-in Compatibility](docs/decisions/ADR-005-unified-command-dispatch-table.md)
 - [ADR-006: Hierarchical Ignore Rule Engine](docs/decisions/ADR-006-hierarchical-ignore-rule-engine.md)
+- [ADR-007: Dual-Driver Asynchronous Symlink Execution Engine](docs/decisions/ADR-007-dual-driver-asynchronous-symlink-execution-engine.md)
+- [ADR-008: Targeted Traversal & Two-Pass Directory Creation](docs/decisions/ADR-008-targeted-traversal-and-two-pass-directory-creation.md)
+- [ADR-009: Non-Destructive Conflict Resolution & Automated Backup Strategy](docs/decisions/ADR-009-non-destructive-conflict-resolution-and-auto-backup.md)
+- [ADR-010: Dynamic Privilege Elevation & Writable-Prefix Probing](docs/decisions/ADR-010-dynamic-privilege-elevation-and-writable-prefix-probing.md)
+- [ADR-011: Multi-Repository Federation & Hierarchical Precedence](docs/decisions/ADR-011-multi-repository-federation-and-target-precedence.md)
 
 ---
 
@@ -32,11 +37,20 @@ cd symdep
 # Compile release binary (output: bin/symdep)
 make
 
-# Run unit test suite (79+ tests)
+# Run unit test suite (81+ tests)
 make test
 
-# Run integration feature test suite
+# Run integration feature test suite (6 suites, 137 assertions)
 make test-feature
+
+# Run performance benchmark suite against competitors
+make bench
+
+# Build ultra-compact static binary (~230KB) using musl-gcc
+make static-musl
+
+# Generate release distribution tarball (.tar.gz) and SHA256 checksum
+make dist
 ```
 
 ---

@@ -4,7 +4,7 @@
 Accepted
 
 ## Date
-- **Decision / Commit Date**: 2026-08-16
+- **Decision / Commit Date**: 2026-08-16 (Commit `2a8ff55`)
 - **Recorded Date**: 2026-08-16
 
 ## Context

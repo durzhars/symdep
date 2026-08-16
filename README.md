@@ -85,16 +85,18 @@ make test-feature
 
 Key technical decisions in `symdep` are documented in detail within [`docs/decisions/`](docs/decisions/):
 
-- **[ADR-001: Zero-Dependency ISO C17 Architecture](docs/decisions/ADR-001-zero-dependency-c17-architecture.md)** — Rationale for choosing ISO C17 over Perl (GNU Stow), Python, or Rust/Go for execution speed and portability in minimal system environments.
+- **[ADR-001: Zero-Dependency ISO C17 Architecture](docs/decisions/ADR-001-zero-dependency-c17-architecture.md)** — Rationale for choosing ISO C17 over Perl (GNU Stow), Python, or Rust/Go for execution speed, standalone static musl binaries, and portability in minimal system environments.
 - **[ADR-002: Dynamic Symlink Unfolding Engine](docs/decisions/ADR-002-symlink-unfolding-and-collision-engine.md)** — Design of the automatic directory unfolding mechanism to prevent symlink tree folding collisions.
 - **[ADR-003: Cross-Distro Package & Plugin Registry Engine](docs/decisions/ADR-003-cross-distro-package-and-plugin-registry.md)** — Multi-distro package manager detection, privilege elevation abstraction (`sudo`, `doas`, `tsu`), and custom tool registry mapping.
 - **[ADR-004: AST / Shebang Code-Analysis Dependency Scanner Engine](docs/decisions/ADR-004-static-analysis-dependency-scanner.md)** — Static code parsing for shebangs and tool calls to eliminate manual manifest creation.
-- **[ADR-005: Unified Command Dispatch Table](docs/decisions/ADR-005-unified-command-dispatch-table.md)** — Centralized routing architecture supporting multi-namespace, colon-separated, and legacy GNU Stow command syntaxes.
+- **[ADR-005: Multi-Syntax CLI Interface & Drop-in Compatibility](docs/decisions/ADR-005-unified-command-dispatch-table.md)** — Unified CLI architecture supporting colon-separated actions, space-separated namespaces, top-level aliases, and drop-in GNU Stow flag compatibility.
 - **[ADR-006: Hierarchical Ignore Rule Engine](docs/decisions/ADR-006-hierarchical-ignore-rule-engine.md)** — Glob pattern matching, inheritance across global and package `.symignore` files, and redundancy warnings.
-- **[ADR-007: Dual-Driver Asynchronous Symlink Execution Engine](docs/decisions/ADR-007-dual-driver-asynchronous-symlink-execution-engine.md)** — Linux `io_uring` kernel submission queue driver & POSIX pthread work-stealing pool adaptive execution engine (optimized for Ext4 single-directory mutex locking vs Btrfs/XFS concurrent metadata batch writes).
-- **[ADR-008: TOCTOU-Safe Atomic Symlink Replacement](docs/decisions/ADR-008-toctou-safe-atomic-symlink-replacement.md)** — Atomic temporary symlink creation and `renameat` replacement to eliminate TOCTOU race conditions.
-- **[ADR-009: Targeted Traversal & Two-Pass Directory Creation](docs/decisions/ADR-009-targeted-traversal-and-two-pass-directory-creation.md)** — Pre-creation of target directory tree hierarchy upfront to eliminate thread lock contention and redundant per-file `mkdir_p` syscalls.
-- **[ADR-010: Process-Level Lookup Caching Engine](docs/decisions/ADR-010-process-level-lookup-caching-engine.md)** — In-memory caching for `$PATH` binary lookups and registry configuration memoization.
+- **[ADR-007: Dual-Driver Asynchronous Symlink Execution Engine](docs/decisions/ADR-007-dual-driver-asynchronous-symlink-execution-engine.md)** — Linux `io_uring` kernel submission queue driver & POSIX pthread work-stealing pool adaptive execution engine with atomic temp-swap concurrency guarantees.
+- **[ADR-008: Targeted Traversal & Two-Pass Directory Creation](docs/decisions/ADR-008-targeted-traversal-and-two-pass-directory-creation.md)** — Pre-creation of target directory tree hierarchy upfront to eliminate thread lock contention and redundant per-file `mkdir_p` syscalls.
+- **[ADR-009: Non-Destructive Conflict Resolution & Automated Backup Strategy](docs/decisions/ADR-009-non-destructive-conflict-resolution-and-auto-backup.md)** — Timestamped automated backup of colliding regular files to eliminate data loss during deployment.
+- **[ADR-010: Dynamic Privilege Elevation & Writable-Prefix Probing](docs/decisions/ADR-010-dynamic-privilege-elevation-and-writable-prefix-probing.md)** — POSIX permission-based root detection (`sudo`/`doas`/`tsu`/unprivileged) for user-space package managers (Homebrew, Termux, Nix).
+- **[ADR-011: Multi-Repository Federation & Hierarchical Precedence](docs/decisions/ADR-011-multi-repository-federation-and-target-precedence.md)** — Multi-dotfile repository federation (`SOURCE_DIRS`) and per-package `TARGET=` destination overrides with cascading precedence.
+- **[ADR-012: Flat In-Place Directory Unfolding vs. Multi-Hop Indirection](docs/decisions/ADR-012-flat-in-place-unfolding-vs-multi-hop-indirection.md)** — Rationale for native flat 1-hop `$HOME` layout over 2-hop container indirection to preserve `realpath()` integrity, eliminate $O(2)$ VFS lookup overhead, and avoid application path parsing bugs.
 
 For complete module-by-module developer function signatures, data structures, and contract specifications, see the **[C API Reference Guide](docs/API.md)**.
 
@@ -128,14 +130,23 @@ When locating the active source repository directory:
 # Build release binary (bin/symdep)
 make
 
-# Run unit test suite (79 unit tests)
+# Run unit test suite (81 unit tests)
 make test
 
 # Run end-to-end integration feature tests (6 test suites)
 make test-feature
 
-# Build static binary for standalone distribution
+# Build ultra-compact standalone static binary using musl-gcc (~230KB)
+make static-musl
+
+# Build standard statically linked binary (glibc)
 make static
+
+# Generate release distribution archive (.tar.gz) and SHA256 checksum
+make dist
+
+# Run sterilized benchmark suite (symdep vs GNU Stow vs Dotbot)
+make bench
 
 # Clean build artifacts
 make clean

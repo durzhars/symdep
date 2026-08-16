@@ -304,6 +304,8 @@ void registry_add_tool(const char *source_dir, const char *tool)
 
     fprintf(fp, "%s=%s\n", tool, tool);
     fclose(fp);
+    g_cached_source_dir[0] = '\0';
+    g_cached_registry_path[0] = '\0';
 }
 
 bool is_tool_installed_dynamic(const char *source_dir, const char *tool)

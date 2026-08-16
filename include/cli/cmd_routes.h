@@ -21,7 +21,10 @@
 
 #include "cmd_dispatch.h"
 
-/* Command Handler Prototypes */
+/**
+ * @name Core Deployment Command Handlers
+ * @{
+ */
 int cmd_stow(const CommandContext *ctx);
 int cmd_unstow(const CommandContext *ctx);
 int cmd_restow(const CommandContext *ctx);
@@ -31,31 +34,53 @@ int cmd_scan(const CommandContext *ctx);
 int cmd_check(const CommandContext *ctx);
 int cmd_check_symlinks(const CommandContext *ctx);
 int cmd_fix_conflicts(const CommandContext *ctx);
+/** @} */
 
+/**
+ * @name Package Management Command Handlers (`pkg:*`)
+ * @{
+ */
 int cmd_pkg_create(const CommandContext *ctx);
 int cmd_pkg_remove(const CommandContext *ctx);
 int cmd_pkg_list(const CommandContext *ctx);
+/** @} */
 
+/**
+ * @name Dependency Management Command Handlers (`deps:*`)
+ * @{
+ */
 int cmd_deps_add(const CommandContext *ctx);
 int cmd_deps_edit(const CommandContext *ctx);
 int cmd_deps_remove(const CommandContext *ctx);
 int cmd_deps_show(const CommandContext *ctx);
 int cmd_deps_target(const CommandContext *ctx);
+/** @} */
 
+/**
+ * @name Ignore & Pattern Filtering Handlers (`ignore:*`)
+ * @{
+ */
 int cmd_ignore_init(const CommandContext *ctx);
 int cmd_ignore_add(const CommandContext *ctx);
 int cmd_ignore_remove(const CommandContext *ctx);
 int cmd_ignore_show(const CommandContext *ctx);
 int cmd_ignore_clear(const CommandContext *ctx);
+/** @} */
 
+/**
+ * @name Configuration Subsystem Handlers (`config:*`)
+ * @{
+ */
 int cmd_config_show(const CommandContext *ctx);
 int cmd_config_set(const CommandContext *ctx);
 int cmd_config_add(const CommandContext *ctx);
 int cmd_config_remove(const CommandContext *ctx);
+/** @} */
 
+/** Top-level help command handler */
 int cmd_help(const CommandContext *ctx);
 
-/* Command Routing Table Registry */
+/** Global centralized command routing table terminated by NULL pattern */
 extern const CommandRoute ROUTE_TABLE[];
 
 #endif /* SYMDEP_CMD_ROUTES_H */

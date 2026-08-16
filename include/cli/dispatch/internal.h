@@ -43,13 +43,16 @@
 #include "utils/logger.h"
 #include "utils/path.h"
 
+/** Callback function invoked per package during batch operations */
 typedef int (*PackageActionFn)(const char *source_dir,
                                const char *target_dir,
                                const char *pkg_name,
                                const CommandContext *ctx);
 
+/** Iterate over all positional package arguments or all packages if none specified */
 int foreach_package(const CommandContext *ctx, PackageActionFn action);
 
+/** Parse positional and flag arguments for ignore commands */
 bool parse_ignore_args(const CommandContext *ctx,
                        const char **out_pkg,
                        const char *const **out_patterns,

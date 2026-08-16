@@ -19,8 +19,21 @@
 #ifndef SYMDEP_HELP_H
 #define SYMDEP_HELP_H
 
+/**
+ * @brief Display top-level usage manual and command summary to stdout.
+ */
 void show_help(void);
+
+/**
+ * @brief Display detailed manual and workflow examples for the dependency scanner (`symdep scan`).
+ */
 void show_scan_help(void);
+
+/**
+ * @brief Display detailed documentation manual for a specific subcommand topic.
+ *
+ * @param topic Subcommand topic identifier (e.g. "config", "scan").
+ */
 void show_subcommand_help(const char *topic);
 
 #endif /* SYMDEP_HELP_H */

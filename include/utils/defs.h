@@ -32,16 +32,26 @@
 #define PATH_MAX 4096
 #endif
 
-/* Deterministic path buffer capacities across OSes */
-#define STOW_PATH_MAX 4096
-#define STOW_PATH_LARGE 8192
-#define STOW_PATH_HUGE 16384
+/**
+ * @name Deterministic Path Buffer Limits
+ * Standard fixed-size buffer capacities guaranteeing cross-platform safety.
+ * @{
+ */
+#define STOW_PATH_MAX 4096   /**< Standard POSIX maximum path buffer capacity */
+#define STOW_PATH_LARGE 8192 /**< Double-capacity path buffer for nested joins */
+#define STOW_PATH_HUGE 16384 /**< Large buffer for path formatting and multi-repo listings */
+/** @} */
 
+/** Stringification macros */
 #ifndef STR
 #define XSTR(s) #s
 #define STR(s) XSTR(s)
 #endif
 
+/**
+ * @name ANSI Terminal Color Codes
+ * @{
+ */
 #define COLOR_RED "\033[0;31m"
 #define COLOR_GREEN "\033[0;32m"
 #define COLOR_YELLOW "\033[1;33m"
@@ -50,5 +60,6 @@
 #define COLOR_WHITE "\033[1;37m"
 #define COLOR_BOLD "\033[1m"
 #define COLOR_RESET "\033[0m"
+/** @} */
 
 #endif /* SYMDEP_UTILS_DEFS_H */

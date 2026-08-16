@@ -36,15 +36,32 @@
 #include "utils/logger.h"
 #include "utils/path.h"
 
-/* Internal Shared Helper Declarations */
+/** Load active configuration from disk into cfg struct */
 void config_load_active(Config *cfg);
 
+/**
+ * @brief Expand, normalize, and validate a user-supplied directory path for config storage.
+ *
+ * @param input_path   Raw input path string.
+ * @param out_buf      Output buffer for normalized path.
+ * @param buf_size     Size of output buffer.
+ * @param context      Context label for error logging (e.g. "target", "source").
+ * @param check_sanity Whether to run verify_path_sanity checks.
+ * @return true on valid path, false otherwise.
+ */
 bool prepare_config_path(const char *input_path,
                          char *out_buf,
                          size_t buf_size,
                          const char *context,
                          bool check_sanity);
 
+/**
+ * @brief Query environment for first non-empty variable matching an array of names.
+ *
+ * @param names Array of environment variable names to probe.
+ * @param count Number of elements in names.
+ * @return String value of first matching environment variable, or NULL.
+ */
 const char *getenv_first(const char *const names[], size_t count);
 
 #endif /* SYMDEP_CONFIG_INTERNAL_H */

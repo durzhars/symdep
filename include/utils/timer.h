@@ -16,46 +16,56 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef UTILS_TIMER_H
-#define UTILS_TIMER_H
+#ifndef SYMDEP_UTILS_TIMER_H
+#define SYMDEP_UTILS_TIMER_H
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
 
+/**
+ * @struct PerfTimer
+ * @brief High-precision nanosecond execution timer.
+ */
 typedef struct {
-    struct timespec start_ts;
-    struct timespec stop_ts;
-    const char *name;
-    bool running;
+    struct timespec start_ts; /**< Clock start timestamp */
+    struct timespec stop_ts;  /**< Clock stop timestamp */
+    const char *name;         /**< Timer identifier label */
+    bool running;             /**< Whether timer is actively running */
 } PerfTimer;
 
-// Enable/disable performance profiling log outputs globally
+/** Enable or disable execution profiler logging globally */
 void perf_profiler_set_enabled(bool enabled);
+
+/** Check if execution profiling is active */
 bool perf_profiler_is_enabled(void);
 
-// Start a timer with a given label
+/** Start a high-resolution performance timer with the specified name */
 PerfTimer perf_timer_start(const char *name);
 
-// Stop the timer and record end timestamp (returns elapsed ms)
+/** Stop timer and return elapsed duration in milliseconds */
 double perf_timer_stop(PerfTimer *timer);
 
-// Returns elapsed time in milliseconds (ms)
+/** Get elapsed duration in milliseconds */
 double perf_timer_elapsed_ms(const PerfTimer *timer);
 
-// Returns elapsed time in microseconds (us)
+/** Get elapsed duration in microseconds */
 double perf_timer_elapsed_us(const PerfTimer *timer);
 
-// Logs the timer's elapsed duration if profiling is enabled (or forcibly if force_log is true)
+/** Log timer duration if execution profiling is active */
 void perf_timer_log(const PerfTimer *timer);
+
+/** Forcibly log timer duration regardless of profiler toggle */
 void perf_timer_log_force(const PerfTimer *timer);
 
-// Convenience macros for scope profiling
+/** Macro: Begin scoped performance measurement */
 #define PERF_PROFILE_START(label) PerfTimer _timer_##label = perf_timer_start(#label)
+
+/** Macro: Conclude scoped performance measurement and log duration */
 #define PERF_PROFILE_END(label)           \
     do {                                  \
         perf_timer_stop(&_timer_##label); \
         perf_timer_log(&_timer_##label);  \
     } while (0)
 
-#endif /* UTILS_TIMER_H */
+#endif /* SYMDEP_UTILS_TIMER_H */

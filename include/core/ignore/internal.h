@@ -36,13 +36,16 @@
 #include "utils/path.h"
 #include "utils/str.h"
 
-/* Shared Internal Function Declarations */
+/** Get path to package or global .symignore (or legacy .stowignore) file */
 void get_stowignore_path(const char *source_dir,
                          const char *pkg_name,
                          char *out_path,
                          size_t out_size);
 
+/** Initialize .symignore template for a single package or global root */
 void ignore_init_single(const char *source_dir, const char *pkg_name);
+
+/** Clear/purge .symignore file for a single package or global root */
 void ignore_clear_single(const char *source_dir, const char *pkg_name);
 
 #endif /* SYMDEP_IGNORE_INTERNAL_H */

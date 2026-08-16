@@ -28,8 +28,9 @@ Implement a **Dual-Driver Asynchronous Execution Engine** in `symdep`:
    - Distributes package linking tasks across available CPU cores concurrently.
 3. **Runtime Driver Fallback & Filesystem Adaptive Execution**:
    - Automatically probes Linux `io_uring` kernel capability at runtime; falls back seamlessly to POSIX worker thread pool or single-threaded POSIX execution if unsupported or restricted.
+   - **Atomic Concurrency Guarantee**: In concurrent worker execution, stale or colliding symlinks are replaced via temporary atomic symlinks (`.symdep_tmp_PID`) and `renameat()` to eliminate race conditions and broken intermediate states.
    - **Filesystem Metadata Locking Characteristics**:
-     - *Ext4 Single-Directory Mutex*: On traditional Ext4 filesystems with single-directory write locking (`ext4_add_entry` `i_rwsem`), POSIX ThreadPool with pre-created directory hierarchies ([ADR-009](docs/decisions/ADR-009-targeted-traversal-and-two-pass-directory-creation.md)) minimizes kernel `io-wq` thread lock contention.
+     - *Ext4 Single-Directory Mutex*: On traditional Ext4 filesystems with single-directory write locking (`ext4_add_entry` `i_rwsem`), POSIX ThreadPool with pre-created directory hierarchies ([ADR-008](docs/decisions/ADR-008-targeted-traversal-and-two-pass-directory-creation.md)) minimizes kernel `io-wq` thread lock contention.
      - *Modern Concurrent Filesystems (Btrfs, XFS, F2FS)*: On filesystems with lock-free/concurrent B-tree metadata allocation, `io_uring` delivers maximum throughput by vectorizing submission queue entries without per-file syscall context switches.
 
 ## Alternatives Considered

@@ -1,4 +1,4 @@
-# ADR-009: Targeted Traversal & Two-Pass Parallel Directory Hierarchy Pre-Creation
+# ADR-008: Targeted Traversal & Two-Pass Parallel Directory Hierarchy Pre-Creation
 
 ## Status
 Accepted

@@ -1,4 +1,4 @@
-# ADR-005: Unified Command Dispatch Table and Multi-Namespace Syntax
+# ADR-005: Multi-Syntax CLI Interface & Drop-in Compatibility Architecture
 
 ## Status
 Accepted
@@ -8,12 +8,15 @@ Accepted
 - **Recorded Date**: 2026-08-12
 
 ## Context
-Command-line tools evolve as their feature sets expand. `symdep` began with traditional GNU Stow command compatibility (`stow`, `unstow`, `restow`), expanded to CRUD operations for package management (`pkg`), dependencies (`deps`), file filtering (`ignore`), and system configuration (`config`), and supports colon-separated subcommand syntaxes popular in build and automation tools (`pkg:create`, `deps:add`, `ignore:add`, `config:set`).
+Command-line dotfile management tools must bridge two fundamentally different developer workflows:
+1. **Drop-in Compatibility with GNU Stow**: Existing users and automation scripts rely on traditional GNU Stow flags (`-S`, `-D`, `-R`, `--dotfiles-dir`, `--target-dir`) and commands (`stow`, `unstow`, `restow`).
+2. **Modern Subcommand & Namespace Syntaxes**: Modern toolchains utilize space-separated namespaces (`symdep pkg create`, `symdep deps add`) or colon-separated action syntax popular in task runners and build tools (`symdep pkg:create`, `symdep deps:add`, `symdep config:set`).
+3. **Frictionless Shorthand**: Users frequently want to deploy packages without verbose keywords (e.g. running `symdep hyprland waybar` directly).
 
-Handling these diverse invocation forms with scattered `if/else` checks leads to fragile flag parsing and inconsistent usage messages.
+Supporting all three invocation styles within a single zero-dependency C17 binary without introducing third-party parser dependencies or fragile `getopt` spaghetti requires a unified interface contract.
 
 ## Decision
-Implement a single-source-of-truth **Command Routing Table** (`ROUTE_TABLE[]` in `cmd_table.c` and `cmd_routes.h`) managed by `dispatch_command` (`src/cli/dispatch/dispatch_core.c`):
+Implement a **Multi-Syntax CLI Routing Architecture** powered by a single-source-of-truth routing engine (`ROUTE_TABLE[]` in `src/cli/cmd_table.c` and `src/cli/dispatch/dispatch_core.c`):
 
 ### Route Resolution Priority & Implicit Package Fallback
 When CLI arguments are passed to `symdep`, `dispatch_command` evaluates tokens in strict sequential order:

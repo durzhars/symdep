@@ -319,19 +319,19 @@ void get_distro_id(char *buf, size_t buf_size)
     snprintf(buf, buf_size, "unix");
 }
 
-static StrSet g_path_executables_cache;
-static bool g_path_cache_initialized = false;
+static StringArray g_path_dirs;
+static bool g_path_dirs_initialized = false;
 
-static void init_path_executables_cache(void)
+static void init_path_dirs(void)
 {
-    if (g_path_cache_initialized) {
+    if (g_path_dirs_initialized) {
         return;
     }
-    str_set_init(&g_path_executables_cache);
+    str_array_init(&g_path_dirs);
 
     const char *path_env = getenv("PATH");
     if (!path_env || *path_env == '\0') {
-        g_path_cache_initialized = true;
+        g_path_dirs_initialized = true;
         return;
     }
 
@@ -344,16 +344,7 @@ static void init_path_executables_cache(void)
             if (dir_len < sizeof(dir_path)) {
                 memcpy(dir_path, p, dir_len);
                 dir_path[dir_len] = '\0';
-                DIR *d = opendir(dir_path);
-                if (d) {
-                    struct dirent *entry;
-                    while ((entry = readdir(d)) != NULL) {
-                        if (entry->d_name[0] != '.') {
-                            str_set_add(&g_path_executables_cache, entry->d_name);
-                        }
-                    }
-                    closedir(d);
-                }
+                str_array_append(&g_path_dirs, dir_path);
             }
         }
         if (!next) {
@@ -361,7 +352,7 @@ static void init_path_executables_cache(void)
         }
         p = next + 1;
     }
-    g_path_cache_initialized = true;
+    g_path_dirs_initialized = true;
 }
 
 bool find_executable_in_path(const char *executable, char *out_path, size_t out_path_size)
@@ -379,11 +370,17 @@ bool find_executable_in_path(const char *executable, char *out_path, size_t out_
         return false;
     }
 
-    init_path_executables_cache();
+    init_path_dirs();
 
-    if (str_set_contains(&g_path_executables_cache, executable)) {
-        snprintf(out_path, out_path_size, "%s", executable);
-        return true;
+    char candidate[STOW_PATH_LARGE];
+    for (size_t i = 0; i < g_path_dirs.count; i++) {
+        int len = snprintf(candidate, sizeof(candidate), "%s/%s", g_path_dirs.items[i], executable);
+        if (len > 0 && (size_t)len < sizeof(candidate)) {
+            if (access(candidate, X_OK) == 0) {
+                snprintf(out_path, out_path_size, "%s", candidate);
+                return true;
+            }
+        }
     }
 
     return false;

@@ -133,9 +133,11 @@ int run_system_cmd(const char *cmd);
  * @brief Atomically swap or replace a temporary staging path with target destination.
  *
  * For directory-over-symlink unfolding:
- * - On Linux (>= 3.15), uses raw `renameat2(..., RENAME_EXCHANGE)` for zero-window physical atomicity.
+ * - On Linux (>= 3.15), uses raw `renameat2(..., RENAME_EXCHANGE)` for zero-window physical
+ * atomicity.
  * - On macOS / Darwin, uses `renameatx_np(..., RENAME_EXCHANGE)` on APFS/HFS+.
- * - On generic POSIX, falls back to staging `unlink()` + `rename()` transition with registered cleanup traps.
+ * - On generic POSIX, falls back to staging `unlink()` + `rename()` transition with registered
+ * cleanup traps.
  *
  * For non-directory replacement (symlink-to-symlink, file-to-file):
  * - Uses standard POSIX `rename()` which is natively atomic in the kernel VFS.
@@ -145,6 +147,8 @@ int run_system_cmd(const char *cmd);
  * @param is_dir_over_symlink True if src_tmp is a directory replacing a symlink.
  * @return true on success, false on failure.
  */
-bool fs_atomic_swap_or_replace(const char *src_tmp, const char *dst_target, bool is_dir_over_symlink);
+bool fs_atomic_swap_or_replace(const char *src_tmp,
+                               const char *dst_target,
+                               bool is_dir_over_symlink);
 
 #endif /* SYMDEP_UTILS_FS_H */

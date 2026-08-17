@@ -158,7 +158,9 @@ bool is_symlink_pointing_to(const char *symlink_path,
 #endif
 #endif
 
-bool fs_atomic_swap_or_replace(const char *src_tmp, const char *dst_target, bool is_dir_over_symlink)
+bool fs_atomic_swap_or_replace(const char *src_tmp,
+                               const char *dst_target,
+                               bool is_dir_over_symlink)
 {
     if (!src_tmp || !dst_target) {
         return false;

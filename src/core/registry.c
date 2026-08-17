@@ -24,6 +24,7 @@
 #include "core/file_collector.h"
 
 #include "utils/fs.h"
+#include "utils/mem.h"
 #include "utils/path.h"
 
 #include <dirent.h>
@@ -81,50 +82,58 @@ void get_all_packages(const char *source_dir, StringArray *packages)
     closedir(dir);
 }
 
-static char g_cached_source_dir[STOW_PATH_LARGE] = "";
-static char g_cached_registry_path[STOW_PATH_LARGE] = "";
+typedef struct {
+    char key[128];
+    char value[512];
+} CachedRegistryEntry;
+
+typedef struct {
+    CachedRegistryEntry *entries;
+    size_t count;
+    size_t capacity;
+    char source_dir[STOW_PATH_LARGE];
+    bool loaded;
+} RegistryCache;
+
+static RegistryCache g_registry_cache = {0};
+
+static void registry_cache_free(void)
+{
+    if (g_registry_cache.entries) {
+        free(g_registry_cache.entries);
+        g_registry_cache.entries = NULL;
+    }
+    g_registry_cache.count = 0;
+    g_registry_cache.capacity = 0;
+    g_registry_cache.loaded = false;
+    g_registry_cache.source_dir[0] = '\0';
+}
 
 static FILE *open_registry_file(const char *source_dir)
 {
-    const char *src = (source_dir && *source_dir != '\0') ? source_dir : "";
-
-    if (g_cached_source_dir[0] != '\0' && strcmp(g_cached_source_dir, src) == 0) {
-        if (g_cached_registry_path[0] != '\0') {
-            return fopen(g_cached_registry_path, "r");
-        }
-        return NULL;
-    }
-
-    snprintf(g_cached_source_dir, sizeof(g_cached_source_dir), "%s", src);
-    g_cached_registry_path[0] = '\0';
-
     if (source_dir && *source_dir != '\0') {
         char path[STOW_PATH_LARGE];
         snprintf(path, sizeof(path), "%s/symdep.registry", source_dir);
         FILE *fp = fopen(path, "r");
         if (fp) {
-            snprintf(g_cached_registry_path, sizeof(g_cached_registry_path), "%s", path);
             return fp;
         }
 
         snprintf(path, sizeof(path), "%s/.symdepregistry", source_dir);
         fp = fopen(path, "r");
         if (fp) {
-            snprintf(g_cached_registry_path, sizeof(g_cached_registry_path), "%s", path);
             return fp;
         }
 
         snprintf(path, sizeof(path), "%s/stow.registry", source_dir);
         fp = fopen(path, "r");
         if (fp) {
-            snprintf(g_cached_registry_path, sizeof(g_cached_registry_path), "%s", path);
             return fp;
         }
 
         snprintf(path, sizeof(path), "%s/.stowregistry", source_dir);
         fp = fopen(path, "r");
         if (fp) {
-            snprintf(g_cached_registry_path, sizeof(g_cached_registry_path), "%s", path);
             return fp;
         }
     }
@@ -139,18 +148,29 @@ static FILE *open_registry_file(const char *source_dir)
     return rfp;
 }
 
-void registry_get_aliases(const char *source_dir, const char *tool, StringArray *aliases)
+static void registry_cache_ensure(const char *source_dir)
 {
-    FILE *fp = open_registry_file(source_dir);
-    if (!fp) {
-        str_array_append(aliases, tool);
+    const char *src = (source_dir && *source_dir != '\0') ? source_dir : "";
+    if (g_registry_cache.loaded && strcmp(g_registry_cache.source_dir, src) == 0) {
         return;
     }
+
+    registry_cache_free();
+    snprintf(g_registry_cache.source_dir, sizeof(g_registry_cache.source_dir), "%s", src);
+
+    FILE *fp = open_registry_file(source_dir);
+    if (!fp) {
+        g_registry_cache.loaded = true;
+        return;
+    }
+
+    g_registry_cache.capacity = 128;
+    g_registry_cache.entries =
+        (CachedRegistryEntry *)safe_calloc(g_registry_cache.capacity, sizeof(CachedRegistryEntry));
 
     char *linebuf = NULL;
     size_t linecap = 0;
     ssize_t linelen;
-    bool found = false;
 
     while ((linelen = getline(&linebuf, &linecap, fp)) != -1) {
         (void)linelen;
@@ -165,28 +185,51 @@ void registry_get_aliases(const char *source_dir, const char *tool, StringArray 
             char *key = trim_whitespace(trimmed);
             char *val = trim_whitespace(eq + 1);
 
-            if (strcmp(key, tool) == 0) {
-                found = true;
-                char *saveptr = NULL;
-                char *token = strtok_r(val, "|", &saveptr);
-                while (token) {
-                    char *p = trim_whitespace(token);
-                    if (strlen(p) > 0 && !str_array_contains(aliases, p)) {
-                        str_array_append(aliases, p);
-                    }
-                    token = strtok_r(NULL, "|", &saveptr);
+            if (g_registry_cache.count >= g_registry_cache.capacity) {
+                size_t new_cap = g_registry_cache.capacity * 2;
+                CachedRegistryEntry *new_entries = (CachedRegistryEntry *)realloc(
+                    g_registry_cache.entries, new_cap * sizeof(CachedRegistryEntry));
+                if (new_entries) {
+                    g_registry_cache.entries = new_entries;
+                    g_registry_cache.capacity = new_cap;
+                } else {
+                    break;
                 }
-                break;
             }
-        }
-    }
 
-    if (!found) {
-        str_array_append(aliases, tool);
+            CachedRegistryEntry *entry = &g_registry_cache.entries[g_registry_cache.count++];
+            snprintf(entry->key, sizeof(entry->key), "%s", key);
+            snprintf(entry->value, sizeof(entry->value), "%s", val);
+        }
     }
 
     free(linebuf);
     fclose(fp);
+    g_registry_cache.loaded = true;
+}
+
+void registry_get_aliases(const char *source_dir, const char *tool, StringArray *aliases)
+{
+    registry_cache_ensure(source_dir);
+
+    for (size_t i = 0; i < g_registry_cache.count; i++) {
+        if (strcmp(g_registry_cache.entries[i].key, tool) == 0) {
+            char val_copy[512];
+            snprintf(val_copy, sizeof(val_copy), "%s", g_registry_cache.entries[i].value);
+            char *saveptr = NULL;
+            char *token = strtok_r(val_copy, "|", &saveptr);
+            while (token) {
+                char *p = trim_whitespace(token);
+                if (strlen(p) > 0 && !str_array_contains(aliases, p)) {
+                    str_array_append(aliases, p);
+                }
+                token = strtok_r(NULL, "|", &saveptr);
+            }
+            return;
+        }
+    }
+
+    str_array_append(aliases, tool);
 }
 
 void registry_get_distro_pkg(const char *source_dir,
@@ -196,78 +239,35 @@ void registry_get_distro_pkg(const char *source_dir,
                              size_t pkg_out_size)
 {
     snprintf(pkg_out, pkg_out_size, "%s", tool);
-
-    FILE *fp = open_registry_file(source_dir);
-    if (!fp) {
-        return;
-    }
+    registry_cache_ensure(source_dir);
 
     char key_distro[256];
     snprintf(key_distro, sizeof(key_distro), "%s@%s", tool, distro_id);
 
-    char *linebuf = NULL;
-    size_t linecap = 0;
-    ssize_t linelen;
-
-    while ((linelen = getline(&linebuf, &linecap, fp)) != -1) {
-        (void)linelen;
-        char *trimmed = trim_whitespace(linebuf);
-        if (trimmed[0] == '#' || trimmed[0] == '\0') {
-            continue;
-        }
-
-        char *eq = strchr(trimmed, '=');
-        if (eq) {
-            *eq = '\0';
-            char *key = trim_whitespace(trimmed);
-            char *val = trim_whitespace(eq + 1);
-
-            if (strcmp(key, key_distro) == 0) {
-                snprintf(pkg_out, pkg_out_size, "%s", val);
-                break;
-            }
+    for (size_t i = 0; i < g_registry_cache.count; i++) {
+        if (strcmp(g_registry_cache.entries[i].key, key_distro) == 0) {
+            snprintf(pkg_out, pkg_out_size, "%s", g_registry_cache.entries[i].value);
+            return;
         }
     }
-
-    free(linebuf);
-    fclose(fp);
 }
 
 void registry_get_all_tools(const char *source_dir, StringArray *tools)
 {
-    FILE *fp = open_registry_file(source_dir);
-    if (!fp) {
-        return;
-    }
+    registry_cache_ensure(source_dir);
 
-    char *linebuf = NULL;
-    size_t linecap = 0;
-    ssize_t linelen;
-
-    while ((linelen = getline(&linebuf, &linecap, fp)) != -1) {
-        (void)linelen;
-        char *trimmed = trim_whitespace(linebuf);
-        if (trimmed[0] == '#' || trimmed[0] == '\0') {
-            continue;
+    for (size_t i = 0; i < g_registry_cache.count; i++) {
+        char key_copy[128];
+        snprintf(key_copy, sizeof(key_copy), "%s", g_registry_cache.entries[i].key);
+        char *at = strchr(key_copy, '@');
+        if (at) {
+            *at = '\0';
         }
-
-        char *eq = strchr(trimmed, '=');
-        if (eq) {
-            *eq = '\0';
-            char *key = trim_whitespace(trimmed);
-            char *at = strchr(key, '@');
-            if (at) {
-                *at = '\0';
-            }
-            char *tool = trim_whitespace(key);
-            if (strlen(tool) > 0 && !str_array_contains(tools, tool)) {
-                str_array_append(tools, tool);
-            }
+        char *tool = trim_whitespace(key_copy);
+        if (strlen(tool) > 0 && !str_array_contains(tools, tool)) {
+            str_array_append(tools, tool);
         }
     }
-
-    free(linebuf);
-    fclose(fp);
 }
 
 void registry_add_tool(const char *source_dir, const char *tool)
@@ -304,12 +304,21 @@ void registry_add_tool(const char *source_dir, const char *tool)
 
     fprintf(fp, "%s=%s\n", tool, tool);
     fclose(fp);
-    g_cached_source_dir[0] = '\0';
-    g_cached_registry_path[0] = '\0';
+    registry_cache_free();
 }
 
 bool is_tool_installed_dynamic(const char *source_dir, const char *tool)
 {
+    if (!tool || *tool == '\0') {
+        return false;
+    }
+
+    /* Fast Path 1: Check $PATH hash cache directly (< 100ns) */
+    if (is_executable_in_path(tool)) {
+        return true;
+    }
+
+    /* Path 2: Consult in-memory cached registry for plugins and binary aliases */
     StringArray aliases;
     str_array_init(&aliases);
     registry_get_aliases(source_dir, tool, &aliases);

@@ -33,6 +33,7 @@ static const char *const ALIAS_DEPS_EDIT[]     = {"deps:edit", "deps:set", "edit
 static const char *const ALIAS_DEPS_REMOVE[]   = {"deps:remove", "deps:rm", "rm", "remove", "delete", NULL};
 static const char *const ALIAS_DEPS_SHOW[]     = {"deps:show", "deps:list", "show", "list", NULL};
 static const char *const ALIAS_DEPS_TARGET[]   = {"deps:target", "target", NULL};
+static const char *const ALIAS_DEPS_INSTALL[]  = {"deps:install", "install", NULL};
 static const char *const ALIAS_IGNORE_INIT[]   = {"ignore:init", "ignore:create", "init", "create", NULL};
 static const char *const ALIAS_IGNORE_ADD[]    = {"ignore:add", "add", NULL};
 static const char *const ALIAS_IGNORE_REMOVE[] = {"ignore:remove", "ignore:rm", "ignore:delete", "remove", "rm", "delete", NULL};
@@ -55,6 +56,7 @@ const CommandRoute ROUTE_TABLE[] = {
     {"restow",         NULL,       ALIAS_RESTOW,         1,       "Usage: symdep relink <pkg...> (or restow)",                       cmd_restow},
     {"relink",         NULL,       ALIAS_NONE,           1,       "Usage: symdep relink <pkg...>",                                   cmd_restow},
     {"remove",         NULL,       ALIAS_NONE,           1,       "Usage: symdep remove <name...>",                                  cmd_pkg_remove},
+    {"install",        NULL,       ALIAS_NONE,           0,       "Usage: symdep install [pkg...]",                                  cmd_deps_install},
     {"fix",            NULL,       ALIAS_NONE,           0,       "Usage: symdep fix-conflicts",                                     cmd_fix_conflicts},
     {"all",            NULL,       ALIAS_NONE,           0,       "Usage: symdep all",                                               cmd_all},
     {"diff",           NULL,       ALIAS_NONE,           0,       "Usage: symdep diff [pkg...]",                                     cmd_diff},
@@ -72,6 +74,7 @@ const CommandRoute ROUTE_TABLE[] = {
     {"deps",           "remove",   ALIAS_DEPS_REMOVE,    2,       "Usage: symdep deps remove <pkg> <dep>",                           cmd_deps_remove},
     {"deps",           "show",     ALIAS_DEPS_SHOW,      1,       "Usage: symdep deps show <pkg>",                                   cmd_deps_show},
     {"deps",           "target",   ALIAS_DEPS_TARGET,    2,       "Usage: symdep deps target <pkg> <path>",                          cmd_deps_target},
+    {"deps",           "install",  ALIAS_DEPS_INSTALL,   0,       "Usage: symdep deps install [pkg...]",                             cmd_deps_install},
 
     {"ignore",         "init",     ALIAS_IGNORE_INIT,    0,       "Usage: symdep ignore init [pkg...]",                              cmd_ignore_init},
     {"ignore",         "add",      ALIAS_IGNORE_ADD,     1,       "Usage: symdep ignore add [pkg] <pattern...>",                     cmd_ignore_add},

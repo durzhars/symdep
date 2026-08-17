@@ -20,6 +20,8 @@ Before introducing architectural changes, please review our **Architecture Decis
 - [ADR-009: Non-Destructive Conflict Resolution & Automated Backup Strategy](docs/decisions/ADR-009-non-destructive-conflict-resolution-and-auto-backup.md)
 - [ADR-010: Dynamic Privilege Elevation & Writable-Prefix Probing](docs/decisions/ADR-010-dynamic-privilege-elevation-and-writable-prefix-probing.md)
 - [ADR-011: Multi-Repository Federation & Hierarchical Precedence](docs/decisions/ADR-011-multi-repository-federation-and-target-precedence.md)
+- [ADR-012: Flat In-Place Directory Unfolding vs. Multi-Hop Indirection](docs/decisions/ADR-012-flat-in-place-unfolding-vs-multi-hop-indirection.md)
+- [ADR-013: Decoupling Linker Operations from Active Dependency Installation](docs/decisions/ADR-013-decoupling-linker-from-dependency-installer.md)
 
 ---
 

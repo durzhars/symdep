@@ -97,6 +97,7 @@ Key technical decisions in `symdep` are documented in detail within [`docs/decis
 - **[ADR-010: Dynamic Privilege Elevation & Writable-Prefix Probing](docs/decisions/ADR-010-dynamic-privilege-elevation-and-writable-prefix-probing.md)** — POSIX permission-based root detection (`sudo`/`doas`/`tsu`/unprivileged) for user-space package managers (Homebrew, Termux, Nix).
 - **[ADR-011: Multi-Repository Federation & Hierarchical Precedence](docs/decisions/ADR-011-multi-repository-federation-and-target-precedence.md)** — Multi-dotfile repository federation (`SOURCE_DIRS`) and per-package `TARGET=` destination overrides with cascading precedence.
 - **[ADR-012: Flat In-Place Directory Unfolding vs. Multi-Hop Indirection](docs/decisions/ADR-012-flat-in-place-unfolding-vs-multi-hop-indirection.md)** — Rationale for native flat 1-hop `$HOME` layout over 2-hop container indirection to preserve `realpath()` integrity, eliminate $O(2)$ VFS lookup overhead, and avoid application path parsing bugs.
+- [ADR-013: Decoupling Linker Operations from Active Dependency Installation](docs/decisions/ADR-013-decoupling-linker-from-dependency-installer.md) — Architectural separation of sub-millisecond local VFS symlink mutations from system package manager execution, with non-blocking passive audits and standalone `deps install`.
 
 For complete module-by-module developer function signatures, data structures, and contract specifications, see the **[C API Reference Guide](docs/API.md)**.
 
@@ -260,6 +261,10 @@ symdep pkg list
 Namespace: `deps`. Supports space-separated (`deps add`) and colon-separated (`deps:add`) syntaxes.
 
 ```bash
+# Install missing required and optional dependencies for package(s) or repository
+symdep deps install [pkg...]
+# Aliases: deps:install, install (flags: -y auto-confirm, -n dry-run)
+
 # Add a dependency or conflict entry to package .symdeps manifest
 symdep deps add <pkg> <dep> [--required | --optional | --conflict]
 # Aliases: deps:add (default classification: --optional)

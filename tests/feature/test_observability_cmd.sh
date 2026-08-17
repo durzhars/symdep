@@ -38,7 +38,7 @@ echo "sample config" > "$STOW_DOTFILES_DIR/stat_pkg/.config/app.conf"
 assert_success "$STOW_BIN stow stat_pkg" "Stow stat_pkg succeeded"
 assert_file_contains "$LAST_CMD_OUTPUT" "[INFO]" "Output contains [INFO] structured tag"
 assert_file_contains "$LAST_CMD_OUTPUT" "[SUCCESS]" "Output contains [SUCCESS] structured tag"
-assert_file_contains "$LAST_CMD_OUTPUT" "All required dependencies and optional plugins are installed!" "Output contains dependency check success event confirmation"
+assert_file_contains "$LAST_CMD_OUTPUT" "Dependencies: 0 declared" "Output contains dependency check confirmation"
 
 # 4. Dry-Run Telemetry & Action Previews
 echo -e "\n${COLOR_BOLD}[Test 4] Dry-Run Telemetry & Action Previews${COLOR_RESET}"

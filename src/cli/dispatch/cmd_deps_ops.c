@@ -58,3 +58,24 @@ int cmd_deps_target(const CommandContext *ctx)
         ctx->source_dir, ctx->args->items[ctx->arg_offset], ctx->args->items[ctx->arg_offset + 1]);
     return 0;
 }
+
+int cmd_deps_install(const CommandContext *ctx)
+{
+    bool auto_install = ctx->opts ? ctx->opts->auto_install : false;
+    bool dry_run = ctx->opts ? ctx->opts->dry_run : false;
+
+    size_t count = ctx->args->count - ctx->arg_offset;
+    if (count == 0) {
+        return install_package_dependencies(ctx->source_dir, "all", auto_install, dry_run);
+    }
+
+    int overall_status = 0;
+    for (size_t i = ctx->arg_offset; i < ctx->args->count; i++) {
+        const char *pkg = ctx->args->items[i];
+        int res = install_package_dependencies(ctx->source_dir, pkg, auto_install, dry_run);
+        if (res != 0) {
+            overall_status = res;
+        }
+    }
+    return overall_status;
+}

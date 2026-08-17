@@ -34,6 +34,7 @@ A high-performance, zero-dependency symlink manager and package dependency resol
 
 ## Dependency & Manifest Commands (`deps:*`)
 
+- **`deps install`** `[pkg...]`                         Install missing required & optional dependencies (alias: `install`)
 - **`deps add`** `<pkg> <dep> [--type]`                Add dependency/conflict to `.symdeps` (`--required`, `--optional`, `--conflict`)
 - **`deps edit`** `<pkg> <dep> <type>`                 Edit existing dependency classification (`--required`, `--optional`, `--conflict`)
 - **`deps remove`** `<pkg> <dep>`                        Remove a dependency or conflict entry from package `.symdeps` (alias: `deps rm`)

@@ -54,6 +54,7 @@ int cmd_deps_edit(const CommandContext *ctx);
 int cmd_deps_remove(const CommandContext *ctx);
 int cmd_deps_show(const CommandContext *ctx);
 int cmd_deps_target(const CommandContext *ctx);
+int cmd_deps_install(const CommandContext *ctx);
 /** @} */
 
 /**

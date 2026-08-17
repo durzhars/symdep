@@ -25,11 +25,11 @@
  * @brief Audit required and optional dependencies for a target package.
  *
  * Verifies that required binaries, plugins, and optional dependencies declared
- * in .symdeps exist on $PATH or in expected plugin locations. If auto_install is set,
- * invokes the system package manager to install missing dependencies.
+ * in .symdeps exist on $PATH or in expected plugin locations. During link operations,
+ * audits non-destructively without blocking unless auto_install (-y) is enabled.
  *
  * @param source_dir   Path to active source repository.
- * @param target_pkg   Name of target package (NULL for all packages).
+ * @param target_pkg   Name of target package (NULL or "all" for all packages).
  * @param auto_install Auto-install missing dependencies via system package manager.
  * @param dry_run      Preview mode without modifying disk or running installers.
  */
@@ -37,6 +37,35 @@ void check_package_dependencies(const char *source_dir,
                                 const char *target_pkg,
                                 bool auto_install,
                                 bool dry_run);
+
+/**
+ * @brief Standalone dependency installer for package(s).
+ *
+ * Resolves missing required and optional dependencies for target package(s)
+ * and invokes the system package manager without creating symlinks.
+ *
+ * @param source_dir   Path to active source repository.
+ * @param target_pkg   Name of target package (NULL or "all" for all packages).
+ * @param auto_install Auto-confirm installation without prompting.
+ * @param dry_run      Preview installation command without executing.
+ * @return 0 on success (or dependencies already satisfied), non-zero on failure.
+ */
+int install_package_dependencies(const char *source_dir,
+                                 const char *target_pkg,
+                                 bool auto_install,
+                                 bool dry_run);
+
+/**
+ * @brief Concise numerical dependency audit for a single package.
+ *
+ * Checks required and optional dependencies in .symdeps for pkg_name,
+ * and outputs a single-line numerical summary (satisfied vs missing counts).
+ * Non-blocking, never pauses on stdin or prompts.
+ *
+ * @param source_dir Path to active source repository.
+ * @param pkg_name   Name of package to audit.
+ */
+void audit_package_dependencies_brief(const char *source_dir, const char *pkg_name);
 
 /**
  * @brief Perform a comprehensive symlink integrity and health audit.

@@ -395,6 +395,7 @@ bool pkg_manager_resolve(const char *source_dir,
                          bool auto_install,
                          bool dry_run)
 {
+    (void)auto_install;
     (void)dry_run;
     if (!out_entry) {
         return false;
@@ -451,27 +452,12 @@ bool pkg_manager_resolve(const char *source_dir,
 
     bool resolved = false;
 
-    if (detected.count == 1) {
+    if (detected.count >= 1) {
         *out_entry = detected.items[0];
         resolved = true;
-    } else if (detected.count > 1) {
-        if (auto_install || dry_run || !isatty(STDIN_FILENO)) {
-            *out_entry = detected.items[0];
-            resolved = true;
-        } else {
-            int sel = pkg_manager_prompt_selection(&detected, out_entry);
-            if (sel >= 0) {
-                config_set_pkg_manager(out_entry->name);
-            }
-            resolved = true;
-        }
     } else {
         // Count == 0: No registered package manager on $PATH
-        if (auto_install || dry_run || !isatty(STDIN_FILENO)) {
-            resolved = false;
-        } else {
-            resolved = pkg_manager_prompt_fallback(out_entry, source_dir);
-        }
+        resolved = false;
     }
 
     pkg_manager_array_free(&detected);
@@ -511,6 +497,8 @@ void pkg_manager_get_elevation_tool(const char *source_dir,
                                     bool dry_run)
 {
     (void)source_dir;
+    (void)auto_install;
+    (void)dry_run;
     if (!out_tool || out_tool_size == 0) {
         return;
     }
@@ -555,62 +543,14 @@ void pkg_manager_get_elevation_tool(const char *source_dir,
     bool has_doas = is_executable_in_path("doas");
     bool has_su = is_executable_in_path("su");
 
-    if (auto_install || dry_run || !isatty(STDIN_FILENO)) {
-        if (has_sudo) {
-            snprintf(out_tool, out_tool_size, "sudo");
-        } else if (has_tsu) {
-            snprintf(out_tool, out_tool_size, "tsu");
-        } else if (has_doas) {
-            snprintf(out_tool, out_tool_size, "doas");
-        } else if (has_su) {
-            snprintf(out_tool, out_tool_size, "su");
-        }
-        return;
-    }
-
-    printf("\n%sThis package manager requires elevated (root) privileges.%s\n",
-           COLOR_BOLD,
-           COLOR_RESET);
-    printf("  %s[1]%s sudo  %s\n", COLOR_CYAN, COLOR_RESET, has_sudo ? "(Detected)" : "");
-    printf("  %s[2]%s tsu   %s\n", COLOR_CYAN, COLOR_RESET, has_tsu ? "(Detected)" : "");
-    printf("  %s[3]%s doas  %s\n", COLOR_CYAN, COLOR_RESET, has_doas ? "(Detected)" : "");
-    printf("  %s[4]%s su    %s\n", COLOR_CYAN, COLOR_RESET, has_su ? "(Detected)" : "");
-    printf("  %s[5]%s None  (run directly without root escalation)\n", COLOR_CYAN, COLOR_RESET);
-    printf("\nSelect privilege escalation method [1-5]: ");
-    fflush(stdout);
-
-    char input[64];
-    if (!fgets(input, sizeof(input), stdin)) {
-        if (has_sudo) {
-            snprintf(out_tool, out_tool_size, "sudo");
-        } else if (has_tsu) {
-            snprintf(out_tool, out_tool_size, "tsu");
-        }
-        return;
-    }
-
-    int choice = atoi(input);
-    switch (choice) {
-    case 1:
+    if (has_sudo) {
         snprintf(out_tool, out_tool_size, "sudo");
-        break;
-    case 2:
+    } else if (has_tsu) {
         snprintf(out_tool, out_tool_size, "tsu");
-        break;
-    case 3:
+    } else if (has_doas) {
         snprintf(out_tool, out_tool_size, "doas");
-        break;
-    case 4:
+    } else if (has_su) {
         snprintf(out_tool, out_tool_size, "su");
-        break;
-    case 5:
-    default:
-        out_tool[0] = '\0';
-        break;
-    }
-
-    if (out_tool[0] != '\0') {
-        config_set_elevation_tool(out_tool);
     }
 }
 

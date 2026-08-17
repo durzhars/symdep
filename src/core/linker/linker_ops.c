@@ -210,7 +210,11 @@ int link_package(const char *source_dir,
     }
 
     PerfTimer t_chk = perf_timer_start("check_package_dependencies");
-    check_package_dependencies(source_dir, pkg_name, auto_install, dry_run);
+    if (auto_install) {
+        install_package_dependencies(source_dir, pkg_name, true, dry_run);
+    } else {
+        audit_package_dependencies_brief(source_dir, pkg_name);
+    }
     perf_timer_log(&t_chk);
 
     PerfTimer t_excl = perf_timer_start("handle_mutual_exclusions");
@@ -260,6 +264,11 @@ int link_package(const char *source_dir,
     if (io_uring_is_supported()) {
         if (io_uring_link_batch(&pctx.pkg_files, &pctx) == 0) {
             int result = (pctx.errors == 0) ? 0 : -1;
+            if (result == 0) {
+                log_success("Successfully linked package '%s'!", pkg_name);
+            } else {
+                log_error("Failed to link package '%s'!", pkg_name);
+            }
             package_context_free(&pctx);
             perf_timer_log(&t_stow);
             return result;

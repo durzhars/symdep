@@ -32,6 +32,7 @@
 #include "utils/fs.h"
 #include "utils/logger.h"
 #include "utils/path.h"
+#include "utils/timer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -163,20 +164,112 @@ static void handle_missing_dependencies(const char *source_dir,
                           auto_install,
                           dry_run);
 
+    printf("%sInstallation Command (%s):%s %s%s%s\n\n",
+           COLOR_BOLD,
+           mgr_name,
+           COLOR_RESET,
+           COLOR_CYAN,
+           install_cmd,
+           COLOR_RESET);
+
     if (dry_run) {
-        printf("%sInstallation Command (%s):%s %s%s%s\n\n",
-               COLOR_BOLD,
-               mgr_name,
-               COLOR_RESET,
-               COLOR_CYAN,
-               install_cmd,
-               COLOR_RESET);
         log_info("[DRY-RUN] Would prompt/execute installation command: %s", install_cmd);
     } else if (auto_install) {
         run_system_cmd(install_cmd);
-    } else if (isatty(STDIN_FILENO)) {
-        if (is_required) {
-            printf("Would you like to install missing REQUIRED dependencies now? [Y/n] ");
+    } else {
+        log_info(
+            "Hint: Run 'symdep deps install' or 'symdep link -y' to install missing dependencies.");
+    }
+}
+
+static void collect_package_missing_deps(const char *source_dir,
+                                         const char *target_pkg,
+                                         StringArray *missing_req,
+                                         StringArray *missing_opt)
+{
+    StringArray all_pkgs;
+    str_array_init(&all_pkgs);
+    if (target_pkg && strcmp(target_pkg, "all") != 0) {
+        str_array_append(&all_pkgs, target_pkg);
+    } else {
+        get_all_packages(source_dir, &all_pkgs);
+    }
+
+    for (size_t i = 0; i < all_pkgs.count; i++) {
+        const char *pkg_name = all_pkgs.items[i];
+        PackageManifest manifest;
+        manifest_init(&manifest, pkg_name);
+        manifest_load(&manifest, source_dir);
+
+        for (size_t r = 0; r < manifest.required.count; r++) {
+            const char *tool = manifest.required.items[r];
+            if (!is_tool_installed_dynamic(source_dir, tool)) {
+                if (!str_array_contains(missing_req, tool)) {
+                    str_array_append(missing_req, tool);
+                }
+            }
+        }
+
+        for (size_t o = 0; o < manifest.optional.count; o++) {
+            const char *tool = manifest.optional.items[o];
+            if (!is_tool_installed_dynamic(source_dir, tool)) {
+                if (!str_array_contains(missing_opt, tool)) {
+                    str_array_append(missing_opt, tool);
+                }
+            }
+        }
+
+        manifest_free(&manifest);
+    }
+    str_array_free(&all_pkgs);
+}
+
+int install_package_dependencies(const char *source_dir,
+                                 const char *target_pkg,
+                                 bool auto_install,
+                                 bool dry_run)
+{
+    StringArray missing_req;
+    StringArray missing_opt;
+    str_array_init(&missing_req);
+    str_array_init(&missing_opt);
+
+    collect_package_missing_deps(source_dir, target_pkg, &missing_req, &missing_opt);
+
+    if (missing_req.count == 0 && missing_opt.count == 0) {
+        log_success("All dependencies for %s are already satisfied!",
+                    target_pkg ? target_pkg : "all packages");
+        str_array_free(&missing_req);
+        str_array_free(&missing_opt);
+        return 0;
+    }
+
+    char mgr_name[64] = "unknown";
+
+    if (missing_req.count > 0) {
+        char install_cmd[4096];
+        build_install_command(source_dir,
+                              &missing_req,
+                              install_cmd,
+                              sizeof(install_cmd),
+                              mgr_name,
+                              sizeof(mgr_name),
+                              auto_install,
+                              dry_run);
+
+        printf("\n%sRequired Dependencies (%s):%s\n", COLOR_BOLD, mgr_name, COLOR_RESET);
+        for (size_t i = 0; i < missing_req.count; i++) {
+            printf("  %s✗%s %s\n", COLOR_RED, COLOR_RESET, missing_req.items[i]);
+        }
+        printf("Command: %s%s%s\n\n", COLOR_CYAN, install_cmd, COLOR_RESET);
+
+        if (dry_run) {
+            log_info("[DRY-RUN] Would install required tools: %s", install_cmd);
+        } else if (auto_install) {
+            log_info("Installing required dependencies via %s...", mgr_name);
+            run_system_cmd(install_cmd);
+        } else if (isatty(STDIN_FILENO)) {
+            printf("Install missing REQUIRED dependencies now? [Y/n] ");
             fflush(stdout);
             int c = getchar();
             if (c != '\n' && c != EOF) {
@@ -186,70 +279,128 @@ static void handle_missing_dependencies(const char *source_dir,
                 run_system_cmd(install_cmd);
             }
         } else {
-            if (missing_pkgs->count == 1) {
-                printf("Would you like to install missing optional plugin '%s'? [y/N] ",
-                       missing_pkgs->items[0]);
-                fflush(stdout);
-                int c = getchar();
-                if (c != '\n' && c != EOF) {
-                    flush_stdin();
-                }
-                if (c == 'y' || c == 'Y') {
-                    run_system_cmd(install_cmd);
-                }
-            } else {
-                printf("  %sSelect missing OPTIONAL plugins & tools to install:%s\n",
-                       COLOR_BOLD,
-                       COLOR_RESET);
-                for (size_t i = 0; i < missing_pkgs->count; i++) {
-                    printf("    %zu. %s\n", i + 1, missing_pkgs->items[i]);
-                }
-                printf("  %sSelect tools (e.g. 'all', 'none', '1,3', or press Enter [none]): %s",
-                       COLOR_BOLD,
-                       COLOR_RESET);
-                fflush(stdout);
+            log_error("Non-interactive environment detected. Pass -y / --install to confirm.");
+            str_array_free(&missing_req);
+            str_array_free(&missing_opt);
+            return 1;
+        }
+    }
 
-                char response[256] = {0};
-                if (fgets(response, sizeof(response), stdin)) {
-                    bool *selected = (bool *)calloc(missing_pkgs->count, sizeof(bool));
-                    if (selected) {
-                        parse_item_selections(response, missing_pkgs->count, false, selected);
-                        StringArray selected_pkgs;
-                        str_array_init(&selected_pkgs);
-                        for (size_t i = 0; i < missing_pkgs->count; i++) {
-                            if (selected[i]) {
-                                str_array_append(&selected_pkgs, missing_pkgs->items[i]);
-                            }
+    if (missing_opt.count > 0) {
+        char install_cmd[4096];
+        build_install_command(source_dir,
+                              &missing_opt,
+                              install_cmd,
+                              sizeof(install_cmd),
+                              mgr_name,
+                              sizeof(mgr_name),
+                              auto_install,
+                              dry_run);
+
+        printf("\n%sOptional Plugins & Tools (%s):%s\n", COLOR_BOLD, mgr_name, COLOR_RESET);
+        for (size_t i = 0; i < missing_opt.count; i++) {
+            printf("  %s⚡%s %s\n", COLOR_YELLOW, COLOR_RESET, missing_opt.items[i]);
+        }
+        printf("Command: %s%s%s\n\n", COLOR_CYAN, install_cmd, COLOR_RESET);
+
+        if (dry_run) {
+            log_info("[DRY-RUN] Would install optional tools: %s", install_cmd);
+        } else if (auto_install) {
+            log_info("Installing optional dependencies via %s...", mgr_name);
+            run_system_cmd(install_cmd);
+        } else if (isatty(STDIN_FILENO)) {
+            printf("Select missing optional tools to install (e.g. 'all', 'none', '1,3') [none]: ");
+            fflush(stdout);
+            char response[256] = {0};
+            if (fgets(response, sizeof(response), stdin)) {
+                bool *selected = (bool *)calloc(missing_opt.count, sizeof(bool));
+                if (selected) {
+                    parse_item_selections(response, missing_opt.count, false, selected);
+                    StringArray selected_pkgs;
+                    str_array_init(&selected_pkgs);
+                    for (size_t i = 0; i < missing_opt.count; i++) {
+                        if (selected[i]) {
+                            str_array_append(&selected_pkgs, missing_opt.items[i]);
                         }
-                        if (selected_pkgs.count > 0) {
-                            char sel_cmd[4096];
-                            build_install_command(source_dir,
-                                                  &selected_pkgs,
-                                                  sel_cmd,
-                                                  sizeof(sel_cmd),
-                                                  mgr_name,
-                                                  sizeof(mgr_name),
-                                                  auto_install,
-                                                  dry_run);
-                            printf("\n%sExecuting Installation for Selected Optional Tools (%s):%s "
-                                   "%s%s%s\n",
-                                   COLOR_BOLD,
-                                   mgr_name,
-                                   COLOR_RESET,
-                                   COLOR_CYAN,
-                                   sel_cmd,
-                                   COLOR_RESET);
-                            run_system_cmd(sel_cmd);
-                        } else {
-                            log_info("Skipped installation of optional plugins.");
-                        }
-                        str_array_free(&selected_pkgs);
-                        free(selected);
                     }
+                    if (selected_pkgs.count > 0) {
+                        char sel_cmd[4096];
+                        build_install_command(source_dir,
+                                              &selected_pkgs,
+                                              sel_cmd,
+                                              sizeof(sel_cmd),
+                                              mgr_name,
+                                              sizeof(mgr_name),
+                                              auto_install,
+                                              dry_run);
+                        run_system_cmd(sel_cmd);
+                    }
+                    str_array_free(&selected_pkgs);
+                    free(selected);
                 }
             }
         }
     }
+
+    str_array_free(&missing_req);
+    str_array_free(&missing_opt);
+    return 0;
+}
+
+void audit_package_dependencies_brief(const char *source_dir, const char *pkg_name)
+{
+    if (!source_dir || !pkg_name) {
+        return;
+    }
+
+    PackageManifest manifest;
+    manifest_init(&manifest, pkg_name);
+    bool has_manifest = manifest_load(&manifest, source_dir);
+
+    size_t req_count = has_manifest ? manifest.required.count : 0;
+    size_t opt_count = has_manifest ? manifest.optional.count : 0;
+    size_t total_count = req_count + opt_count;
+
+    if (total_count == 0) {
+        log_info("Dependencies: 0 declared (0 missing).");
+        manifest_free(&manifest);
+        return;
+    }
+
+    size_t req_missing = 0;
+    for (size_t r = 0; r < req_count; r++) {
+        if (!is_tool_installed_dynamic(source_dir, manifest.required.items[r])) {
+            req_missing++;
+        }
+    }
+
+    size_t opt_missing = 0;
+    for (size_t o = 0; o < opt_count; o++) {
+        if (!is_tool_installed_dynamic(source_dir, manifest.optional.items[o])) {
+            opt_missing++;
+        }
+    }
+
+    size_t total_missing = req_missing + opt_missing;
+    size_t total_satisfied = total_count - total_missing;
+
+    if (total_missing == 0) {
+        log_info("Dependencies: %zu/%zu satisfied (%zu required, %zu optional).",
+                 total_satisfied,
+                 total_count,
+                 req_count,
+                 opt_count);
+    } else {
+        log_warn("Dependencies: %zu/%zu satisfied (%zu required missing, %zu optional missing). "
+                 "Run 'symdep deps install %s' or 'symdep link -y' to install.",
+                 total_satisfied,
+                 total_count,
+                 req_missing,
+                 opt_missing,
+                 pkg_name);
+    }
+
+    manifest_free(&manifest);
 }
 
 void check_package_dependencies(const char *source_dir,

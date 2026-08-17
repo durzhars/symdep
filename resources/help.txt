@@ -5,6 +5,7 @@ CORE COMMANDS:
   link <pkg...>             Link / deploy package symlinks (aliases: stow, deploy)
   unlink <pkg...>           Unlink / remove package symlinks (alias: unstow)
   relink <pkg...>           Relink (unlink & link) packages (alias: restow)
+  install [pkg...]          Install missing dependencies for packages (alias: deps install)
   all                       Link all packages in source repository
   diff [pkg...]             Preview pending symlink, backup, and dependency changes (dry-run)
   scan [pkg...]             Scan packages to auto-detect missing tools & plugins
@@ -15,6 +16,7 @@ PACKAGE MANAGEMENT (pkg):
   pkg list                  List packages with status ([LINKED], [PARTIAL], [UNLINKED])
 
 DEPENDENCY MANAGEMENT (deps):
+  deps install [pkg...]     Install missing required & optional dependencies (alias: install)
   deps add <pkg> <dep>      Add dependency/conflict (--required, --optional, --conflict)
   deps edit <pkg> <dep>     Edit existing dependency classification
   deps remove <pkg> <dep>   Remove a dependency or conflict entry (alias: deps rm)

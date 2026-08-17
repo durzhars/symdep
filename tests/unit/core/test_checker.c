@@ -40,6 +40,7 @@ void test_check_package_dependencies(void)
     manifest_add_dep(tmp_dotfiles, "chkpkg", "sh", "--required");
     manifest_add_dep(tmp_dotfiles, "chkpkg", "nonexistent_tool_xyz_99", "--optional");
 
+    audit_package_dependencies_brief(tmp_dotfiles, "chkpkg");
     check_package_dependencies(tmp_dotfiles, "chkpkg", false, true);
     check_package_dependencies(tmp_dotfiles, "all", false, true);
 

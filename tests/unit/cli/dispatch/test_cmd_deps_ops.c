@@ -81,6 +81,20 @@ void test_cmd_deps_ops(void)
     ASSERT(res_target == 0, "cmd_deps_target should return 0 success");
     str_array_free(&target_args);
 
+    StringArray install_args;
+    str_array_init(&install_args);
+    str_array_append(&install_args, "deps");
+    str_array_append(&install_args, "install");
+    str_array_append(&install_args, "depspkg");
+    CommandContext install_ctx = {.opts = &opts,
+                                  .source_dir = tmp_dotfiles,
+                                  .global_target_dir = tmp_target,
+                                  .args = &install_args,
+                                  .arg_offset = 2};
+    int res_install = cmd_deps_install(&install_ctx);
+    ASSERT(res_install == 0, "cmd_deps_install in dry_run mode should return 0");
+    str_array_free(&install_args);
+
     int res_remove = cmd_deps_remove(&ctx);
     ASSERT(res_remove == 0, "cmd_deps_remove should return 0 success");
 

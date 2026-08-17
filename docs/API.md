@@ -244,8 +244,11 @@ Verifies package requirements and audits broken or orphan symlinks.
 #### Key Functions
 
 ```c
-// Verify required/optional tools and auto-install missing dependencies if requested
+// Non-blocking passive audit of required/optional dependencies (auto-installs if auto_install is true)
 void check_package_dependencies(const char *source_dir, const char *target_pkg, bool auto_install, bool dry_run);
+
+// Standalone dependency installer for package(s) via active package manager
+int install_package_dependencies(const char *source_dir, const char *target_pkg, bool auto_install, bool dry_run);
 
 // Scan repository and target home for broken and unmanaged orphan symlinks
 void check_symlink_health(const char *source_dir, const char *target_dir);

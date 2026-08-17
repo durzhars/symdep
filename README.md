@@ -20,6 +20,7 @@ A high-performance, zero-dependency symlink manager and cross-distro package dep
 - [Build & Installation](#build--installation)
   - [Standard Build Targets](#standard-build-targets)
   - [Clang Optimization & Sanitizer Profiles](#clang-optimization--sanitizer-profiles)
+  - [Shell Autocompletion](#shell-autocompletion)
 - [Command Line Reference](#command-line-reference)
   - [Global Options](#global-options)
   - [Symlink & Deployment Commands](#symlink--deployment-commands)
@@ -188,6 +189,14 @@ make format
 # Verify formatting compliance without modifying files
 make format-check
 ```
+
+### Shell Autocompletion
+
+`symdep` includes native autocompletion scripts for **Bash**, **Zsh**, and **Fish** supporting dynamic package discovery, namespace subcommands, and flag options.
+
+Completions are automatically installed system-wide when running `sudo make install`.
+
+For manual user-level setup and shell configuration instructions, see the **[Shell Autocompletion Guide](docs/COMPLETIONS.md)**.
 
 ---
 

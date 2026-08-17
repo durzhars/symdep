@@ -41,6 +41,7 @@ TEST_SUITES=(
     "test_inspection_cmd.sh"
     "test_degraded_env_cmd.sh"
     "test_observability_cmd.sh"
+    "test_completions_cmd.sh"
 )
 
 SUITES_PASSED=0

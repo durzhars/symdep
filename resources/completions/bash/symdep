@@ -1,0 +1,570 @@
+# Bash completion for symdep (Symlink & Dependency Manager)
+# Compatible with bash-completion v2 and fallback bash v4+
+
+__symdep_find_config_file() {
+    if [[ -n "${SYMDEP_CONFIG_FILE:-}" && -f "$SYMDEP_CONFIG_FILE" ]]; then
+        echo "$SYMDEP_CONFIG_FILE"
+        return 0
+    fi
+    if [[ -n "${STOW_CONFIG_FILE:-}" && -f "$STOW_CONFIG_FILE" ]]; then
+        echo "$STOW_CONFIG_FILE"
+        return 0
+    fi
+    local xdg="${XDG_CONFIG_HOME:-$HOME/.config}"
+    if [[ -f "$xdg/symdep/config" ]]; then
+        echo "$xdg/symdep/config"
+        return 0
+    fi
+    if [[ -f "$xdg/stow-manager/config" ]]; then
+        echo "$xdg/stow-manager/config"
+        return 0
+    fi
+    return 1
+}
+
+__symdep_get_all_source_dirs() {
+    local -a sdirs=()
+    local words=("${COMP_WORDS[@]}")
+    local c=1
+
+    # 1. Check for -d / --source-dir / --src-dir / --dotfiles-dir in current command line
+    while [[ $c -lt ${#words[@]} ]]; do
+        case "${words[c]}" in
+            -d|--source-dir|--src-dir|--dotfiles-dir)
+                if [[ $((c + 1)) -lt ${#words[@]} ]]; then
+                    sdirs+=("${words[c+1]}")
+                fi
+                ;;
+            --source-dir=*|--src-dir=*|--dotfiles-dir=*)
+                sdirs+=("${words[c]#*=}")
+                ;;
+        esac
+        ((c++))
+    done
+
+    # 2. Environment variables (SYMDEP_SOURCE_DIR, SOURCE_DIR, STOW_DOTFILES_DIR, DOTFILES_DIR)
+    if [[ ${#sdirs[@]} -eq 0 ]]; then
+        local env_src="${SYMDEP_SOURCE_DIR:-${SOURCE_DIR:-${STOW_DOTFILES_DIR:-${DOTFILES_DIR:-}}}}"
+        if [[ -n "$env_src" ]]; then
+            IFS=':' read -r -a env_dirs <<< "$env_src"
+            for ed in "${env_dirs[@]}"; do
+                [[ -n "$ed" && -d "$ed" ]] && sdirs+=("$ed")
+            done
+        fi
+    fi
+
+    # 3. Config files (symdep or stow-manager)
+    if [[ ${#sdirs[@]} -eq 0 ]]; then
+        local cfg
+        cfg=$(__symdep_find_config_file)
+        if [[ -n "$cfg" && -f "$cfg" ]]; then
+            local raw
+            raw=$(grep -E '^[[:space:]]*SOURCE_DIRS=' "$cfg" 2>/dev/null | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+            if [[ -n "$raw" ]]; then
+                IFS=':' read -r -a cfg_dirs <<< "$raw"
+                for cd in "${cfg_dirs[@]}"; do
+                    [[ -n "$cd" && -d "$cd" ]] && sdirs+=("$cd")
+                done
+            fi
+        fi
+    fi
+
+    # 4. Check CWD and upward directory traversal for dotfile repo markers
+    if [[ ${#sdirs[@]} -eq 0 ]]; then
+        local curr="$PWD"
+        while [[ "$curr" != "/" && -n "$curr" ]]; do
+            if [[ -f "$curr/symdep.registry" || -f "$curr/.symdepregistry" || -f "$curr/stow.registry" || -f "$curr/.stowregistry" ]]; then
+                sdirs+=("$curr")
+                break
+            fi
+            curr="$(dirname "$curr")"
+        done
+    fi
+
+    # 5. Standard fallback dotfile directories
+    if [[ ${#sdirs[@]} -eq 0 ]]; then
+        local candidate
+        for candidate in "$HOME/dotfiles" "$HOME/.dotfiles" "$HOME/.config/dotfiles" "$HOME/dots" "$HOME/.dots"; do
+            if [[ -d "$candidate" ]]; then
+                sdirs+=("$candidate")
+                break
+            fi
+        done
+    fi
+
+    # 6. Fallback to current working directory
+    if [[ ${#sdirs[@]} -eq 0 ]]; then
+        sdirs+=(".")
+    fi
+
+    echo "${sdirs[@]}"
+}
+
+__symdep_get_packages() {
+    local -a sdirs
+    sdirs=($(__symdep_get_all_source_dirs))
+    local -a pkgs=()
+
+    for sdir in "${sdirs[@]}"; do
+        if [[ -d "$sdir" ]]; then
+            local p
+            for p in "$sdir"/*; do
+                if [[ -d "$p" ]]; then
+                    local b
+                    b="$(basename "$p")"
+                    case "$b" in
+                        .*|build|bin|include|src|tests|Testing|profiles|resources|docs|.agents)
+                            ;;
+                        *)
+                            pkgs+=("$b")
+                            ;;
+                    esac
+                fi
+            done
+        fi
+    done
+
+    # Deduplicate packages and filter out packages already passed on command line
+    local -A seen=()
+    local -A used=()
+    local w
+    for ((w=1; w<COMP_CWORD; w++)); do
+        used["${COMP_WORDS[w]}"]=1
+    done
+
+    for p in "${pkgs[@]}"; do
+        if [[ -z "${seen[$p]:-}" && -z "${used[$p]:-}" ]]; then
+            seen["$p"]=1
+            echo "$p"
+        fi
+    done
+}
+
+__symdep_get_pkg_deps() {
+    local pkg="$1"
+    local -a sdirs
+    sdirs=($(__symdep_get_all_source_dirs))
+    local -a deps=()
+
+    for sdir in "${sdirs[@]}"; do
+        local mfile="$sdir/$pkg/.symdeps"
+        [[ ! -f "$mfile" ]] && mfile="$sdir/$pkg/.stowdeps"
+        if [[ -f "$mfile" ]]; then
+            local lines
+            lines=$(grep -E '^[[:space:]]*(REQUIRED|OPTIONAL|CONFLICTS)=' "$mfile" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" | tr " " "\n" | grep -v "^$")
+            if [[ -n "$lines" ]]; then
+                while IFS= read -r item; do
+                    [[ -n "$item" ]] && deps+=("$item")
+                done <<< "$lines"
+            fi
+        fi
+    done
+
+    local -A seen=()
+    for d in "${deps[@]}"; do
+        if [[ -z "${seen[$d]:-}" ]]; then
+            seen["$d"]=1
+            echo "$d"
+        fi
+    done
+}
+
+__symdep_get_pkg_ignores() {
+    local pkg="$1"
+    local -a sdirs
+    sdirs=($(__symdep_get_all_source_dirs))
+    local -a ignores=()
+
+    for sdir in "${sdirs[@]}"; do
+        local ifile
+        if [[ -z "$pkg" || "$pkg" == "-g" || "$pkg" == "--global" ]]; then
+            ifile="$sdir/.symignore"
+            [[ ! -f "$ifile" ]] && ifile="$sdir/.stowignore"
+        else
+            ifile="$sdir/$pkg/.symignore"
+            [[ ! -f "$ifile" ]] && ifile="$sdir/$pkg/.stowignore"
+        fi
+
+        if [[ -f "$ifile" ]]; then
+            local lines
+            lines=$(grep -v "^#" "$ifile" 2>/dev/null | grep -v "^[[:space:]]*$")
+            if [[ -n "$lines" ]]; then
+                while IFS= read -r item; do
+                    [[ -n "$item" ]] && ignores+=("$item")
+                done <<< "$lines"
+            fi
+        fi
+    done
+
+    local -A seen=()
+    for ig in "${ignores[@]}"; do
+        if [[ -z "${seen[$ig]:-}" ]]; then
+            seen["$ig"]=1
+            echo "$ig"
+        fi
+    done
+}
+
+__symdep_get_registry_tools() {
+    local -a sdirs
+    sdirs=($(__symdep_get_all_source_dirs))
+    local -a tools=()
+
+    local search_files=()
+    for sdir in "${sdirs[@]}"; do
+        search_files+=(
+            "$sdir/symdep.registry"
+            "$sdir/.symdepregistry"
+            "$sdir/stow.registry"
+            "$sdir/.stowregistry"
+        )
+    done
+    search_files+=(
+        "/usr/local/share/symdep/symdep.registry"
+        "/usr/share/symdep/symdep.registry"
+        "resources/symdep.registry"
+    )
+
+    for rfile in "${search_files[@]}"; do
+        if [[ -f "$rfile" ]]; then
+            local lines
+            lines=$(grep -v "^#" "$rfile" 2>/dev/null | grep -v "^[[:space:]]*$" | cut -d= -f1 | cut -d@ -f1 | tr -d " ")
+            if [[ -n "$lines" ]]; then
+                while IFS= read -r item; do
+                    [[ -n "$item" ]] && tools+=("$item")
+                done <<< "$lines"
+            fi
+            break
+        fi
+    done
+
+    local -A seen=()
+    for t in "${tools[@]}"; do
+        if [[ -z "${seen[$t]:-}" ]]; then
+            seen["$t"]=1
+            echo "$t"
+        fi
+    done
+}
+
+__symdep_get_config_sources() {
+    local cfg
+    cfg=$(__symdep_find_config_file)
+    if [[ -n "$cfg" && -f "$cfg" ]]; then
+        local raw
+        raw=$(grep -E '^[[:space:]]*SOURCE_DIRS=' "$cfg" 2>/dev/null | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+        IFS=':' read -r -a dirs <<< "$raw"
+        for d in "${dirs[@]}"; do
+            [[ -n "$d" ]] && echo "$d"
+        done
+    fi
+}
+
+_symdep() {
+    local cur prev words cword
+    if type _init_completion &>/dev/null; then
+        _init_completion -n = || return
+    else
+        COMPREPLY=()
+        cur="${COMP_WORDS[COMP_CWORD]}"
+        prev="${COMP_WORDS[COMP_CWORD-1]}"
+        words=("${COMP_WORDS[@]}")
+        cword=$COMP_CWORD
+    fi
+
+    local pkg_managers="pacman yay paru apt dnf apk brew nix-env zypper emerge xbps-install pkg"
+    local elevation_tools="sudo doas tsu none"
+    local dep_types="--required --optional --conflict"
+    local global_flags="-d --source-dir --src-dir --dotfiles-dir -t --target-dir -m --manager --pkg-mgr --package-manager -i --interactive -y --install -n --dry-run -s --save -p --profile --perf --performance --profiler -h --help"
+
+    local commands="link stow deploy unlink unstow relink restow install all diff scan check check-symlinks fix fix-conflicts pkg deps ignore config help remove"
+
+    # Complete flag values
+    case "$prev" in
+        -d|--source-dir|--src-dir|--dotfiles-dir|-t|--target-dir|--target|--source)
+            COMPREPLY=( $(compgen -d -- "$cur") )
+            return 0
+            ;;
+        -m|--manager|--pkg-mgr|--package-manager)
+            COMPREPLY=( $(compgen -W "$pkg_managers" -- "$cur") )
+            return 0
+            ;;
+        -e|--elevation|--elevation-tool)
+            COMPREPLY=( $(compgen -W "$elevation_tools" -- "$cur") )
+            return 0
+            ;;
+    esac
+
+    # Handle global options starting with -
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $(compgen -W "$global_flags" -- "$cur") )
+        return 0
+    fi
+
+    # Determine command and subcommands
+    local cmd=""
+    local subcmd=""
+    local cmd_idx=0
+    local subcmd_idx=0
+
+    local i
+    for ((i=1; i < cword; i++)); do
+        local w="${words[i]}"
+        # Skip option arguments
+        case "$w" in
+            -d|--source-dir|--src-dir|--dotfiles-dir|-t|--target-dir|-m|--manager|--pkg-mgr|--package-manager|-e|--elevation|--elevation-tool)
+                ((i++))
+                continue
+                ;;
+            -*)
+                continue
+                ;;
+        esac
+
+        if [[ -z "$cmd" ]]; then
+            cmd="$w"
+            cmd_idx=$i
+        elif [[ -z "$subcmd" ]]; then
+            subcmd="$w"
+            subcmd_idx=$i
+            break
+        fi
+    done
+
+    # If no top-level command specified yet
+    if [[ -z "$cmd" ]]; then
+        local pkgs
+        pkgs=$(__symdep_get_packages)
+        COMPREPLY=( $(compgen -W "$commands $pkgs" -- "$cur") )
+        return 0
+    fi
+
+    # Handle colon syntax (e.g. pkg:create, deps:add, ignore:show, config:set)
+    case "$cmd" in
+        pkg:create|package:create|make:pkg)
+            cmd="pkg"; subcmd="create" ;;
+        pkg:remove|package:remove|pkg:rm)
+            cmd="pkg"; subcmd="remove" ;;
+        pkg:list|package:list|pkg:show)
+            cmd="pkg"; subcmd="list" ;;
+        deps:install)
+            cmd="deps"; subcmd="install" ;;
+        deps:add)
+            cmd="deps"; subcmd="add" ;;
+        deps:edit|deps:set)
+            cmd="deps"; subcmd="edit" ;;
+        deps:remove|deps:rm)
+            cmd="deps"; subcmd="remove" ;;
+        deps:show|deps:list)
+            cmd="deps"; subcmd="show" ;;
+        deps:target)
+            cmd="deps"; subcmd="target" ;;
+        ignore:init|ignore:create)
+            cmd="ignore"; subcmd="init" ;;
+        ignore:add)
+            cmd="ignore"; subcmd="add" ;;
+        ignore:remove|ignore:rm|ignore:delete)
+            cmd="ignore"; subcmd="remove" ;;
+        ignore:show|ignore:list)
+            cmd="ignore"; subcmd="show" ;;
+        ignore:clear|ignore:purge)
+            cmd="ignore"; subcmd="clear" ;;
+        config:show|config:list|config:get)
+            cmd="config"; subcmd="show" ;;
+        config:set|config:target|config:source)
+            cmd="config"; subcmd="set" ;;
+        config:add)
+            cmd="config"; subcmd="add" ;;
+        config:remove|config:rm)
+            cmd="config"; subcmd="remove" ;;
+    esac
+
+    # Command-specific completions
+    case "$cmd" in
+        link|stow|deploy|unlink|unstow|relink|restow|install|remove|diff|scan|check)
+            local pkgs
+            pkgs=$(__symdep_get_packages)
+            COMPREPLY=( $(compgen -W "$pkgs" -- "$cur") )
+            return 0
+            ;;
+        all|check-symlinks|fix|fix-conflicts)
+            return 0
+            ;;
+        pkg|package)
+            if [[ -z "$subcmd" ]]; then
+                COMPREPLY=( $(compgen -W "create remove list rm ls show" -- "$cur") )
+                return 0
+            fi
+            case "$subcmd" in
+                remove|rm|delete)
+                    local pkgs
+                    pkgs=$(__symdep_get_packages)
+                    COMPREPLY=( $(compgen -W "$pkgs" -- "$cur") )
+                    return 0
+                    ;;
+                list|ls|show|create)
+                    return 0
+                    ;;
+            esac
+            ;;
+        deps)
+            if [[ -z "$subcmd" ]]; then
+                COMPREPLY=( $(compgen -W "install add edit remove show target set rm list" -- "$cur") )
+                return 0
+            fi
+            local pos=$((cword - subcmd_idx))
+            local target_pkg=""
+            if [[ $((subcmd_idx + 1)) -lt ${#words[@]} ]]; then
+                target_pkg="${words[subcmd_idx + 1]}"
+            fi
+
+            case "$subcmd" in
+                install)
+                    local pkgs
+                    pkgs=$(__symdep_get_packages)
+                    COMPREPLY=( $(compgen -W "$pkgs" -- "$cur") )
+                    return 0
+                    ;;
+                add)
+                    if [[ $pos -eq 1 ]]; then
+                        local pkgs
+                        pkgs=$(__symdep_get_packages)
+                        COMPREPLY=( $(compgen -W "$pkgs" -- "$cur") )
+                    elif [[ $pos -eq 2 ]]; then
+                        # Suggest known tools from registry as candidate dependencies
+                        local reg_tools
+                        reg_tools=$(__symdep_get_registry_tools)
+                        COMPREPLY=( $(compgen -W "$reg_tools" -- "$cur") )
+                    elif [[ $pos -ge 3 ]]; then
+                        COMPREPLY=( $(compgen -W "$dep_types" -- "$cur") )
+                    fi
+                    return 0
+                    ;;
+                edit|set)
+                    if [[ $pos -eq 1 ]]; then
+                        local pkgs
+                        pkgs=$(__symdep_get_packages)
+                        COMPREPLY=( $(compgen -W "$pkgs" -- "$cur") )
+                    elif [[ $pos -eq 2 ]]; then
+                        # Context-aware: suggest dependencies that actually exist in this package
+                        local existing_deps
+                        existing_deps=$(__symdep_get_pkg_deps "$target_pkg")
+                        COMPREPLY=( $(compgen -W "$existing_deps" -- "$cur") )
+                    elif [[ $pos -ge 3 ]]; then
+                        COMPREPLY=( $(compgen -W "$dep_types" -- "$cur") )
+                    fi
+                    return 0
+                    ;;
+                remove|rm|delete)
+                    if [[ $pos -eq 1 ]]; then
+                        local pkgs
+                        pkgs=$(__symdep_get_packages)
+                        COMPREPLY=( $(compgen -W "$pkgs" -- "$cur") )
+                    elif [[ $pos -eq 2 ]]; then
+                        # Context-aware: suggest dependencies that actually exist in this package
+                        local existing_deps
+                        existing_deps=$(__symdep_get_pkg_deps "$target_pkg")
+                        COMPREPLY=( $(compgen -W "$existing_deps" -- "$cur") )
+                    fi
+                    return 0
+                    ;;
+                show|list)
+                    if [[ $pos -eq 1 ]]; then
+                        local pkgs
+                        pkgs=$(__symdep_get_packages)
+                        COMPREPLY=( $(compgen -W "$pkgs" -- "$cur") )
+                    fi
+                    return 0
+                    ;;
+                target)
+                    if [[ $pos -eq 1 ]]; then
+                        local pkgs
+                        pkgs=$(__symdep_get_packages)
+                        COMPREPLY=( $(compgen -W "$pkgs" -- "$cur") )
+                    elif [[ $pos -eq 2 ]]; then
+                        COMPREPLY=( $(compgen -d -- "$cur") )
+                    fi
+                    return 0
+                    ;;
+            esac
+            ;;
+        ignore)
+            if [[ -z "$subcmd" ]]; then
+                COMPREPLY=( $(compgen -W "init add remove show clear create rm delete list purge" -- "$cur") )
+                return 0
+            fi
+            local pos=$((cword - subcmd_idx))
+            local target_pkg=""
+            if [[ $((subcmd_idx + 1)) -lt ${#words[@]} ]]; then
+                target_pkg="${words[subcmd_idx + 1]}"
+            fi
+
+            case "$subcmd" in
+                init|show|clear|list|purge)
+                    local pkgs
+                    pkgs=$(__symdep_get_packages)
+                    COMPREPLY=( $(compgen -W "$pkgs -g --global" -- "$cur") )
+                    return 0
+                    ;;
+                add)
+                    if [[ $pos -eq 1 ]]; then
+                        local pkgs
+                        pkgs=$(__symdep_get_packages)
+                        COMPREPLY=( $(compgen -W "$pkgs -g --global" -- "$cur") )
+                    fi
+                    return 0
+                    ;;
+                remove|rm|delete)
+                    if [[ $pos -eq 1 ]]; then
+                        local pkgs
+                        pkgs=$(__symdep_get_packages)
+                        COMPREPLY=( $(compgen -W "$pkgs -g --global" -- "$cur") )
+                    elif [[ $pos -ge 2 ]]; then
+                        # Context-aware: suggest patterns existing in the targeted ignore file
+                        local existing_ignores
+                        existing_ignores=$(__symdep_get_pkg_ignores "$target_pkg")
+                        COMPREPLY=( $(compgen -W "$existing_ignores" -- "$cur") )
+                    fi
+                    return 0
+                    ;;
+            esac
+            ;;
+        config)
+            if [[ -z "$subcmd" ]]; then
+                COMPREPLY=( $(compgen -W "show set add remove list get target source rm" -- "$cur") )
+                return 0
+            fi
+            case "$subcmd" in
+                set|target|source)
+                    COMPREPLY=( $(compgen -W "-m --manager -e --elevation -t --target -d --source" -- "$cur") )
+                    return 0
+                    ;;
+                add)
+                    COMPREPLY=( $(compgen -d -- "$cur") )
+                    return 0
+                    ;;
+                remove|rm|delete)
+                    local sdirs
+                    sdirs=$(__symdep_get_config_sources)
+                    COMPREPLY=( $(compgen -W "$sdirs" -- "$cur") )
+                    return 0
+                    ;;
+                show|list|get)
+                    return 0
+                    ;;
+            esac
+            ;;
+        help)
+            COMPREPLY=( $(compgen -W "link unlink relink all diff scan check check-symlinks fix pkg deps ignore config" -- "$cur") )
+            return 0
+            ;;
+        *)
+            local pkgs
+            pkgs=$(__symdep_get_packages)
+            COMPREPLY=( $(compgen -W "$pkgs" -- "$cur") )
+            return 0
+            ;;
+    esac
+}
+
+complete -F _symdep symdep

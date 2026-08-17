@@ -253,10 +253,19 @@ install: $(TARGET)
 	install -m 644 resources/symignore.default $(DESTDIR)$(DATADIR)/$(BIN_NAME)/symignore.default
 	install -m 644 resources/symignore.template $(DESTDIR)$(DATADIR)/$(BIN_NAME)/symignore.template
 	install -m 644 resources/symdeps.template $(DESTDIR)$(DATADIR)/$(BIN_NAME)/symdeps.template
+	install -d $(DESTDIR)$(DATAROOTDIR)/bash-completion/completions
+	install -m 644 resources/completions/bash/symdep $(DESTDIR)$(DATAROOTDIR)/bash-completion/completions/$(BIN_NAME)
+	install -d $(DESTDIR)$(DATAROOTDIR)/zsh/site-functions
+	install -m 644 resources/completions/zsh/_symdep $(DESTDIR)$(DATAROOTDIR)/zsh/site-functions/_$(BIN_NAME)
+	install -d $(DESTDIR)$(DATAROOTDIR)/fish/vendor_completions.d
+	install -m 644 resources/completions/fish/symdep.fish $(DESTDIR)$(DATAROOTDIR)/fish/vendor_completions.d/$(BIN_NAME).fish
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(BIN_NAME)
 	rm -rf $(DESTDIR)$(DATADIR)/$(BIN_NAME)
+	rm -f $(DESTDIR)$(DATAROOTDIR)/bash-completion/completions/$(BIN_NAME)
+	rm -f $(DESTDIR)$(DATAROOTDIR)/zsh/site-functions/_$(BIN_NAME)
+	rm -f $(DESTDIR)$(DATAROOTDIR)/fish/vendor_completions.d/$(BIN_NAME).fish
 
 bench: $(TARGET)
 	@bash tests/benchmark/run_benchmark.sh

@@ -1,0 +1,517 @@
+#compdef symdep
+
+# Zsh completion for symdep (Symlink & Dependency Manager)
+# Place in $fpath (e.g. ~/.zsh/completion/_symdep or /usr/share/zsh/site-functions/_symdep)
+
+_symdep_find_config_file() {
+    if [[ -n "${SYMDEP_CONFIG_FILE:-}" && -f "$SYMDEP_CONFIG_FILE" ]]; then
+        echo "$SYMDEP_CONFIG_FILE"
+        return 0
+    fi
+    if [[ -n "${STOW_CONFIG_FILE:-}" && -f "$STOW_CONFIG_FILE" ]]; then
+        echo "$STOW_CONFIG_FILE"
+        return 0
+    fi
+    local xdg="${XDG_CONFIG_HOME:-$HOME/.config}"
+    if [[ -f "$xdg/symdep/config" ]]; then
+        echo "$xdg/symdep/config"
+        return 0
+    fi
+    if [[ -f "$xdg/stow-manager/config" ]]; then
+        echo "$xdg/stow-manager/config"
+        return 0
+    fi
+    return 1
+}
+
+_symdep_get_all_source_dirs() {
+    local -a words
+    words=("${(@s/ /)BUFFER}")
+    local -a sdirs=()
+    local i=1
+
+    # 1. Check CLI flags (-d, --source-dir, --src-dir, --dotfiles-dir)
+    while (( i <= ${#words} )); do
+        case "${words[i]}" in
+            -d|--source-dir|--src-dir|--dotfiles-dir)
+                if (( i + 1 <= ${#words} )); then
+                    sdirs+=("${words[i+1]}")
+                fi
+                ;;
+            --source-dir=*|--src-dir=*|--dotfiles-dir=*)
+                sdirs+=("${words[i]#*=}")
+                ;;
+        esac
+        (( i++ ))
+    done
+
+    # 2. Check environment variables
+    if [[ ${#sdirs} -eq 0 ]]; then
+        local env_src="${SYMDEP_SOURCE_DIR:-${SOURCE_DIR:-${STOW_DOTFILES_DIR:-${DOTFILES_DIR:-}}}}"
+        if [[ -n "$env_src" ]]; then
+            local -a env_dirs
+            env_dirs=(${(s/:/)env_src})
+            for ed in "${env_dirs[@]}"; do
+                [[ -n "$ed" && -d "$ed" ]] && sdirs+=("$ed")
+            done
+        fi
+    fi
+
+    # 3. Check configuration files (symdep or stow-manager)
+    if [[ ${#sdirs} -eq 0 ]]; then
+        local cfg
+        cfg=$(_symdep_find_config_file)
+        if [[ -n "$cfg" && -f "$cfg" ]]; then
+            local raw
+            raw=$(grep -E '^[[:space:]]*SOURCE_DIRS=' "$cfg" 2>/dev/null | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+            if [[ -n "$raw" ]]; then
+                local -a cfg_dirs
+                cfg_dirs=(${(s/:/)raw})
+                for cd in "${cfg_dirs[@]}"; do
+                    [[ -n "$cd" && -d "$cd" ]] && sdirs+=("$cd")
+                done
+            fi
+        fi
+    fi
+
+    # 4. Check CWD and upward directory traversal for dotfiles repository root
+    if [[ ${#sdirs} -eq 0 ]]; then
+        local curr="$PWD"
+        while [[ "$curr" != "/" && -n "$curr" ]]; do
+            if [[ -f "$curr/symdep.registry" || -f "$curr/.symdepregistry" || -f "$curr/stow.registry" || -f "$curr/.stowregistry" ]]; then
+                sdirs+=("$curr")
+                break
+            fi
+            curr="${curr:h}"
+        done
+    fi
+
+    # 5. Standard fallback dotfiles directories
+    if [[ ${#sdirs} -eq 0 ]]; then
+        local candidate
+        for candidate in "$HOME/dotfiles" "$HOME/.dotfiles" "$HOME/.config/dotfiles" "$HOME/dots" "$HOME/.dots"; do
+            if [[ -d "$candidate" ]]; then
+                sdirs+=("$candidate")
+                break
+            fi
+        done
+    fi
+
+    # 6. Fallback to current working directory
+    if [[ ${#sdirs} -eq 0 ]]; then
+        sdirs+=(".")
+    fi
+
+    echo "${sdirs[@]}"
+}
+
+_symdep_packages() {
+    local -a sdirs
+    sdirs=($(_symdep_get_all_source_dirs))
+    local -a pkgs=()
+
+    for sdir in "${sdirs[@]}"; do
+        if [[ -d "$sdir" ]]; then
+            local p
+            for p in "$sdir"/*(N/); do
+                local b="${p:t}"
+                case "$b" in
+                    .*|build|bin|include|src|tests|Testing|profiles|resources|docs|.agents)
+                        ;;
+                    *)
+                        pkgs+=("$b")
+                        ;;
+                esac
+            done
+        fi
+    done
+
+    # Filter out packages already present on the command line
+    local -a filtered_pkgs=()
+    local -a cmd_words
+    cmd_words=("${(@s/ /)BUFFER}")
+
+    for p in "${pkgs[@]}"; do
+        if (( ! ${cmd_words[(Ie)$p]} )); then
+            filtered_pkgs+=("$p")
+        fi
+    done
+
+    _describe -t packages 'package' filtered_pkgs
+}
+
+_symdep_pkg_deps() {
+    local pkg="$1"
+    local -a sdirs
+    sdirs=($(_symdep_get_all_source_dirs))
+    local -a deps=()
+
+    for sdir in "${sdirs[@]}"; do
+        local mfile="$sdir/$pkg/.symdeps"
+        [[ ! -f "$mfile" ]] && mfile="$sdir/$pkg/.stowdeps"
+        if [[ -f "$mfile" ]]; then
+            local lines
+            lines=$(grep -E '^[[:space:]]*(REQUIRED|OPTIONAL|CONFLICTS)=' "$mfile" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" | tr " " "\n" | grep -v "^$")
+            if [[ -n "$lines" ]]; then
+                deps+=(${(f)lines})
+            fi
+        fi
+    done
+
+    _describe -t package_deps 'existing package dependency' deps
+}
+
+_symdep_pkg_ignores() {
+    local pkg="$1"
+    local -a sdirs
+    sdirs=($(_symdep_get_all_source_dirs))
+    local -a ignores=()
+
+    for sdir in "${sdirs[@]}"; do
+        local ifile
+        if [[ -z "$pkg" || "$pkg" == "-g" || "$pkg" == "--global" ]]; then
+            ifile="$sdir/.symignore"
+            [[ ! -f "$ifile" ]] && ifile="$sdir/.stowignore"
+        else
+            ifile="$sdir/$pkg/.symignore"
+            [[ ! -f "$ifile" ]] && ifile="$sdir/$pkg/.stowignore"
+        fi
+
+        if [[ -f "$ifile" ]]; then
+            local lines
+            lines=$(grep -v "^#" "$ifile" 2>/dev/null | grep -v "^[[:space:]]*$")
+            if [[ -n "$lines" ]]; then
+                ignores+=(${(f)lines})
+            fi
+        fi
+    done
+
+    _describe -t package_ignores 'configured ignore pattern' ignores
+}
+
+_symdep_registry_tools() {
+    local -a sdirs
+    sdirs=($(_symdep_get_all_source_dirs))
+    local -a tools=()
+    local search_files=()
+
+    for sdir in "${sdirs[@]}"; do
+        search_files+=(
+            "$sdir/symdep.registry"
+            "$sdir/.symdepregistry"
+            "$sdir/stow.registry"
+            "$sdir/.stowregistry"
+        )
+    done
+    search_files+=(
+        "/usr/local/share/symdep/symdep.registry"
+        "/usr/share/symdep/symdep.registry"
+        "resources/symdep.registry"
+    )
+
+    for rfile in "${search_files[@]}"; do
+        if [[ -f "$rfile" ]]; then
+            local lines
+            lines=$(grep -v "^#" "$rfile" 2>/dev/null | grep -v "^[[:space:]]*$" | cut -d= -f1 | cut -d@ -f1 | tr -d " ")
+            if [[ -n "$lines" ]]; then
+                tools+=(${(f)lines})
+            fi
+            break
+        fi
+    done
+
+    _describe -t registry_tools 'known registry tool' tools
+}
+
+_symdep_config_sources() {
+    local cfg
+    cfg=$(_symdep_find_config_file)
+    local -a sdirs=()
+    if [[ -n "$cfg" && -f "$cfg" ]]; then
+        local raw
+        raw=$(grep -E '^[[:space:]]*SOURCE_DIRS=' "$cfg" 2>/dev/null | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+        local -a dirs
+        dirs=(${(s/:/)raw})
+        for d in "${dirs[@]}"; do
+            [[ -n "$d" ]] && sdirs+=("$d")
+        done
+    fi
+    _describe -t sources 'source directory' sdirs
+}
+
+_symdep_package_managers() {
+    local -a mgrs
+    mgrs=(
+        'pacman:Arch Linux official package manager'
+        'yay:Arch Linux AUR helper'
+        'paru:Feature-packed AUR helper'
+        'apt:Debian/Ubuntu Advanced Package Tool'
+        'dnf:Fedora/RHEL package manager'
+        'apk:Alpine Linux package keeper'
+        'brew:Homebrew package manager (macOS/Linux)'
+        'nix-env:Nix package manager'
+        'zypper:openSUSE package manager'
+        'emerge:Gentoo package manager'
+        'xbps-install:Void Linux package manager'
+        'pkg:FreeBSD/Termux package manager'
+    )
+    _describe -t pkg_managers 'package manager' mgrs
+}
+
+_symdep_elevation_tools() {
+    local -a tools
+    tools=(
+        'sudo:Execute command as superuser'
+        'doas:OpenBSD/Linux dedicated privilege escalation'
+        'tsu:Termux root privilege wrapper'
+        'none:Do not invoke privilege elevation'
+    )
+    _describe -t elevation_tools 'elevation tool' tools
+}
+
+_symdep() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    local -a global_opts
+    global_opts=(
+        '(-d --source-dir --src-dir --dotfiles-dir)'{-d,--source-dir,--src-dir,--dotfiles-dir}'[Set source repository directory]:source directory:_directories'
+        '(-t --target-dir)'{-t,--target-dir}'[Set target home directory]:target directory:_directories'
+        '(-m --manager --pkg-mgr --package-manager)'{-m,--manager,--pkg-mgr,--package-manager}'[Override active package manager]:package manager:_symdep_package_managers'
+        '(-i --interactive)'{-i,--interactive}'[Launch interactive dependency wizard]'
+        '(-y --install)'{-y,--install}'[Auto-confirm dependency installation without prompting]'
+        '(-n --dry-run)'{-n,--dry-run}'[Preview disk changes without modifying filesystem]'
+        '(-s --save)'{-s,--save}'[Save command-line directory overrides to config]'
+        '(-p --profile --perf --performance --profiler)'{-p,--profile,--perf,--performance,--profiler}'[Enable nanosecond execution profiler logging]'
+        '(-h --help)'{-h,--help}'[Display help manual]'
+    )
+
+    local -a main_commands
+    main_commands=(
+        'link:Deploy symlinks for one or multiple packages'
+        'stow:Deploy symlinks (GNU Stow compatibility alias)'
+        'deploy:Deploy symlinks for packages'
+        'unlink:Remove symlinks for one or multiple packages'
+        'unstow:Remove symlinks (GNU Stow compatibility alias)'
+        'relink:Restow (unlink then link) packages'
+        'restow:Relink packages (GNU Stow compatibility alias)'
+        'install:Install missing dependencies for packages (without linking)'
+        'all:Link all packages present in source repository'
+        'diff:Preview pending symlinks, backups, and dependencies'
+        'scan:Auto-scan package scripts/configs for dependencies'
+        'check:Verify dependencies and symlink health for packages'
+        'check-symlinks:Scan repository for broken and orphan symlinks'
+        'fix:Unfold directory symlinks to resolve tree folding collisions'
+        'fix-conflicts:Unfold directory symlinks to resolve folding collisions'
+        'pkg:Package management operations (create, remove, list)'
+        'deps:Dependency and conflict manifest operations'
+        'ignore:File filtering and .symignore pattern management'
+        'config:Global configuration and repository federation settings'
+        'help:Display help manual or subcommand documentation'
+        'remove:Safely unlink and remove package directory from disk'
+    )
+
+    _arguments -C \
+        $global_opts \
+        '1: :->cmd' \
+        '*:: :->args' && return 0
+
+    case "$state" in
+        cmd)
+            _describe -t commands 'symdep command' main_commands
+            _symdep_packages
+            ;;
+        args)
+            local cmd="${words[1]}"
+            case "$cmd" in
+                link|stow|deploy|unlink|unstow|relink|restow|install|remove|diff|scan|check)
+                    _arguments -C \
+                        $global_opts \
+                        '*:package:_symdep_packages'
+                    ;;
+                all|check-symlinks|fix|fix-conflicts)
+                    _arguments -C $global_opts
+                    ;;
+                pkg|package)
+                    local -a pkg_cmds
+                    pkg_cmds=(
+                        'create:Scaffold new package directory & manifest'
+                        'remove:Safely unlink and delete package directory'
+                        'list:List all packages with active deployment status'
+                    )
+                    if (( CURRENT == 2 )); then
+                        _describe -t pkg_commands 'pkg subcommand' pkg_cmds
+                    else
+                        case "${words[2]}" in
+                            remove|rm|delete)
+                                _arguments -C $global_opts '*:package:_symdep_packages'
+                                ;;
+                            create)
+                                _message 'package name'
+                                ;;
+                            list|ls|show)
+                                _arguments -C $global_opts
+                                ;;
+                        esac
+                    fi
+                    ;;
+                deps)
+                    local -a deps_cmds
+                    deps_cmds=(
+                        'install:Install missing required and optional dependencies'
+                        'add:Add dependency or conflict to package manifest'
+                        'edit:Modify existing dependency classification'
+                        'remove:Remove dependency or conflict entry'
+                        'show:Display raw manifest contents for package'
+                        'target:Set per-package target directory override'
+                    )
+                    if (( CURRENT == 2 )); then
+                        _describe -t deps_commands 'deps subcommand' deps_cmds
+                    else
+                        local target_pkg="${words[3]}"
+                        case "${words[2]}" in
+                            install)
+                                if (( CURRENT >= 3 )); then
+                                    _symdep_packages
+                                fi
+                                ;;
+                            add)
+                                if (( CURRENT == 3 )); then
+                                    _symdep_packages
+                                elif (( CURRENT == 4 )); then
+                                    _symdep_registry_tools
+                                elif (( CURRENT == 5 )); then
+                                    local -a types
+                                    types=('(--required)--required[Required system executable]' '(--optional)--optional[Optional plugin or utility]' '(--conflict)--conflict[Mutually exclusive conflicting package]')
+                                    _describe -t dep_types 'dependency type' types
+                                fi
+                                ;;
+                            edit|set)
+                                if (( CURRENT == 3 )); then
+                                    _symdep_packages
+                                elif (( CURRENT == 4 )); then
+                                    _symdep_pkg_deps "$target_pkg"
+                                elif (( CURRENT == 5 )); then
+                                    local -a types
+                                    types=('(--required)--required[Required system executable]' '(--optional)--optional[Optional plugin or utility]' '(--conflict)--conflict[Mutually exclusive conflicting package]')
+                                    _describe -t dep_types 'dependency type' types
+                                fi
+                                ;;
+                            remove|rm|delete)
+                                if (( CURRENT == 3 )); then
+                                    _symdep_packages
+                                elif (( CURRENT == 4 )); then
+                                    _symdep_pkg_deps "$target_pkg"
+                                fi
+                                ;;
+                            show|list)
+                                if (( CURRENT == 3 )); then
+                                    _symdep_packages
+                                fi
+                                ;;
+                            target)
+                                if (( CURRENT == 3 )); then
+                                    _symdep_packages
+                                elif (( CURRENT == 4 )); then
+                                    _directories
+                                fi
+                                ;;
+                        esac
+                    fi
+                    ;;
+                ignore)
+                    local -a ignore_cmds
+                    ignore_cmds=(
+                        'init:Scaffold global or package-level .symignore'
+                        'add:Append glob pattern to .symignore'
+                        'remove:Remove glob pattern from .symignore'
+                        'show:Display active merged ignore patterns'
+                        'clear:Purge .symignore patterns'
+                    )
+                    if (( CURRENT == 2 )); then
+                        _describe -t ignore_commands 'ignore subcommand' ignore_cmds
+                    else
+                        local target_pkg="${words[3]}"
+                        case "${words[2]}" in
+                            init|show|clear|list|purge)
+                                _arguments -C \
+                                    '(-g --global)'{-g,--global}'[Apply to global root .symignore]' \
+                                    '*:package:_symdep_packages'
+                                ;;
+                            add)
+                                _arguments -C \
+                                    '(-g --global)'{-g,--global}'[Apply to global root .symignore]' \
+                                    '1:package:_symdep_packages' \
+                                    '*:pattern:_message "glob pattern to add"'
+                                ;;
+                            remove|rm|delete)
+                                if (( CURRENT == 3 )); then
+                                    _arguments -C \
+                                        '(-g --global)'{-g,--global}'[Apply to global root .symignore]' \
+                                        '1:package or pattern:_symdep_packages'
+                                else
+                                    _symdep_pkg_ignores "$target_pkg"
+                                fi
+                                ;;
+                        esac
+                    fi
+                    ;;
+                config)
+                    local -a config_cmds
+                    config_cmds=(
+                        'show:Display active configuration and source repositories'
+                        'set:Set package manager, elevation tool, target, or source'
+                        'add:Add an additional source repository directory'
+                        'remove:Remove a source repository directory from configuration'
+                    )
+                    if (( CURRENT == 2 )); then
+                        _describe -t config_commands 'config subcommand' config_cmds
+                    else
+                        case "${words[2]}" in
+                            set|target|source)
+                                _arguments -C \
+                                    '(-m --manager --pkg-mgr --pkg-manager)'{-m,--manager,--pkg-mgr,--pkg-manager}'[Set preferred package manager]:package manager:_symdep_package_managers' \
+                                    '(-e --elevation --elevation-tool)'{-e,--elevation,--elevation-tool}'[Set privilege elevation tool]:tool:_symdep_elevation_tools' \
+                                    '(-t --target --target-dir)'{-t,--target,--target-dir}'[Set default target directory]:target directory:_directories' \
+                                    '(-d --source --source-dir --src-dir --dotfiles-dir)'{-d,--source,--source-dir,--src-dir,--dotfiles-dir}'[Set primary source repository]:source directory:_directories'
+                                ;;
+                            add)
+                                _directories
+                                ;;
+                            remove|rm|delete)
+                                _symdep_config_sources
+                                ;;
+                            show|list|get)
+                                _arguments -C $global_opts
+                                ;;
+                        esac
+                    fi
+                    ;;
+                help)
+                    local -a topics
+                    topics=(
+                        'link:Link package dotfiles'
+                        'unlink:Unlink package dotfiles'
+                        'relink:Relink package dotfiles'
+                        'all:Link all repository packages'
+                        'diff:Preview pending actions'
+                        'scan:Auto-detect dependencies'
+                        'check:Verify health and dependencies'
+                        'check-symlinks:Audit broken & orphan symlinks'
+                        'fix:Unfold directory symlink collisions'
+                        'pkg:Package management'
+                        'deps:Dependency management'
+                        'ignore:File filtering rules'
+                        'config:Configuration settings'
+                    )
+                    _describe -t help_topics 'help topic' topics
+                    ;;
+                *)
+                    _symdep_packages
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_symdep "$@"

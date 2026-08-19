@@ -1,5 +1,6 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
+ * Lightweight Zero-Dependency Unit Testing Framework Header
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #ifndef TEST_FRAMEWORK_H
 #define TEST_FRAMEWORK_H
 
@@ -48,19 +48,30 @@ extern int g_tests_failed;
 static inline char *create_test_tmp_dir(char *buf, size_t buf_size, const char *prefix)
 {
     const char *tmpenv = getenv("TMPDIR");
-    if (!tmpenv || *tmpenv == '\0') {
+    if (!tmpenv || *tmpenv == '\0' || access(tmpenv, W_OK) != 0) {
         tmpenv = getenv("TMP");
     }
-    if (!tmpenv || *tmpenv == '\0') {
+    if (!tmpenv || *tmpenv == '\0' || access(tmpenv, W_OK) != 0) {
         tmpenv = getenv("TEMP");
     }
-#ifdef P_tmpdir
-    if (!tmpenv || *tmpenv == '\0') {
-        tmpenv = P_tmpdir;
+    if (!tmpenv || *tmpenv == '\0' || access(tmpenv, W_OK) != 0) {
+        const char *p = getenv("PREFIX");
+        if (p) {
+            static char termux_tmp[STOW_PATH_MAX];
+            snprintf(termux_tmp, sizeof(termux_tmp), "%s/tmp", p);
+            if (access(termux_tmp, W_OK) == 0) {
+                tmpenv = termux_tmp;
+            }
+        }
     }
-#endif
-    if (!tmpenv || *tmpenv == '\0') {
-        tmpenv = "/tmp";
+    if (!tmpenv || *tmpenv == '\0' || access(tmpenv, W_OK) != 0) {
+        if (access("/data/local/tmp", W_OK) == 0) {
+            tmpenv = "/data/local/tmp";
+        } else if (access("/tmp", W_OK) == 0) {
+            tmpenv = "/tmp";
+        } else {
+            tmpenv = ".";
+        }
     }
     snprintf(buf, buf_size, "%s/stow_%s_XXXXXX", tmpenv, prefix);
     return mkdtemp(buf);

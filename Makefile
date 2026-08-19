@@ -1,4 +1,21 @@
-# Makefile for Symlink & Dependency Manager (symdep) (ISO C17)
+#
+# Symlink & Dependency Manager (symdep)
+# High-Performance Zero-Dependency Build System (ISO C17)
+# Copyright (C) 2026 durzhars
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 
 PREFIX ?= /usr/local
 BIN_NAME ?= symdep
@@ -19,8 +36,14 @@ TEST_DIR = tests
 TEST_UNIT_DIR = $(TEST_DIR)/unit
 TEST_FEATURE_DIR = $(TEST_DIR)/feature
 
-# Reusable Clang optimization & diagnostic profiles
-CC ?= gcc
+# Toolchain & architecture configuration
+CROSS_COMPILE ?=
+CC ?= $(CROSS_COMPILE)gcc
+AR ?= $(CROSS_COMPILE)ar
+STRIP ?= $(CROSS_COMPILE)strip
+TARGET_ARCH ?= $(shell $(CC) -dumpmachine 2>/dev/null | cut -d'-' -f1 | sed 's/armv.*/armhf/' || uname -m)
+
+# Compiler flags & diagnostic profiles
 CFLAGS ?= -Wall -Wextra -pedantic -Wconversion -Wsign-conversion \
           -Wno-overlength-strings -std=c17 -O2 -Iinclude -I$(BUILD_DIR) \
           -DDATADIR=$(DATADIR) -DSYSCONFDIR=$(SYSCONFDIR)
@@ -91,22 +114,44 @@ TEST_OBJS = $(patsubst $(TEST_UNIT_DIR)/%.c,$(BUILD_TEST_DIR)/%.o,$(TEST_SRCS)) 
 TEST_DEPS = $(patsubst $(TEST_UNIT_DIR)/%.c,$(BUILD_TEST_DIR)/.deps/%.d,$(TEST_SRCS))
 TEST_TARGET = $(BIN_DIR)/test_runner
 
-.PHONY: all clean static static-musl dist install test test-feature bench bench-clean uninstall tidy format format-check build-clang-opt build-sanitize build-pgo help
+.PHONY: all clean static static-musl dist dist-cross dist-aarch64 dist-armhf dist-riscv64 dist-x86_64 dist-all install test test-feature test-cross-aarch64 test-cross-armhf test-cross-riscv64 test-cross-all qemu-test-aarch64 qemu-test-armhf qemu-test-riscv64 qemu-test-all toolchain-check check-toolchain doctor bench bench-clean uninstall tidy format format-check build-clang-opt build-sanitize build-pgo cross-aarch64 cross-armhf cross-riscv64 cross-x86_64 static-cross-aarch64 static-cross-armhf static-cross-riscv64 help
 
 all: $(TARGET)
 
 help:
 	@echo "  Build Targets:"
 	@echo ""
-	@echo "  make                    Build release binary using default compiler ($(CC))"
-	@echo "  make static             Build standalone statically linked binary (glibc)"
-	@echo "  make static-musl        Build ultra-small static binary using musl-gcc (~230KB)"
-	@echo "  make dist               Create release tarball (.tar.gz) and SHA256 checksum"
-	@echo "  make test               Run unit test suite"
-	@echo "  make test-feature       Run end-to-end integration feature tests"
-	@echo "  make bench              Run sterilized benchmark suite (symdep vs GNU Stow vs Dotbot)"
-	@echo "  make bench-clean        Clean benchmark report and temporary vendor artifacts"
-	@echo "  make clean              Clean build and bin output directories"
+	@echo "  make                      Build release binary using default compiler ($(CC))"
+	@echo "  make static               Build standalone statically linked binary (glibc)"
+	@echo "  make static-musl          Build ultra-small static binary using musl-gcc (~230KB)"
+	@echo "  make dist                 Create release tarball (.tar.gz) and SHA256 checksum for host"
+	@echo "  make test                 Run unit test suite"
+	@echo "  make test-feature         Run end-to-end integration feature tests"
+	@echo "  make test-cross-aarch64   Run unit tests under QEMU ARM64 user emulation (qemu-aarch64)"
+	@echo "  make test-cross-armhf     Run unit tests under QEMU ARMv7 user emulation (qemu-arm)"
+	@echo "  make test-cross-riscv64   Run unit tests under QEMU RISC-V 64 user emulation (qemu-riscv64)"
+	@echo "  make test-cross-all       Run all available cross-architecture tests under QEMU"
+	@echo "  make toolchain-check      Inspect host/cross compilers, linkers, emulators & tools (doctor)"
+	@echo "  make bench                Run sterilized benchmark suite (symdep vs GNU Stow vs Dotbot)"
+	@echo "  make bench-clean          Clean benchmark report and temporary vendor artifacts"
+	@echo "  make clean                Clean build and bin output directories"
+	@echo ""
+	@echo "  Cross-Compilation Targets:"
+	@echo "  make cross-aarch64        Build for Linux ARM64 (aarch64-linux-gnu-gcc)"
+	@echo "  make cross-armhf          Build for Linux ARMv7 32-bit (arm-linux-gnueabihf-gcc)"
+	@echo "  make cross-riscv64        Build for Linux RISC-V 64 (riscv64-linux-gnu-gcc)"
+	@echo "  make cross-x86_64         Build for Linux x86_64"
+	@echo "  make static-cross-aarch64 Build static binary for ARM64"
+	@echo "  make static-cross-armhf   Build static binary for ARMv7"
+	@echo "  make static-cross-riscv64 Build static binary for RISC-V 64"
+	@echo ""
+	@echo "  Multi-Architecture Distribution Targets:"
+	@echo "  make dist-cross           Package tarball for specified TARGET_ARCH & CROSS_COMPILE"
+	@echo "  make dist-aarch64         Package release tarball & SHA256 for linux-aarch64"
+	@echo "  make dist-armhf           Package release tarball & SHA256 for linux-armhf"
+	@echo "  make dist-riscv64         Package release tarball & SHA256 for linux-riscv64"
+	@echo "  make dist-x86_64          Package release tarball & SHA256 for linux-x86_64"
+	@echo "  make dist-all             Build and package release tarballs for all available toolchains"
 	@echo ""
 	@echo "  Clang Optimization & Diagnostics Targets:"
 	@echo "  make build-clang-opt      Build with Clang ThinLTO, -O3, and optimization remarks"
@@ -183,30 +228,182 @@ static-musl:
 	@strip $(TARGET) 2>/dev/null || true
 
 RELEASE_DIR = release
-DIST_DIR = symdep-v$(VERSION)-linux-x86_64
-DIST_TARBALL = $(DIST_DIR).tar.gz
-DIST_HASH = $(DIST_TARBALL).sha256
 
+define package_dist
+	@mkdir -p $(RELEASE_DIR)
+	@rm -rf $(BUILD_DIR)/pkg_$(1)
+	@mkdir -p $(BUILD_DIR)/pkg_$(1)/symdep-v$(VERSION)-linux-$(1)
+	@cp $(TARGET) $(BUILD_DIR)/pkg_$(1)/symdep-v$(VERSION)-linux-$(1)/
+	@cp README.md LICENSE CHANGELOG.md $(BUILD_DIR)/pkg_$(1)/symdep-v$(VERSION)-linux-$(1)/
+	@cp -r resources $(BUILD_DIR)/pkg_$(1)/symdep-v$(VERSION)-linux-$(1)/
+	@tar -C $(BUILD_DIR)/pkg_$(1) -czvf $(RELEASE_DIR)/symdep-v$(VERSION)-linux-$(1).tar.gz symdep-v$(VERSION)-linux-$(1)
+	@cd $(RELEASE_DIR) && sha256sum symdep-v$(VERSION)-linux-$(1).tar.gz > symdep-v$(VERSION)-linux-$(1).tar.gz.sha256
+	@rm -rf $(BUILD_DIR)/pkg_$(1)
+	@echo "=== Created distribution tarball: $(RELEASE_DIR)/symdep-v$(VERSION)-linux-$(1).tar.gz ==="
+	@echo "=== SHA256 Checksum: $$(cat $(RELEASE_DIR)/symdep-v$(VERSION)-linux-$(1).tar.gz.sha256) ==="
+endef
+
+# Cross-compilation targets (dynamic)
+cross-aarch64:
+	@command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 || \
+		(echo "Error: aarch64-linux-gnu-gcc not found. Install gcc-aarch64-linux-gnu or cross toolchain." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=aarch64-linux-gnu-gcc STRIP=aarch64-linux-gnu-strip TARGET_ARCH=aarch64 $(TARGET)
+	@aarch64-linux-gnu-strip $(TARGET) 2>/dev/null || true
+
+cross-armhf:
+	@command -v arm-linux-gnueabihf-gcc >/dev/null 2>&1 || \
+		(echo "Error: arm-linux-gnueabihf-gcc not found. Install gcc-arm-linux-gnueabihf or cross toolchain." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=arm-linux-gnueabihf-gcc STRIP=arm-linux-gnueabihf-strip TARGET_ARCH=armhf $(TARGET)
+	@arm-linux-gnueabihf-strip $(TARGET) 2>/dev/null || true
+
+cross-riscv64:
+	@command -v riscv64-linux-gnu-gcc >/dev/null 2>&1 || \
+		(echo "Error: riscv64-linux-gnu-gcc not found. Install gcc-riscv64-linux-gnu or cross toolchain." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=riscv64-linux-gnu-gcc STRIP=riscv64-linux-gnu-strip TARGET_ARCH=riscv64 $(TARGET)
+	@riscv64-linux-gnu-strip $(TARGET) 2>/dev/null || true
+
+cross-x86_64:
+	$(MAKE) clean
+	$(MAKE) TARGET_ARCH=x86_64 $(TARGET)
+
+# Static cross-compilation targets
+static-cross-aarch64:
+	@command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 || \
+		(echo "Error: aarch64-linux-gnu-gcc not found." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=aarch64-linux-gnu-gcc STRIP=aarch64-linux-gnu-strip TARGET_ARCH=aarch64 \
+		CFLAGS="$(filter-out -O2,$(CFLAGS)) -O3 -ffunction-sections -fdata-sections -static -DNO_NSS_FALLBACK" \
+		LDFLAGS="$(LDFLAGS) -static -Wl,--gc-sections" $(TARGET)
+	@aarch64-linux-gnu-strip $(TARGET) 2>/dev/null || true
+
+static-cross-armhf:
+	@command -v arm-linux-gnueabihf-gcc >/dev/null 2>&1 || \
+		(echo "Error: arm-linux-gnueabihf-gcc not found." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=arm-linux-gnueabihf-gcc STRIP=arm-linux-gnueabihf-strip TARGET_ARCH=armhf \
+		CFLAGS="$(filter-out -O2,$(CFLAGS)) -O3 -ffunction-sections -fdata-sections -static -DNO_NSS_FALLBACK" \
+		LDFLAGS="$(LDFLAGS) -static -Wl,--gc-sections" $(TARGET)
+	@arm-linux-gnueabihf-strip $(TARGET) 2>/dev/null || true
+
+static-cross-riscv64:
+	@command -v riscv64-linux-gnu-gcc >/dev/null 2>&1 || \
+		(echo "Error: riscv64-linux-gnu-gcc not found." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=riscv64-linux-gnu-gcc STRIP=riscv64-linux-gnu-strip TARGET_ARCH=riscv64 \
+		CFLAGS="$(filter-out -O2,$(CFLAGS)) -O3 -ffunction-sections -fdata-sections -static -DNO_NSS_FALLBACK" \
+		LDFLAGS="$(LDFLAGS) -static -Wl,--gc-sections" $(TARGET)
+	@riscv64-linux-gnu-strip $(TARGET) 2>/dev/null || true
+
+# Multi-architecture distribution targets
 dist: static-musl
-	rm -rf $(DIST_DIR) $(DIST_TARBALL) $(DIST_TARBALL).sha256
-	mkdir -p $(DIST_DIR)
-	cp $(TARGET) $(DIST_DIR)/
-	cp README.md LICENSE CHANGELOG.md $(DIST_DIR)/
-	cp -r resources $(DIST_DIR)/
-	tar -czvf $(DIST_TARBALL) $(DIST_DIR)
-	sha256sum $(DIST_TARBALL) > $(DIST_HASH)
-	rm -rf $(DIST_DIR)
-	mkdir -p $(RELEASE_DIR)
-	mv $(DIST_TARBALL) $(RELEASE_DIR)
-	mv $(DIST_HASH) $(RELEASE_DIR)
-	@echo "=== Created distribution tarball: $(DIST_TARBALL) ==="
-	@echo "=== SHA256 Checksum: $$(cat $(RELEASE_DIR)/$(DIST_HASH)) ==="
+	$(call package_dist,x86_64)
+
+dist-cross:
+	@test -n "$(TARGET_ARCH)" || (echo "Error: TARGET_ARCH must be specified (e.g., make dist-cross TARGET_ARCH=aarch64 CROSS_COMPILE=aarch64-linux-gnu-)" && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=$(CC) STRIP=$(STRIP) TARGET_ARCH=$(TARGET_ARCH) \
+		CFLAGS="$(filter-out -O2,$(CFLAGS)) -O3 -ffunction-sections -fdata-sections -static -DNO_NSS_FALLBACK" \
+		LDFLAGS="$(LDFLAGS) -static -Wl,--gc-sections" $(TARGET)
+	@$(STRIP) $(TARGET) 2>/dev/null || true
+	$(call package_dist,$(TARGET_ARCH))
+
+dist-aarch64: static-cross-aarch64
+	$(call package_dist,aarch64)
+
+dist-armhf: static-cross-armhf
+	$(call package_dist,armhf)
+
+dist-riscv64: static-cross-riscv64
+	$(call package_dist,riscv64)
+
+dist-x86_64: dist
+
+dist-all:
+	@echo "=== Building multi-architecture distribution packages ==="
+	@$(MAKE) dist-x86_64
+	@if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then \
+		$(MAKE) dist-aarch64; \
+	else \
+		echo "Skipping aarch64 (aarch64-linux-gnu-gcc not found)"; \
+	fi
+	@if command -v arm-linux-gnueabihf-gcc >/dev/null 2>&1; then \
+		$(MAKE) dist-armhf; \
+	else \
+		echo "Skipping armhf (arm-linux-gnueabihf-gcc not found)"; \
+	fi
+	@if command -v riscv64-linux-gnu-gcc >/dev/null 2>&1; then \
+		$(MAKE) dist-riscv64; \
+	else \
+		echo "Skipping riscv64 (riscv64-linux-gnu-gcc not found)"; \
+	fi
+	@echo "=== All available distributions built in $(RELEASE_DIR)/ ==="
+	@ls -lh $(RELEASE_DIR)
 
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)
 
 test-feature: $(TARGET)
 	bash $(TEST_FEATURE_DIR)/run_feature_tests.sh
+
+# QEMU User-Mode Test Emulation Configuration
+QEMU_AARCH64 ?= qemu-aarch64
+QEMU_ARM ?= qemu-arm
+QEMU_RISCV64 ?= qemu-riscv64
+
+AARCH64_SYSROOT ?= $(shell test -d /usr/aarch64-linux-gnu && echo "-L /usr/aarch64-linux-gnu")
+ARMHF_SYSROOT ?= $(shell test -d /usr/arm-linux-gnueabihf && echo "-L /usr/arm-linux-gnueabihf")
+RISCV64_SYSROOT ?= $(shell test -d /usr/riscv64-linux-gnu && echo "-L /usr/riscv64-linux-gnu")
+
+test-cross-aarch64 qemu-test-aarch64:
+	@command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 || \
+		(echo "Error: aarch64-linux-gnu-gcc not found. Install gcc-aarch64-linux-gnu or cross toolchain." && exit 1)
+	@command -v $(QEMU_AARCH64) >/dev/null 2>&1 || \
+		(echo "Error: $(QEMU_AARCH64) not found. Install qemu-user." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=aarch64-linux-gnu-gcc TARGET_ARCH=aarch64 $(TEST_TARGET)
+	@echo "=== Running AArch64 Unit Tests via $(QEMU_AARCH64) ==="
+	$(QEMU_AARCH64) $(AARCH64_SYSROOT) ./$(TEST_TARGET)
+
+test-cross-armhf qemu-test-armhf:
+	@command -v arm-linux-gnueabihf-gcc >/dev/null 2>&1 || \
+		(echo "Error: arm-linux-gnueabihf-gcc not found. Install gcc-arm-linux-gnueabihf or cross toolchain." && exit 1)
+	@command -v $(QEMU_ARM) >/dev/null 2>&1 || \
+		(echo "Error: $(QEMU_ARM) not found. Install qemu-user." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=arm-linux-gnueabihf-gcc TARGET_ARCH=armhf $(TEST_TARGET)
+	@echo "=== Running ARMhf Unit Tests via $(QEMU_ARM) ==="
+	$(QEMU_ARM) $(ARMHF_SYSROOT) ./$(TEST_TARGET)
+
+test-cross-riscv64 qemu-test-riscv64:
+	@command -v riscv64-linux-gnu-gcc >/dev/null 2>&1 || \
+		(echo "Error: riscv64-linux-gnu-gcc not found. Install gcc-riscv64-linux-gnu or cross toolchain." && exit 1)
+	@command -v $(QEMU_RISCV64) >/dev/null 2>&1 || \
+		(echo "Error: $(QEMU_RISCV64) not found. Install qemu-user." && exit 1)
+	$(MAKE) clean
+	$(MAKE) CC=riscv64-linux-gnu-gcc TARGET_ARCH=riscv64 $(TEST_TARGET)
+	@echo "=== Running RISC-V 64 Unit Tests via $(QEMU_RISCV64) ==="
+	$(QEMU_RISCV64) $(RISCV64_SYSROOT) ./$(TEST_TARGET)
+
+test-cross-all qemu-test-all:
+	@echo "=== Running available cross-architecture QEMU tests ==="
+	@if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 && command -v $(QEMU_AARCH64) >/dev/null 2>&1; then \
+		$(MAKE) test-cross-aarch64; \
+	else \
+		echo "Skipping aarch64 cross-test (toolchain or $(QEMU_AARCH64) missing)"; \
+	fi
+	@if command -v arm-linux-gnueabihf-gcc >/dev/null 2>&1 && command -v $(QEMU_ARM) >/dev/null 2>&1; then \
+		$(MAKE) test-cross-armhf; \
+	else \
+		echo "Skipping armhf cross-test (toolchain or $(QEMU_ARM) missing)"; \
+	fi
+	@if command -v riscv64-linux-gnu-gcc >/dev/null 2>&1 && command -v $(QEMU_RISCV64) >/dev/null 2>&1; then \
+		$(MAKE) test-cross-riscv64; \
+	else \
+		echo "Skipping riscv64 cross-test (toolchain or $(QEMU_RISCV64) missing)"; \
+	fi
 
 $(TEST_TARGET): $(TEST_OBJS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) $(TEST_OBJS) -o $(TEST_TARGET) $(LDFLAGS)
@@ -243,6 +440,87 @@ $(BIN_DIR):
 
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR) *.opt.yaml
+
+toolchain-check check-toolchain doctor:
+	@echo "=== Symlink & Dependency Manager (symdep) Toolchain Doctor ==="
+	@echo ""
+	@bash -c '\
+	GREEN="\033[1;32m"; YELLOW="\033[1;33m"; RED="\033[1;31m"; CYAN="\033[1;36m"; BOLD="\033[1m"; RESET="\033[0m"; \
+	check_tool() { \
+		local name="$$1"; local cmd="$$2"; local req="$$3"; \
+		if command -v "$$cmd" >/dev/null 2>&1; then \
+			local ver=$$("$$cmd" --version 2>/dev/null | head -n 1 | sed "s/^Free Software Foundation.*//g"); \
+			[ -z "$$ver" ] && ver=$$("$$cmd" -v 2>&1 | head -n 1); \
+			printf "  %-26s : $${GREEN}[OK]$${RESET} %s ($${CYAN}%s$${RESET})\n" "$$name" "$$cmd" "$$ver"; \
+			return 0; \
+		else \
+			if [ "$$req" = "yes" ]; then \
+				printf "  %-26s : $${RED}[MISSING (REQUIRED)]$${RESET} %s not found\n" "$$name" "$$cmd"; \
+			else \
+				printf "  %-26s : $${YELLOW}[OPTIONAL (ABSENT)]$${RESET} %s not installed\n" "$$name" "$$cmd"; \
+			fi; \
+			return 1; \
+		fi; \
+	}; \
+	check_dir() { \
+		local name="$$1"; local path="$$2"; \
+		if [ -d "$$path" ]; then \
+			printf "  %-26s : $${GREEN}[FOUND]$${RESET} %s\n" "$$name" "$$path"; \
+		else \
+			printf "  %-26s : $${YELLOW}[NOT FOUND]$${RESET} %s\n" "$$name" "$$path"; \
+		fi; \
+	}; \
+	check_feature() { \
+		local name="$$1"; local desc="$$2"; local ok="$$3"; \
+		if [ "$$ok" = "1" ]; then \
+			printf "  %-26s : $${GREEN}[SUPPORTED]$${RESET} %s\n" "$$name" "$$desc"; \
+		else \
+			printf "  %-26s : $${YELLOW}[UNSUPPORTED]$${RESET} %s\n" "$$name" "$$desc"; \
+		fi; \
+	}; \
+	echo -e "$${BOLD}1. Host Environment & System Info$${RESET}"; \
+	echo "  Architecture               : $$(uname -m)"; \
+	echo "  Kernel Release             : $$(uname -r)"; \
+	echo "  Default CC ($(CC))        : $$(which $(CC) 2>/dev/null || echo "not found")"; \
+	echo ""; \
+	echo -e "$${BOLD}2. Host Compilers & Build Tools$${RESET}"; \
+	check_tool "Host C Compiler (CC)" "$(CC)" "yes"; \
+	check_tool "Host Stripper (STRIP)" "$(STRIP)" "yes"; \
+	check_tool "Clang Compiler" "clang" "no"; \
+	check_tool "LLD Linker" "ld.lld" "no"; \
+	check_tool "musl-gcc (Static)" "musl-gcc" "no"; \
+	echo ""; \
+	echo -e "$${BOLD}3. Static Analysis & Diagnostics Tools$${RESET}"; \
+	check_tool "Clang-Format" "clang-format" "no"; \
+	check_tool "Clang-Tidy" "clang-tidy" "no"; \
+	check_tool "LLVM Profile Data (PGO)" "llvm-profdata" "no"; \
+	echo ""; \
+	echo -e "$${BOLD}4. Cross-Compilation Toolchains$${RESET}"; \
+	check_tool "ARM64 GCC (AArch64)" "aarch64-linux-gnu-gcc" "no"; \
+	check_tool "ARMhf GCC (ARMv7)" "arm-linux-gnueabihf-gcc" "no"; \
+	check_tool "RISC-V 64 GCC" "riscv64-linux-gnu-gcc" "no"; \
+	check_dir "AArch64 Sysroot" "/usr/aarch64-linux-gnu"; \
+	check_dir "ARMhf Sysroot" "/usr/arm-linux-gnueabihf"; \
+	check_dir "RISC-V 64 Sysroot" "/usr/riscv64-linux-gnu"; \
+	echo ""; \
+	echo -e "$${BOLD}5. QEMU Emulation Engines$${RESET}"; \
+	check_tool "QEMU AArch64 User" "qemu-aarch64" "no"; \
+	check_tool "QEMU ARMhf User" "qemu-arm" "no"; \
+	check_tool "QEMU RISC-V 64 User" "qemu-riscv64" "no"; \
+	check_tool "QEMU AArch64 System" "qemu-system-aarch64" "no"; \
+	echo ""; \
+	echo -e "$${BOLD}6. Toolchain Feature Capabilities$${RESET}"; \
+	echo "int main(void){return 0;}" | $(CC) -x c - -std=c17 -o /dev/null 2>/dev/null && ok_c17=1 || ok_c17=0; \
+	check_feature "ISO C17 Standard" "Compliant with -std=c17" "$$ok_c17"; \
+	echo "int main(void){return 0;}" | $(CC) -x c - -static -o /dev/null 2>/dev/null && ok_static=1 || ok_static=0; \
+	check_feature "Glibc Static Linking" "-static builds supported" "$$ok_static"; \
+	if command -v clang >/dev/null 2>&1; then \
+		echo "int main(void){return 0;}" | clang -x c - -fsanitize=address,undefined -o /dev/null 2>/dev/null && ok_san=1 || ok_san=0; \
+		check_feature "Clang Sanitizers" "ASan & UBSan runtime available" "$$ok_san"; \
+	fi; \
+	echo ""; \
+	echo -e "$${BOLD}=== Toolchain Doctor Check Complete ===$${RESET}" \
+	'
 
 install: $(TARGET)
 	install -d $(DESTDIR)$(BINDIR)

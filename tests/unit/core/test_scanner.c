@@ -1,5 +1,6 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
+ * Unit Tests for Static Code Analysis Dependency Scanner Engine
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #define _GNU_SOURCE
 #define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
@@ -40,10 +40,26 @@ void test_scan_package(void)
     char fzf_pkg_dir[PATH_MAX];
     snprintf(fzf_pkg_dir, sizeof(fzf_pkg_dir), "%s/fzf", tmp_dotfiles);
     ASSERT(mkdir(fzf_pkg_dir, 0755) == 0, "Should create fzf candidate package directory");
+    char fzf_bin[PATH_MAX];
+    snprintf(fzf_bin, sizeof(fzf_bin), "%s/fzf", fzf_pkg_dir);
+    FILE *fp_fzf = fopen(fzf_bin, "w");
+    if (fp_fzf) {
+        fprintf(fp_fzf, "#!/bin/sh\nexit 0\n");
+        fclose(fp_fzf);
+        chmod(fzf_bin, 0755);
+    }
 
     char tmux_pkg_dir[PATH_MAX];
     snprintf(tmux_pkg_dir, sizeof(tmux_pkg_dir), "%s/tmux", tmp_dotfiles);
     ASSERT(mkdir(tmux_pkg_dir, 0755) == 0, "Should create tmux candidate package directory");
+    char tmux_bin[PATH_MAX];
+    snprintf(tmux_bin, sizeof(tmux_bin), "%s/tmux", tmux_pkg_dir);
+    FILE *fp_tmux = fopen(tmux_bin, "w");
+    if (fp_tmux) {
+        fprintf(fp_tmux, "#!/bin/sh\nexit 0\n");
+        fclose(fp_tmux);
+        chmod(tmux_bin, 0755);
+    }
 
     char script_path[PATH_MAX];
     snprintf(script_path, sizeof(script_path), "%s/setup.sh", pkg_dir);
@@ -139,6 +155,14 @@ void test_scan_package_comment_stripping_and_auto_registry(void)
     char fzf_pkg_dir[PATH_MAX];
     snprintf(fzf_pkg_dir, sizeof(fzf_pkg_dir), "%s/fzf", tmp_dotfiles);
     ASSERT(mkdir(fzf_pkg_dir, 0755) == 0, "Should create fzf candidate package directory");
+    char fzf_bin[PATH_MAX];
+    snprintf(fzf_bin, sizeof(fzf_bin), "%s/fzf", fzf_pkg_dir);
+    FILE *fp_fzf = fopen(fzf_bin, "w");
+    if (fp_fzf) {
+        fprintf(fp_fzf, "#!/bin/sh\nexit 0\n");
+        fclose(fp_fzf);
+        chmod(fzf_bin, 0755);
+    }
 
     char scan_pkg[PATH_MAX];
     snprintf(scan_pkg, sizeof(scan_pkg), "%s/scanpkg", tmp_dotfiles);
@@ -177,6 +201,14 @@ void test_scan_package_interactive_mode(void)
     char fzf_pkg_dir[PATH_MAX];
     snprintf(fzf_pkg_dir, sizeof(fzf_pkg_dir), "%s/fzf", tmp_dotfiles);
     ASSERT(mkdir(fzf_pkg_dir, 0755) == 0, "Should create fzf candidate package directory");
+    char fzf_bin[PATH_MAX];
+    snprintf(fzf_bin, sizeof(fzf_bin), "%s/fzf", fzf_pkg_dir);
+    FILE *fp_fzf = fopen(fzf_bin, "w");
+    if (fp_fzf) {
+        fprintf(fp_fzf, "#!/bin/sh\nexit 0\n");
+        fclose(fp_fzf);
+        chmod(fzf_bin, 0755);
+    }
 
     char scan_pkg[PATH_MAX];
     snprintf(scan_pkg, sizeof(scan_pkg), "%s/interpkg", tmp_dotfiles);

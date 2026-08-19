@@ -218,8 +218,11 @@ static int execute_and_recover_install(const char *source_dir,
         char input[256] = {0};
         if (fgets(input, sizeof(input), stdin)) {
             char *trimmed = trim_whitespace(input);
-            if (trimmed[0] != '\0' && strcmp(trimmed, tool) != 0) {
+            if (trimmed[0] != '\0') {
                 registry_add_distro_mapping(source_dir, tool, distro_tag, trimmed);
+                if (mgr_name && mgr_name[0] != '\0' && strcmp(mgr_name, distro_tag) != 0) {
+                    registry_add_distro_mapping(source_dir, tool, mgr_name, trimmed);
+                }
                 log_success("Saved '%s@%s = %s' to symdep.registry.", tool, distro_tag, trimmed);
                 any_registered = true;
             }

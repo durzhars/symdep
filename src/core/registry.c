@@ -186,21 +186,35 @@ static void registry_cache_ensure(const char *source_dir)
             char *key = trim_whitespace(trimmed);
             char *val = trim_whitespace(eq + 1);
 
-            if (g_registry_cache.count >= g_registry_cache.capacity) {
-                size_t new_cap = g_registry_cache.capacity * 2;
-                CachedRegistryEntry *new_entries = (CachedRegistryEntry *)realloc(
-                    g_registry_cache.entries, new_cap * sizeof(CachedRegistryEntry));
-                if (new_entries) {
-                    g_registry_cache.entries = new_entries;
-                    g_registry_cache.capacity = new_cap;
-                } else {
+            bool updated = false;
+            for (size_t i = 0; i < g_registry_cache.count; i++) {
+                if (strcmp(g_registry_cache.entries[i].key, key) == 0) {
+                    snprintf(g_registry_cache.entries[i].value,
+                             sizeof(g_registry_cache.entries[i].value),
+                             "%s",
+                             val);
+                    updated = true;
                     break;
                 }
             }
 
-            CachedRegistryEntry *entry = &g_registry_cache.entries[g_registry_cache.count++];
-            snprintf(entry->key, sizeof(entry->key), "%s", key);
-            snprintf(entry->value, sizeof(entry->value), "%s", val);
+            if (!updated) {
+                if (g_registry_cache.count >= g_registry_cache.capacity) {
+                    size_t new_cap = g_registry_cache.capacity * 2;
+                    CachedRegistryEntry *new_entries = (CachedRegistryEntry *)realloc(
+                        g_registry_cache.entries, new_cap * sizeof(CachedRegistryEntry));
+                    if (new_entries) {
+                        g_registry_cache.entries = new_entries;
+                        g_registry_cache.capacity = new_cap;
+                    } else {
+                        break;
+                    }
+                }
+
+                CachedRegistryEntry *entry = &g_registry_cache.entries[g_registry_cache.count++];
+                snprintf(entry->key, sizeof(entry->key), "%s", key);
+                snprintf(entry->value, sizeof(entry->value), "%s", val);
+            }
         }
     }
 

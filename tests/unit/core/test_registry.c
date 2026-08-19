@@ -100,6 +100,11 @@ void test_registry_add_distro_mapping(void)
     registry_get_distro_pkg(tmp_dir, "bat", "debian", distro_pkg, sizeof(distro_pkg));
     ASSERT_STR_EQ(distro_pkg, "batcat");
 
+    // Overwrite existing mapping: new definition takes precedence
+    registry_add_distro_mapping(tmp_dir, "fd", "ubuntu", "fd");
+    registry_get_distro_pkg(tmp_dir, "fd", "ubuntu", distro_pkg, sizeof(distro_pkg));
+    ASSERT_STR_EQ(distro_pkg, "fd");
+
     cleanup_test_dir(tmp_dir);
 }
 

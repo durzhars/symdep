@@ -1,5 +1,6 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
+ * Nanosecond Performance Profiler & Execution Timer Header
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #ifndef SYMDEP_UTILS_TIMER_H
 #define SYMDEP_UTILS_TIMER_H
 

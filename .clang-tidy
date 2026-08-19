@@ -1,4 +1,4 @@
-# .clang-tidy configuration for stow-manager
+# .clang-tidy configuration for symdep
 Checks: >
   -*,
   bugprone-*,

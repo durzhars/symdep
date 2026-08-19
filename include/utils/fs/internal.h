@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Internal Filesystem Submodule Header
  * Copyright (C) 2026 durzhars
  *
@@ -16,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #ifndef UTILS_FS_INTERNAL_H
 #define UTILS_FS_INTERNAL_H
 

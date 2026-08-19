@@ -70,14 +70,16 @@ void pkg_file_list_append(PkgFileList *list,
     if (rel_len < sizeof(entry->rel_path)) {
         memcpy(entry->rel_path, rel_path, rel_len + 1);
     } else {
-        snprintf(entry->rel_path, sizeof(entry->rel_path), "%s", rel_path);
+        memcpy(entry->rel_path, rel_path, sizeof(entry->rel_path) - 1);
+        entry->rel_path[sizeof(entry->rel_path) - 1] = '\0';
     }
 
     size_t full_len = strlen(full_path);
     if (full_len < sizeof(entry->full_path)) {
         memcpy(entry->full_path, full_path, full_len + 1);
     } else {
-        snprintf(entry->full_path, sizeof(entry->full_path), "%s", full_path);
+        memcpy(entry->full_path, full_path, sizeof(entry->full_path) - 1);
+        entry->full_path[sizeof(entry->full_path) - 1] = '\0';
     }
     entry->is_dir = is_dir;
 }

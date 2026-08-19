@@ -171,6 +171,77 @@ static void parse_item_exclusions(const char *input, const StringArray *items, b
     }
 }
 
+static int execute_and_recover_install(const char *source_dir,
+                                       const StringArray *pkgs,
+                                       const char *initial_cmd,
+                                       const char *mgr_name,
+                                       bool auto_install,
+                                       bool dry_run)
+{
+    if (!pkgs || pkgs->count == 0 || !initial_cmd || *initial_cmd == '\0') {
+        return 0;
+    }
+
+    int ret = run_system_cmd(initial_cmd);
+    if (ret == 0) {
+        return 0;
+    }
+
+    log_warn("Package installation command exited with code %d.", ret);
+
+    // Only attempt interactive recovery if running interactively and not dry-run / auto-install
+    if (!isatty(STDIN_FILENO) || auto_install || dry_run) {
+        return ret;
+    }
+
+    char sys_distro[64] = {0};
+    get_distro_id(sys_distro, sizeof(sys_distro));
+    const char *distro_tag = (sys_distro[0] != '\0') ? sys_distro : (mgr_name ? mgr_name : "unix");
+
+    printf("\n%s[Interactive Recovery]%s Package manager encountered an error.\n",
+           COLOR_YELLOW,
+           COLOR_RESET);
+    printf("If any package name differs on %s, enter the corrected name below (or Enter to "
+           "skip).\n",
+           distro_tag);
+
+    bool any_registered = false;
+    for (size_t i = 0; i < pkgs->count; i++) {
+        const char *tool = pkgs->items[i];
+        printf("  Enter package name for %s'%s'%s on %s [%s]: ",
+               COLOR_CYAN,
+               tool,
+               COLOR_RESET,
+               distro_tag,
+               tool);
+        fflush(stdout);
+        char input[256] = {0};
+        if (fgets(input, sizeof(input), stdin)) {
+            char *trimmed = trim_whitespace(input);
+            if (trimmed[0] != '\0' && strcmp(trimmed, tool) != 0) {
+                registry_add_distro_mapping(source_dir, tool, distro_tag, trimmed);
+                log_success("Saved '%s@%s = %s' to symdep.registry.", tool, distro_tag, trimmed);
+                any_registered = true;
+            }
+        }
+    }
+
+    if (any_registered) {
+        char retry_cmd[4096];
+        build_install_command(
+            source_dir, pkgs, retry_cmd, sizeof(retry_cmd), NULL, 0, auto_install, dry_run);
+        printf("\n%sRetrying installation with updated package mapping:%s %s%s%s\n",
+               COLOR_BOLD,
+               COLOR_RESET,
+               COLOR_CYAN,
+               retry_cmd,
+               COLOR_RESET);
+        return run_system_cmd(retry_cmd);
+    }
+
+    return ret;
+}
+
 static void handle_missing_dependencies(const char *source_dir,
                                         const StringArray *missing_pkgs,
                                         bool is_required,
@@ -215,7 +286,8 @@ static void handle_missing_dependencies(const char *source_dir,
         log_info("Auto-installing %s dependencies via %s...",
                  is_required ? "required" : "optional",
                  mgr_name);
-        run_system_cmd(install_cmd);
+        execute_and_recover_install(
+            source_dir, missing_pkgs, install_cmd, mgr_name, auto_install, dry_run);
         return;
     }
 
@@ -232,7 +304,8 @@ static void handle_missing_dependencies(const char *source_dir,
         flush_stdin();
     }
     if (c == 'y' || c == 'Y' || c == '\n') {
-        run_system_cmd(install_cmd);
+        execute_and_recover_install(
+            source_dir, missing_pkgs, install_cmd, mgr_name, auto_install, dry_run);
     }
 }
 
@@ -332,7 +405,8 @@ int install_package_dependencies(const char *source_dir,
             log_info("[DRY-RUN] Would install required tools: %s", install_cmd);
         } else if (auto_install) {
             log_info("Installing required dependencies via %s...", mgr_name);
-            run_system_cmd(install_cmd);
+            execute_and_recover_install(
+                source_dir, &missing_req, install_cmd, mgr_name, auto_install, dry_run);
         } else if (isatty(STDIN_FILENO)) {
             printf("Install missing REQUIRED dependencies now? [Y/n] (or enter numbers/names to "
                    "EXCLUDE): ");
@@ -359,7 +433,8 @@ int install_package_dependencies(const char *source_dir,
                                               sizeof(mgr_name),
                                               auto_install,
                                               dry_run);
-                        run_system_cmd(sel_cmd);
+                        execute_and_recover_install(
+                            source_dir, &selected_pkgs, sel_cmd, mgr_name, auto_install, dry_run);
                     }
                     str_array_free(&selected_pkgs);
                     free(selected);
@@ -400,7 +475,8 @@ int install_package_dependencies(const char *source_dir,
             log_info("[DRY-RUN] Would install optional tools: %s", install_cmd);
         } else if (auto_install) {
             log_info("Installing optional dependencies via %s...", mgr_name);
-            run_system_cmd(install_cmd);
+            execute_and_recover_install(
+                source_dir, &missing_opt, install_cmd, mgr_name, auto_install, dry_run);
         } else if (isatty(STDIN_FILENO)) {
             printf("Install optional dependencies? [Y/n] (or enter numbers/names to EXCLUDE, e.g. "
                    "'1,3') [all]: ");
@@ -427,7 +503,8 @@ int install_package_dependencies(const char *source_dir,
                                               sizeof(mgr_name),
                                               auto_install,
                                               dry_run);
-                        run_system_cmd(sel_cmd);
+                        execute_and_recover_install(
+                            source_dir, &selected_pkgs, sel_cmd, mgr_name, auto_install, dry_run);
                     }
                     str_array_free(&selected_pkgs);
                     free(selected);

@@ -62,6 +62,7 @@ void test_package_remove(void);
 void test_manifest_set_target(void);
 void test_registry_parsing(void);
 void test_registry_add_tool(void);
+void test_registry_add_distro_mapping(void);
 void test_is_tool_installed_dynamic(void);
 void test_get_all_packages_skips_dot_dirs(void);
 void test_scan_package(void);
@@ -198,6 +199,7 @@ int main(void)
     RUN_TEST(test_manifest_set_target);
     RUN_TEST(test_registry_parsing);
     RUN_TEST(test_registry_add_tool);
+    RUN_TEST(test_registry_add_distro_mapping);
     RUN_TEST(test_is_tool_installed_dynamic);
     RUN_TEST(test_get_all_packages_skips_dot_dirs);
     RUN_TEST(test_scan_package);

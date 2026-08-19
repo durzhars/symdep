@@ -279,6 +279,9 @@ void registry_get_all_tools(const char *source_dir, StringArray *tools);
 // Append a new tool entry or alias mapping to registry
 void registry_add_tool(const char *source_dir, const char *tool);
 
+// Append or update a distro-specific package mapping in registry
+void registry_add_distro_mapping(const char *source_dir, const char *tool, const char *distro, const char *pkg_name);
+
 // Check if tool binary or shell plugin directory exists dynamically
 bool is_tool_installed_dynamic(const char *source_dir, const char *tool);
 

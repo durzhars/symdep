@@ -84,6 +84,25 @@ void test_registry_add_tool(void)
     cleanup_test_dir(tmp_dir);
 }
 
+void test_registry_add_distro_mapping(void)
+{
+    char tmp_dir[PATH_MAX];
+    ASSERT(create_test_tmp_dir(tmp_dir, sizeof(tmp_dir), "reg_map") != NULL,
+           "Should create temporary test directory for distro mapping");
+
+    registry_add_distro_mapping(tmp_dir, "fd", "ubuntu", "fd-find");
+    registry_add_distro_mapping(tmp_dir, "bat", "debian", "batcat");
+
+    char distro_pkg[256];
+    registry_get_distro_pkg(tmp_dir, "fd", "ubuntu", distro_pkg, sizeof(distro_pkg));
+    ASSERT_STR_EQ(distro_pkg, "fd-find");
+
+    registry_get_distro_pkg(tmp_dir, "bat", "debian", distro_pkg, sizeof(distro_pkg));
+    ASSERT_STR_EQ(distro_pkg, "batcat");
+
+    cleanup_test_dir(tmp_dir);
+}
+
 void test_is_tool_installed_dynamic(void)
 {
     char tmp_dir[PATH_MAX];

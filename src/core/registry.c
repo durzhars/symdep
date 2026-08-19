@@ -400,6 +400,34 @@ void registry_add_tool(const char *source_dir, const char *tool)
     registry_cache_free();
 }
 
+void registry_add_distro_mapping(const char *source_dir,
+                                 const char *tool,
+                                 const char *distro,
+                                 const char *pkg_name)
+{
+    if (!source_dir || *source_dir == '\0' || !tool || *tool == '\0' || !pkg_name ||
+        *pkg_name == '\0') {
+        return;
+    }
+    const char *distro_id = (distro && *distro != '\0') ? distro : "unix";
+
+    char path[STOW_PATH_LARGE];
+    snprintf(path, sizeof(path), "%s/symdep.registry", source_dir);
+
+    FILE *fp = fopen(path, "a");
+    if (!fp) {
+        snprintf(path, sizeof(path), "%s/.symdepregistry", source_dir);
+        fp = fopen(path, "a");
+    }
+    if (!fp) {
+        return;
+    }
+
+    fprintf(fp, "%s@%s = %s\n", tool, distro_id, pkg_name);
+    fclose(fp);
+    registry_cache_free();
+}
+
 bool is_tool_installed_dynamic(const char *source_dir, const char *tool)
 {
     if (!tool || *tool == '\0') {

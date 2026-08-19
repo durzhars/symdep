@@ -62,6 +62,19 @@ void registry_get_all_tools(const char *source_dir, StringArray *tools);
 void registry_add_tool(const char *source_dir, const char *tool);
 
 /**
+ * @brief Append or update a distro-specific package mapping in symdep.registry.
+ *
+ * @param source_dir Path to active source repository.
+ * @param tool       Virtual tool name (e.g., "fd").
+ * @param distro     Distro identifier (e.g., "ubuntu").
+ * @param pkg_name   Target package manager package name (e.g., "fd-find").
+ */
+void registry_add_distro_mapping(const char *source_dir,
+                                 const char *tool,
+                                 const char *distro,
+                                 const char *pkg_name);
+
+/**
  * @brief Check if a tool or plugin is installed using registry rules and $PATH.
  *
  * @param source_dir Path to active source repository.

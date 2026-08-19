@@ -121,13 +121,13 @@ void test_install_package_dependencies(void)
     manifest_add_dep(tmp_dotfiles, "mypkg", "nonexistent_tool_2", "--optional");
 
     // Dry run install should identify dependencies and succeed
-    int res = install_package_dependencies(tmp_dotfiles, "mypkg", false, true);
+    int res = install_package_dependencies(tmp_dotfiles, "mypkg", false, true, false);
     ASSERT(res == 0, "install_package_dependencies dry-run should succeed");
 
     // Install on package with zero missing dependencies should succeed immediately
     manifest_remove_dep(tmp_dotfiles, "mypkg", "nonexistent_tool_1");
     manifest_remove_dep(tmp_dotfiles, "mypkg", "nonexistent_tool_2");
-    res = install_package_dependencies(tmp_dotfiles, "mypkg", false, true);
+    res = install_package_dependencies(tmp_dotfiles, "mypkg", false, true, false);
     ASSERT(res == 0, "install_package_dependencies with 0 missing should return 0");
 
     cleanup_test_dir(tmp_dotfiles);

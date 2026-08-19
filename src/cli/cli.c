@@ -141,6 +141,9 @@ int parse_cli_options(int argc, char **argv, CliOptions *opts, StringArray *args
             parse_bool_opt(arg, "-p", "--profiler", &opts->profile))
             continue;
 
+        if (parse_bool_opt(arg, "-S", "--no-skip", &opts->strict_no_skip) ||
+            parse_bool_opt(arg, "--strict", "--no-skip", &opts->strict_no_skip))
+            continue;
         if (parse_bool_opt(arg, "-h", "--help", &opts->help_flag))
             continue;
 

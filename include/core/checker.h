@@ -48,12 +48,14 @@ void check_package_dependencies(const char *source_dir,
  * @param target_pkg   Name of target package (NULL or "all" for all packages).
  * @param auto_install Auto-confirm installation without prompting.
  * @param dry_run      Preview installation command without executing.
+ * @param strict_no_skip Enforce strict registration on skipped prompts.
  * @return 0 on success (or dependencies already satisfied), non-zero on failure.
  */
 int install_package_dependencies(const char *source_dir,
                                  const char *target_pkg,
                                  bool auto_install,
-                                 bool dry_run);
+                                 bool dry_run,
+                                 bool strict_no_skip);
 
 /**
  * @brief Concise numerical dependency audit for a single package.

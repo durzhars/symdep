@@ -248,7 +248,7 @@ Verifies package requirements and audits broken or orphan symlinks.
 void check_package_dependencies(const char *source_dir, const char *target_pkg, bool auto_install, bool dry_run);
 
 // Standalone dependency installer for package(s) via active package manager
-int install_package_dependencies(const char *source_dir, const char *target_pkg, bool auto_install, bool dry_run);
+int install_package_dependencies(const char *source_dir, const char *target_pkg, bool auto_install, bool dry_run, bool strict_no_skip);
 
 // Scan repository and target home for broken and unmanaged orphan symlinks
 void check_symlink_health(const char *source_dir, const char *target_dir);
@@ -553,6 +553,9 @@ FILE *open_resource_file(const char *filename);
 
 // Execute shell command
 int run_system_cmd(const char *cmd);
+
+// Execute shell command and capture standard error/output
+int run_system_cmd_with_capture(const char *cmd, char *out_buf, size_t out_size);
 ```
 
 ---

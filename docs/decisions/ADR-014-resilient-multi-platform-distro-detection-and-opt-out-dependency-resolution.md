@@ -56,10 +56,14 @@ Reorient `symdep deps install` / `symdep install` interactive prompts:
 - **Exclusion Syntax**: Users press `Enter` to install all, or enter items to exclude (`1,3`, `!fzf`, `-1`, `except 2`, `none`).
 - **Inclusion Override**: Explicit `only 1,2` or `include 1,2` syntax remains supported.
 
-### 4. Direct Interactive Auto-Registration
-- When a user interactively enters a replacement package name during interactive execution, `symdep` automatically writes the rule `<tool>@<distro> = <pkg_name>` to the repository's `symdep.registry`.
-- Eliminates redundant confirmation prompts while ensuring dotfile repositories learn cross-distro package mappings permanently.
-- Non-interactive (CI/headless) executions remain strictly non-blocking and non-mutating.
+### 4. Targeted Error Isolation & Direct Interactive Auto-Registration
+- **Targeted Error Isolation**: When a batch package manager command fails, `symdep` captures output and matches failed package tokens against `.symdeps` entries. Prompts are presented **strictly for the specific packages that failed** rather than badgering the user for every attempted tool.
+- **Direct Interactive Auto-Registration**:
+  - When the user types a replacement package name (e.g. `fd-find`), `symdep` immediately writes `<tool>@<distro> = <pkg_name>` to `symdep.registry` (and the package manager alias) and retries installation without redundant confirmation prompts.
+  - In standard mode, pressing `Enter` without input skips registering that specific tool.
+- **Strict / No-Skip Mode (`-S` / `--no-skip` / `--strict`)**:
+  - In `--no-skip` mode, pressing `Enter` on a prompt assumes the default tool name is what the user intended for that distro, and records `<tool>@<distro> = <tool>` (with duplicate-skipping).
+- **Headless / Non-Interactive Safety**: Non-interactive (CI/headless) executions remain strictly non-blocking, non-interactive, and non-mutating.
 
 ## Consequences
 

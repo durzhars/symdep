@@ -50,6 +50,7 @@ OPTIONS:
   -t, --target-dir <path>   Override target directory for current command
   -m, --manager <name>      Override package manager for current command (aliases: --pkg-mgr, --package-manager)
   -i, --interactive         Interactive menu to select and save discovered dependencies
+  -S, --no-skip             Strict interactive mode: auto-register on skipped prompts (alias: --strict)
   -y, --install             Auto-confirm installation of missing dependencies
   -n, --dry-run             Preview disk changes without modifying disk
   -s, --save                Save command-line directory overrides (-d/-t) to config

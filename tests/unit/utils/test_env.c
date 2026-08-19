@@ -332,3 +332,16 @@ void test_get_distro_id(void)
     get_distro_id(distro, sizeof(distro));
     ASSERT(distro[0] != '\0', "get_distro_id should return non-empty string");
 }
+
+void test_run_system_cmd_with_capture(void)
+{
+    char out[512];
+    int status = run_system_cmd_with_capture("echo 'capture_test_123'", out, sizeof(out));
+    ASSERT(status == 0, "run_system_cmd_with_capture should return 0 for successful command");
+    ASSERT(strstr(out, "capture_test_123") != NULL, "Output should contain echoed text");
+
+    status =
+        run_system_cmd_with_capture("sh -c 'echo \"err_msg_456\" >&2; exit 42'", out, sizeof(out));
+    ASSERT(status == 42, "run_system_cmd_with_capture should capture exit status 42");
+    ASSERT(strstr(out, "err_msg_456") != NULL, "Output should capture stderr text");
+}

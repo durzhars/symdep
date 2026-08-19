@@ -211,7 +211,7 @@ int link_package(const char *source_dir,
 
     PerfTimer t_chk = perf_timer_start("check_package_dependencies");
     if (auto_install) {
-        install_package_dependencies(source_dir, pkg_name, true, dry_run);
+        install_package_dependencies(source_dir, pkg_name, true, dry_run, false);
     } else {
         audit_package_dependencies_brief(source_dir, pkg_name);
     }

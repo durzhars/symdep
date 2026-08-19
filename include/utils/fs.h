@@ -234,6 +234,9 @@ void walk_dir_files(const char *base_dir,
 /** Execute a system shell command safely */
 int run_system_cmd(const char *cmd);
 
+/** Execute a system shell command and capture standard error/output */
+int run_system_cmd_with_capture(const char *cmd, char *out_buf, size_t out_size);
+
 /**
  * @brief Atomically swap or replace a temporary staging path with target destination.
  *

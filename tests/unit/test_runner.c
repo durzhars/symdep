@@ -106,6 +106,7 @@ void test_xdg_paths(void);
 void test_expand_env_vars(void);
 void test_degraded_env_path_resolution(void);
 void test_get_distro_id(void);
+void test_run_system_cmd_with_capture(void);
 void test_logger_output(void);
 void test_logger_file_logging_and_filtering(void);
 void test_logger_level_switching(void);
@@ -243,6 +244,7 @@ int main(void)
     RUN_TEST(test_expand_env_vars);
     RUN_TEST(test_degraded_env_path_resolution);
     RUN_TEST(test_get_distro_id);
+    RUN_TEST(test_run_system_cmd_with_capture);
     RUN_TEST(test_logger_output);
     RUN_TEST(test_logger_file_logging_and_filtering);
     RUN_TEST(test_logger_level_switching);

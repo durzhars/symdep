@@ -34,6 +34,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 typedef struct {
@@ -502,4 +503,72 @@ bool is_executable_in_path(const char *executable)
 int run_system_cmd(const char *cmd)
 {
     return system(cmd);
+}
+
+int run_system_cmd_with_capture(const char *cmd, char *out_buf, size_t out_size)
+{
+    if (out_buf && out_size > 0) {
+        out_buf[0] = '\0';
+    }
+    if (!cmd || *cmd == '\0') {
+        return -1;
+    }
+
+    const char *tmp = getenv("TMPDIR");
+    char termux_tmp[STOW_PATH_LARGE];
+    if (!tmp || *tmp == '\0') {
+        tmp = getenv("PREFIX");
+        if (tmp) {
+            join_path(termux_tmp, sizeof(termux_tmp), tmp, "tmp");
+            tmp = termux_tmp;
+        }
+    }
+    if (!tmp || access(tmp, W_OK) != 0) {
+        tmp = "/tmp";
+    }
+
+    char tmp_log[STOW_PATH_MAX];
+    char tmp_stat[STOW_PATH_MAX];
+    snprintf(tmp_log, sizeof(tmp_log), "%s/symdep_cmd_err_%d.log", tmp, (int)getpid());
+    snprintf(tmp_stat, sizeof(tmp_stat), "%s/symdep_cmd_stat_%d.log", tmp, (int)getpid());
+
+    char full_cmd[4096];
+    if (isatty(STDIN_FILENO)) {
+        snprintf(full_cmd,
+                 sizeof(full_cmd),
+                 "{ ( %s ) ; echo $? > \"%s\"; } 2>&1 | tee \"%s\"",
+                 cmd,
+                 tmp_stat,
+                 tmp_log);
+    } else {
+        snprintf(full_cmd,
+                 sizeof(full_cmd),
+                 "{ ( %s ) ; echo $? > \"%s\"; } > \"%s\" 2>&1",
+                 cmd,
+                 tmp_stat,
+                 tmp_log);
+    }
+
+    system(full_cmd);
+
+    int status = 0;
+    FILE *fstat = fopen(tmp_stat, "r");
+    if (fstat) {
+        if (fscanf(fstat, "%d", &status) != 1) {
+            status = -1;
+        }
+        fclose(fstat);
+    }
+    unlink(tmp_stat);
+
+    if (out_buf && out_size > 0) {
+        FILE *fp = fopen(tmp_log, "r");
+        if (fp) {
+            size_t read_bytes = fread(out_buf, 1, out_size - 1, fp);
+            out_buf[read_bytes] = '\0';
+            fclose(fp);
+        }
+    }
+    unlink(tmp_log);
+    return status;
 }

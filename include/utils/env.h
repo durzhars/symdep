@@ -140,4 +140,14 @@ void get_distro_id(char *buf, size_t buf_size);
  */
 bool find_executable_in_path(const char *executable, char *out_path, size_t out_path_size);
 
+/**
+ * @brief Execute a shell command and capture standard error/output.
+ *
+ * @param cmd      Shell command string.
+ * @param out_buf  Buffer to hold captured output.
+ * @param out_size Size of destination buffer.
+ * @return Command exit status code.
+ */
+int run_system_cmd_with_capture(const char *cmd, char *out_buf, size_t out_size);
+
 #endif /* SYMDEP_UTILS_ENV_H */

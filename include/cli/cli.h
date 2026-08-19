@@ -34,6 +34,7 @@ typedef struct {
     bool save_flag;               /**< -s, --save: Save CLI directory overrides to config */
     bool profile;                 /**< -p, --profile: Enable performance profiler */
     bool interactive;             /**< -i, --interactive: Launch interactive scanner wizard */
+    bool strict_no_skip;          /**< --no-skip, --strict: Strict interactive auto-registration */
     bool help_flag;               /**< -h, --help: Display help manual */
     const char *cli_source_dir;   /**< -d, --source-dir: Source directory override */
     const char *cli_target_dir;   /**< -t, --target-dir: Target directory override */

@@ -30,8 +30,8 @@ Implement a **Dynamic Privilege Elevation and Writable-Prefix Probing Architectu
    - **Step 3 (Metadata Flag)**: If the package manager definition specifies `requires_root == false`, elevation is bypassed.
    - **Step 4 (Writable-Prefix Probing `is_binary_writable_by_user`)**: Resolves the executable path of the package manager binary on `$PATH` and tests write access on its parent directory using `access(parent_dir, W_OK)`. If the current user has write access to the binary prefix (e.g. `~/.linuxbrew/bin`), root elevation is bypassed automatically.
 2. **Multi-Tool Elevation Resolver**:
-   - When elevation is required, `symdep` probes `$PATH` in order: `sudo` -> `tsu` (Termux root) -> `doas` (OpenBSD / Alpine) -> `su`.
-   - In interactive mode, `symdep` presents a selection menu allowing users to choose their preferred elevation method or run unprivileged.
+   - When elevation is required, `symdep` automatically evaluates available elevation helpers on `$PATH` in strict precedence order: `sudo` -> `tsu` (Termux root) -> `doas` (OpenBSD / Alpine) -> `su`.
+   - Resolution executes non-blockingly without interactive terminal prompt interruptions (codified in [ADR-013](ADR-013-decoupling-linker-from-dependency-installer.md)), while user overrides can be explicitly set via `symdep config set --elevation <tool>` or `SYMDEP_ELEVATION_TOOL`.
 3. **Compound Command Elevation & Format String Safety**:
    - For multi-step installer definitions (e.g. repository refresh followed by install), each sub-command is individually elevated or enclosed in single-quoted subshells to prevent privilege drops across piped commands.
 

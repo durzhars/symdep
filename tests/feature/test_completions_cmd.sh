@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
-# tests/feature/test_completions_cmd.sh
-# Tests shell completion scripts (Bash, Zsh, Fish) for symdep.
+#
+# Symlink & Dependency Manager (symdep)
+# Shell Autocompletion Integration Test Suite (Bash, Zsh, Fish)
+# Copyright (C) 2026 durzhars
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 
 set -u
 
@@ -47,7 +63,7 @@ test_bash_completion_outside_repo() {
     echo "SOURCE_DIRS=$custom_dotfiles" > "$MOCK_CONFIG/stow-manager/config"
 
     assert_success "bash -c '
-        cd /tmp
+        cd \"\${TMPDIR:-/tmp}\" 2>/dev/null || cd \"$TEST_TMPDIR\"
         export XDG_CONFIG_HOME=\"$MOCK_CONFIG\"
         unset SYMDEP_SOURCE_DIR SOURCE_DIR STOW_DOTFILES_DIR DOTFILES_DIR
         source \"$PROJECT_ROOT/resources/completions/bash/symdep\"

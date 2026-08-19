@@ -26,7 +26,7 @@ Decouple **Linker Operations** from **Active Dependency Installation** at both t
 
 1. **Non-Blocking Passive Dependency Audit during `symdep link`**:
    - `symdep link <pkg>` performs filesystem symlinking immediately.
-   - It performs a non-blocking passive audit of `.symdeps` manifest dependencies: satisfied tools are confirmed, and missing tools are logged as informational warnings (`[WARN] Missing required tool: <name>`) with actionable hints (`Run 'symdep deps install <pkg>' or 'symdep link -y <pkg>'`).
+   - It performs a non-blocking passive audit of `.symdeps` manifest dependencies: satisfied tools are confirmed, and missing tools are logged as informational warnings (`[WARNING] Missing required tool: <name>`) with actionable hints (`Run 'symdep deps install <pkg>' or 'symdep link -y <pkg>'`).
    - `symdep link` **never prompts or blocks on `stdin`**.
 2. **Dedicated Standalone Dependency Installer (`symdep deps install` / `symdep install`)**:
    - Introduce `symdep deps install [pkg...]` (and top-level alias `symdep install [pkg...]`) dedicated purely to dependency resolution and package manager installation without touching symlinks.

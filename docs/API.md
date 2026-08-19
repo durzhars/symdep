@@ -507,6 +507,22 @@ File verification, path sanity checks, directory recursion, and atomic operation
 ```c
 #include "utils/fs.h"
 
+// Dual-Driver Filesystem & Syscall Abstraction (Modern *at vs Legacy POSIX)
+// Modern (default): routes via directory-relative *at syscalls with AT_FDCWD (seccomp safe, SIGSYS 31 immune)
+// Legacy (-DSYMDEP_LEGACY_SYSCALLS): routes via classic POSIX direct syscalls
+FS_SYMLINK(target, linkpath)     // symlinkat(target, AT_FDCWD, linkpath) / symlink(target, linkpath)
+FS_UNLINK(path)                  // unlinkat(AT_FDCWD, path, 0) / unlink(path)
+FS_RMDIR(path)                   // unlinkat(AT_FDCWD, path, AT_REMOVEDIR) / rmdir(path)
+FS_MKDIR(path, mode)             // mkdirat(AT_FDCWD, path, mode) / mkdir(path, mode)
+FS_RENAME(oldpath, newpath)      // renameat(AT_FDCWD, oldpath, AT_FDCWD, newpath) / rename(oldpath, newpath)
+FS_READLINK(path, buf, bufsiz)   // readlinkat(AT_FDCWD, path, buf, bufsiz) / readlink(path, buf, bufsiz)
+FS_STAT(path, statbuf)           // fstatat(AT_FDCWD, path, statbuf, 0) / stat(path, statbuf)
+FS_LSTAT(path, statbuf)          // fstatat(AT_FDCWD, path, statbuf, AT_SYMLINK_NOFOLLOW) / lstat(path, statbuf)
+FS_OPEN(path, flags, ...)        // openat(AT_FDCWD, path, flags, mode) / open(path, flags, mode)
+FS_ACCESS(path, mode)            // faccessat(AT_FDCWD, path, mode, 0) / access(path, mode)
+FS_CHMOD(path, mode)             // fchmodat(AT_FDCWD, path, mode, 0) / chmod(path, mode)
+FS_CHOWN(path, owner, group)     // fchownat(AT_FDCWD, path, owner, group, 0) / chown(path, owner, group)
+
 // Verify path security and permissions
 PathSanityResult verify_path_sanity(const char *path);
 const char *path_sanity_strerror(PathSanityResult res, const char *path);

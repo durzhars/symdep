@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
-# tests/feature/test_helpers.sh
-# Shared helper functions, assertion utilities, and sandboxing for feature tests.
+#
+# Symlink & Dependency Manager (symdep)
+# Shared Test Sandboxing, Mocking & Assertion Helper Functions
+# Copyright (C) 2026 durzhars
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 
 set -u
 
@@ -46,6 +62,13 @@ LAST_CMD_OUTPUT=""
 
 setup_sandbox() {
     cleanup_sandbox
+    if [ -z "${TMPDIR:-}" ] || [ ! -d "${TMPDIR:-}" ]; then
+        if [ -n "${PREFIX:-}" ] && [ -d "${PREFIX}/tmp" ]; then
+            export TMPDIR="${PREFIX}/tmp"
+        elif [ -d "/data/local/tmp" ]; then
+            export TMPDIR="/data/local/tmp"
+        fi
+    fi
     TEST_TMPDIR=$(mktemp -d)
     MOCK_HOME="$TEST_TMPDIR/mock_home"
     MOCK_CONFIG="$MOCK_HOME/.config"

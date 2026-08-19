@@ -35,7 +35,7 @@ Implement a **Multi-Repository Federation and Hierarchical Precedence Engine** i
    2. **Package Manifest**: `TARGET="/path"` entry in package `.symdeps`.
    3. **Environment Variable**: `SYMDEP_TARGET_DIR` / `TARGET_DIR`.
    4. **User Configuration**: `TARGET_DIR` in `~/.config/symdep/config`.
-   5. **Fallback Default**: `$HOME` (with `/etc/passwd` fallback via [ADR-001](docs/decisions/ADR-001-zero-dependency-c17-architecture.md)).
+   5. **Fallback Default**: `$HOME` (resolved via `src/utils/env.c` / [ADR-001](ADR-001-zero-dependency-c17-architecture.md); enforces a clean fatal exit if `$HOME` is unset without an explicit `-t` target override).
 
 2. **Multi-Repository Federation (`SOURCE_DIRS`)**:
    - `symdep config add <path>` and `symdep config remove <path>` maintain a colon-separated list of active repository paths in the user configuration.

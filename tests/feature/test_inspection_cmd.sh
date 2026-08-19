@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
-# tests/feature/test_inspection_cmd.sh
-# Feature test suite for symdep inspection and diagnostics commands (list, diff, check, check-symlinks, scan).
+#
+# Symlink & Dependency Manager (symdep)
+# Inspection, Diagnostics & Dependency Scanner Feature Test Suite
+# Copyright (C) 2026 durzhars
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/test_helpers.sh"

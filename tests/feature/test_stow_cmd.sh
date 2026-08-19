@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
-# tests/feature/test_stow_cmd.sh
-# Feature test suite for stow-manager stow, unstow, restow, all, fix-conflicts, dry-run, and flag overrides.
+#
+# Symlink & Dependency Manager (symdep)
+# Linker & Symlink Deployment Engine Feature Test Suite
+# Copyright (C) 2026 durzhars
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/test_helpers.sh"
@@ -15,15 +31,15 @@ mkdir -p "$STOW_DOTFILES_DIR/pkg2/.config/app2"
 echo "app1 config" >"$STOW_DOTFILES_DIR/pkg1/.config/app1/app1.conf"
 echo "app2 config" >"$STOW_DOTFILES_DIR/pkg2/.config/app2/app2.conf"
 
-assert_success "$STOW_BIN stow pkg1 pkg2" "stow-manager stow pkg1 pkg2 succeeded"
+assert_success "$STOW_BIN stow pkg1 pkg2" "symdep stow pkg1 pkg2 succeeded"
 assert_symlink_exists "$HOME/.config/app1/app1.conf" "$STOW_DOTFILES_DIR/pkg1/.config/app1/app1.conf" "Symlink created for pkg1"
 assert_symlink_exists "$HOME/.config/app2/app2.conf" "$STOW_DOTFILES_DIR/pkg2/.config/app2/app2.conf" "Symlink created for pkg2"
 
-assert_success "$STOW_BIN restow pkg1 pkg2" "stow-manager restow pkg1 pkg2 succeeded"
+assert_success "$STOW_BIN restow pkg1 pkg2" "symdep restow pkg1 pkg2 succeeded"
 assert_symlink_exists "$HOME/.config/app1/app1.conf" "$STOW_DOTFILES_DIR/pkg1/.config/app1/app1.conf" "Symlink maintained after restow for pkg1"
 assert_symlink_exists "$HOME/.config/app2/app2.conf" "$STOW_DOTFILES_DIR/pkg2/.config/app2/app2.conf" "Symlink maintained after restow for pkg2"
 
-assert_success "$STOW_BIN unstow pkg1 pkg2" "stow-manager unstow pkg1 pkg2 succeeded"
+assert_success "$STOW_BIN unstow pkg1 pkg2" "symdep unstow pkg1 pkg2 succeeded"
 assert_path_not_exists "$HOME/.config/app1/app1.conf" "Symlink removed for pkg1 after unstow"
 assert_path_not_exists "$HOME/.config/app2/app2.conf" "Symlink removed for pkg2 after unstow"
 
@@ -35,7 +51,7 @@ mkdir -p "$STOW_DOTFILES_DIR/editor/.config/nvim"
 echo "export FOO=bar" >"$STOW_DOTFILES_DIR/shell/.config/zsh/.zshrc"
 echo "set number" >"$STOW_DOTFILES_DIR/editor/.config/nvim/init.vim"
 
-assert_success "$STOW_BIN all" "stow-manager all succeeded"
+assert_success "$STOW_BIN all" "symdep all succeeded"
 assert_symlink_exists "$HOME/.config/zsh/.zshrc" "$STOW_DOTFILES_DIR/shell/.config/zsh/.zshrc" "Symlink created for shell package"
 assert_symlink_exists "$HOME/.config/nvim/init.vim" "$STOW_DOTFILES_DIR/editor/.config/nvim/init.vim" "Symlink created for editor package"
 
@@ -50,7 +66,7 @@ mkdir -p "$HOME/.config"
 ln -s "$STOW_DOTFILES_DIR/terminal/.config/kitty" "$HOME/.config/kitty"
 assert_symlink_exists "$HOME/.config/kitty" "$STOW_DOTFILES_DIR/terminal/.config/kitty" "Initial directory symlink created in target"
 
-assert_success "$STOW_BIN fix-conflicts" "stow-manager fix-conflicts succeeded"
+assert_success "$STOW_BIN fix-conflicts" "symdep fix-conflicts succeeded"
 assert_directory_not_symlink "$HOME/.config/kitty" "Directory symlink unfolded into genuine directory"
 assert_symlink_exists "$HOME/.config/kitty/kitty.conf" "$STOW_DOTFILES_DIR/terminal/.config/kitty/kitty.conf" "Individual symlink created for kitty.conf"
 assert_symlink_exists "$HOME/.config/kitty/theme.conf" "$STOW_DOTFILES_DIR/terminal/.config/kitty/theme.conf" "Individual symlink created for theme.conf"

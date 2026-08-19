@@ -32,5 +32,5 @@ Implement a dynamic **Symlink Unfolding Engine** in `symdep` (`unfold_directory_
 
 ## Consequences
 - **Automated Collision Recovery**: `symdep link` dynamically resolves tree folding collisions during deployment.
-- **Manual Maintenance Tool**: `symdep fix-conflicts` (alias `fix`) provides explicit user control to scan and unfold directory symlinks on demand.
-- **Atomic Operations**: Unfolding operations create target directories before modifying symlink pointers to ensure zero file loss or orphan state during execution interrupts.
+- **Manual Maintenance Tool**: `symdep fix-conflicts` (and standalone `symdep fix`) provides explicit user control to scan and unfold directory symlinks on demand.
+- **Atomic Operations & Flat Hierarchy**: Unfolding operations utilize flat in-place directory unfolding with kernel dentry exchange acceleration ([ADR-012](ADR-012-flat-in-place-unfolding-vs-multi-hop-indirection.md)) and upfront directory pre-creation ([ADR-008](ADR-008-targeted-traversal-and-two-pass-directory-creation.md)) to ensure zero file loss, lock-free directory traversal, and atomic state transitions.

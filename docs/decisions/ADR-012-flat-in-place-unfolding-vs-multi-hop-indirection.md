@@ -47,5 +47,6 @@ Adopt **Flat In-Place Directory Unfolding ($O(1)$ Direct Lookup)** as the standa
 ## Consequences
 - **Maximum Application Compatibility**: All user tools and scripts receive clean, canonical 1-hop path resolution without `readlink` confusion.
 - **Optimal VFS Lookup Performance**: $O(1)$ direct dentry traversal without secondary inode dereferencing.
+- **Seamless Unfolding Integration**: Provides the low-level physical atomicity foundation for dynamic directory unfolding ([ADR-002](ADR-002-symlink-unfolding-and-collision-engine.md)) and parallel hierarchy pre-creation ([ADR-008](ADR-008-targeted-traversal-and-two-pass-directory-creation.md)).
 - **Zero Hidden State**: Target home directories remain self-contained with zero auxiliary cache files.
 - **Strict Atomicity on Modern Systems**: Full zero-window atomic swapping on Linux ($\ge 3.15$), macOS, and FreeBSD 14+.

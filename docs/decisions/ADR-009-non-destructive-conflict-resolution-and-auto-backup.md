@@ -4,7 +4,7 @@
 Accepted
 
 ## Date
-- **Decision / Commit Date**: 2026-08-12 (Commit `733ea71`, `5db3173`)
+- **Decision / Commit Date**: 2026-08-12 (Commit `4753a55`, `5db3173`)
 - **Recorded Date**: 2026-08-16
 
 ## Context
@@ -33,8 +33,8 @@ Implement an automated, **Non-Destructive Conflict Resolution and Timestamped Ba
 3. **Dry-Run & Diff Preview**:
    - `symdep diff` and `symdep -n link` emit warning diagnostics detailing exact backup destinations without modifying filesystem state:
      `[DRY-RUN] Conflict! Would backup file: ~/.bashrc -> ~/.bashrc.symdep_backup_20260816_161500`
-4. **Automatic Ignore Rule Integration**:
-   - Default ignore rules ([ADR-006](docs/decisions/ADR-006-hierarchical-ignore-rule-engine.md)) include `*.symdep_backup_*`, preventing backup artifacts from being re-ingested into package trees.
+4. **Template-Based Ignore Rule Integration**:
+   - Initialized `.symignore` templates ([ADR-006](ADR-006-hierarchical-ignore-rule-engine.md)) include `*.symdep_backup_*`, preventing backup artifacts from being re-ingested into package trees and enabling modular `.symignore` parser reuse across backup lifecycle tools.
 
 ## Alternatives Considered
 

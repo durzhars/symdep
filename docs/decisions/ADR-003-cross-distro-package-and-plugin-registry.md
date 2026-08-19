@@ -39,8 +39,8 @@ Design a multi-layered **Package Manager & Registry Abstraction Layer**:
 - **Cons**: Inflexible; cannot support custom user package repos or obscure distros.
 - **Rejected**: Centralized tool registry `symdep.registry` allows both defaults and custom overrides.
 
-## Consequences
 - Single `.symdeps` manifest works across Arch Linux, Ubuntu, Fedora, Alpine, macOS, Termux, and unprivileged user environments.
 - `-y` / `--install` flag enables unattended environment bootstrapping across all supported operating systems.
-- Unprivileged users can deploy packages without requiring `sudo` privileges when using user-space package managers or writable system prefixes.
+- Unprivileged users can deploy packages without requiring `sudo` privileges when using user-space package managers or writable system prefixes (formalized in [ADR-010](ADR-010-dynamic-privilege-elevation-and-writable-prefix-probing.md)).
 - Shell plugins in custom directories are recognized and checked alongside binary executables.
+- **Workflow Decoupling**: While this record established the package manager and registry engine, active dependency installation during linking was subsequent decoupled into passive non-blocking auditing by default and dedicated `symdep deps install` workflows via [ADR-013](ADR-013-decoupling-linker-from-dependency-installer.md).

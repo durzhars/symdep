@@ -14,10 +14,11 @@ Without clear rule precedence and inheritance, users face unwanted symlink gener
 
 ## Decision
 Implement a **Hierarchical Ignore Engine (`.symignore`)**:
-1. **Built-in Standard Defaults**: Automatically ignores standard VCS metadata (`.git`, `.gitignore`, `.DS_Store`), documentation files (`README*`, `LICENSE*`), and backup files (`*~`, `#*#`, `.symdep_backup_*`).
-2. **Global Ignore File**: Evaluates patterns in `root/.symignore` (or legacy `root/.stowignore`) across all packages.
-3. **Package Ignore File**: Evaluates patterns in `root/<package>/.symignore` (or legacy `root/<package>/.stowignore`) specific to that package.
-4. **Redundancy Warning**: When viewing active rules (`symdep ignore show`), `symdep` highlights package-level patterns that are already matched by global patterns.
+1. **Built-in Standard Defaults**: Automatically ignores standard VCS metadata (`.git`, `.gitignore`, `.DS_Store`), documentation files (`README*`, `LICENSE*`, `COPYING*`), and editor swap files (`*~`, `#*#`, `.#*`).
+2. **Template-Initialized Patterns**: The default template (`symignore.template` instantiated via `symdep ignore init`) provides baseline rules for runtime cache artifacts (`*.zwc`, `*.pyc`) and backup files (`*.symdep_backup_*`), ensuring modular `.symignore` parser reuse across backup lifecycle operations.
+3. **Global Ignore File**: Evaluates patterns in `root/.symignore` (or legacy `root/.stowignore`) across all packages.
+4. **Package Ignore File**: Evaluates patterns in `root/<package>/.symignore` (or legacy `root/<package>/.stowignore`) specific to that package.
+5. **Redundancy Warning**: When viewing active rules (`symdep ignore show`), `symdep` highlights package-level patterns that are already matched by global patterns.
 
 ## Syntax Negation (`!pattern`) Status & Planned Support
 - **Current Support**: `.symignore` uses standard glob pattern matching (wildcards `*`, `?`, `[a-z]`, trailing `/` for directories). Currently, **syntax negation (`!pattern`) is NOT supported**. Lines beginning with `!` are treated as standard literal patterns or ignored.

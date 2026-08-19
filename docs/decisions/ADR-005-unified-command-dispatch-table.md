@@ -25,7 +25,7 @@ When CLI arguments are passed to `symdep`, `dispatch_command` evaluates tokens i
    - Checks space-separated group and subcommand combinations (e.g. `symdep pkg create <name>`).
    - Checks colon-separated group/subcommand syntax (e.g. `symdep pkg:create <name>`, `symdep deps:add <pkg> <dep>`).
 2. **Command Alias Match**:
-   - Checks top-level alias matches registered in `ROUTE_TABLE` (e.g. `symdep link`, `symdep deploy`, `symdep stow`, `symdep fix`).
+   - Checks top-level alias matches registered in `ROUTE_TABLE` (e.g. `symdep link`, `symdep deploy`, `symdep stow`, `symdep fix`, `symdep install` / `symdep deps install` via [ADR-013](ADR-013-decoupling-linker-from-dependency-installer.md)).
 3. **Group Usage Guidance Fallback**:
    - If the first argument (`token1`) matches a known command group (e.g. `pkg`, `deps`, `ignore`, `config`) but the second argument is missing or invalid, `symdep` prints the list of available subcommands for that group.
 4. **Implicit Package Linking Fallback**:

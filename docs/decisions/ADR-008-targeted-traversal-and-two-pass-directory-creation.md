@@ -4,7 +4,7 @@
 Accepted
 
 ## Date
-- **Decision / Commit Date**: 2026-08-13 (Commit `bbea379`, `8f6cd50`, `3cc101c`)
+- **Decision / Commit Date**: 2026-08-13 (Commit `a5d57c5`, `8f6cd50`, `3cc101c`)
 - **Recorded Date**: 2026-08-13
 
 ## Context
@@ -30,6 +30,7 @@ Implement a **Two-Pass Parallel Linker Engine & Targeted Traversal**:
 - **Rejected**: Two-pass pre-creation separates directory structure setup from file linking, maximizing parallelism.
 
 ## Consequences
-- Completely eliminates directory creation race conditions in parallel threadpool workers.
+- Completely eliminates directory creation race conditions in parallel threadpool workers ([ADR-007](ADR-007-dual-driver-asynchronous-symlink-execution-engine.md)).
+- Integrates seamlessly with dynamic unfolding ([ADR-002](ADR-002-symlink-unfolding-and-collision-engine.md)) and flat in-place dentry exchange ([ADR-012](ADR-012-flat-in-place-unfolding-vs-multi-hop-indirection.md)).
 - Eliminates thousands of redundant filesystem checks and locks during deployment.
 - Maximizes I/O throughput for multi-core parallel linking workloads.

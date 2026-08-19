@@ -190,6 +190,31 @@ make format
 make format-check
 ```
 
+### Cross-Compilation & Multi-Architecture Builds
+
+`symdep` features native zero-dependency cross-compilation support for ARM64, ARMv7, RISC-V, and x86_64:
+
+```bash
+# Build dynamically linked cross-target binaries
+make cross-aarch64       # ARM64 (aarch64-linux-gnu-gcc)
+make cross-armhf         # ARMv7 32-bit (arm-linux-gnueabihf-gcc)
+make cross-riscv64       # RISC-V 64-bit (riscv64-linux-gnu-gcc)
+
+# Build fully standalone static cross binaries (no runtime dependencies)
+make static-cross-aarch64
+make static-cross-armhf
+make static-cross-riscv64
+
+# Package multi-architecture release tarballs (.tar.gz + SHA256 checksums)
+make dist-all            # Auto-builds all available toolchains into release/
+make dist-aarch64        # Package release/symdep-v1.0.0-linux-aarch64.tar.gz
+
+# Custom toolchain via CROSS_COMPILE prefix
+make CROSS_COMPILE=aarch64-linux-gnu-
+```
+
+For complete toolchain installation instructions, sysroot usage, and QEMU emulation testing, refer to the **[Cross-Compilation Guide](docs/CROSS_COMPILATION.md)**.
+
 ### Shell Autocompletion
 
 `symdep` includes native autocompletion scripts for **Bash**, **Zsh**, and **Fish** supporting dynamic package discovery, namespace subcommands, and flag options.

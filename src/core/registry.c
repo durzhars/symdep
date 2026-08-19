@@ -23,6 +23,7 @@
 #include "core/registry.h"
 #include "core/file_collector.h"
 
+#include "utils/env.h"
 #include "utils/fs.h"
 #include "utils/mem.h"
 #include "utils/path.h"
@@ -232,6 +233,51 @@ void registry_get_aliases(const char *source_dir, const char *tool, StringArray 
     str_array_append(aliases, tool);
 }
 
+static const char *const *get_tag_family_aliases(const char *tag)
+{
+    if (!tag || *tag == '\0') {
+        return NULL;
+    }
+    static const char *const apt_family[] = {
+        "apt", "apt-get", "debian", "ubuntu", "pop", "mint", "kali", "raspbian", NULL};
+    static const char *const pacman_family[] = {
+        "pacman", "yay", "paru", "arch", "manjaro", "endeavouros", "artix", NULL};
+    static const char *const dnf_family[] = {
+        "dnf", "yum", "fedora", "rhel", "centos", "rocky", "almalinux", NULL};
+    static const char *const apk_family[] = {"apk", "alpine", NULL};
+    static const char *const xbps_family[] = {"xbps-install", "xbps", "void", NULL};
+    static const char *const emerge_family[] = {"emerge", "gentoo", NULL};
+    static const char *const zypper_family[] = {
+        "zypper", "suse", "opensuse", "opensuse-tumbleweed", "opensuse-leap", NULL};
+    static const char *const brew_family[] = {"brew", "homebrew", "macos", "darwin", NULL};
+    static const char *const termux_family[] = {"pkg", "termux", "android", NULL};
+    static const char *const bsd_family[] = {
+        "pkg_add", "pkgin", "freebsd", "openbsd", "netbsd", "dragonfly", NULL};
+
+    static const struct {
+        const char *const *family;
+    } groups[] = {{apt_family},
+                  {pacman_family},
+                  {dnf_family},
+                  {apk_family},
+                  {xbps_family},
+                  {emerge_family},
+                  {zypper_family},
+                  {brew_family},
+                  {termux_family},
+                  {bsd_family},
+                  {NULL}};
+
+    for (size_t g = 0; groups[g].family != NULL; g++) {
+        for (size_t i = 0; groups[g].family[i] != NULL; i++) {
+            if (strcasecmp(groups[g].family[i], tag) == 0) {
+                return groups[g].family;
+            }
+        }
+    }
+    return NULL;
+}
+
 void registry_get_distro_pkg(const char *source_dir,
                              const char *tool,
                              const char *distro_id,
@@ -241,13 +287,60 @@ void registry_get_distro_pkg(const char *source_dir,
     snprintf(pkg_out, pkg_out_size, "%s", tool);
     registry_cache_ensure(source_dir);
 
+    // 1. Primary lookup: Match exact package manager or distro tag (e.g. "apt", "pacman", "ubuntu")
     char key_distro[256];
-    snprintf(key_distro, sizeof(key_distro), "%s@%s", tool, distro_id);
+    snprintf(key_distro, sizeof(key_distro), "%s@%s", tool, distro_id ? distro_id : "");
 
     for (size_t i = 0; i < g_registry_cache.count; i++) {
         if (strcmp(g_registry_cache.entries[i].key, key_distro) == 0) {
             snprintf(pkg_out, pkg_out_size, "%s", g_registry_cache.entries[i].value);
             return;
+        }
+    }
+
+    // 2. Family alias lookup: Check allied distro/package manager tags in same ecosystem
+    const char *const *family = get_tag_family_aliases(distro_id);
+    if (family) {
+        for (size_t f = 0; family[f] != NULL; f++) {
+            if (distro_id && strcasecmp(family[f], distro_id) == 0) {
+                continue;
+            }
+            char key_fam[256];
+            snprintf(key_fam, sizeof(key_fam), "%s@%s", tool, family[f]);
+            for (size_t i = 0; i < g_registry_cache.count; i++) {
+                if (strcmp(g_registry_cache.entries[i].key, key_fam) == 0) {
+                    snprintf(pkg_out, pkg_out_size, "%s", g_registry_cache.entries[i].value);
+                    return;
+                }
+            }
+        }
+    }
+
+    // 3. System distro ID from environment / os-release probing
+    char sys_distro[64];
+    get_distro_id(sys_distro, sizeof(sys_distro));
+    if (sys_distro[0] != '\0' && (!distro_id || strcmp(sys_distro, distro_id) != 0)) {
+        char key_sys[256];
+        snprintf(key_sys, sizeof(key_sys), "%s@%s", tool, sys_distro);
+        for (size_t i = 0; i < g_registry_cache.count; i++) {
+            if (strcmp(g_registry_cache.entries[i].key, key_sys) == 0) {
+                snprintf(pkg_out, pkg_out_size, "%s", g_registry_cache.entries[i].value);
+                return;
+            }
+        }
+
+        const char *const *sys_family = get_tag_family_aliases(sys_distro);
+        if (sys_family) {
+            for (size_t f = 0; sys_family[f] != NULL; f++) {
+                char key_sys_fam[256];
+                snprintf(key_sys_fam, sizeof(key_sys_fam), "%s@%s", tool, sys_family[f]);
+                for (size_t i = 0; i < g_registry_cache.count; i++) {
+                    if (strcmp(g_registry_cache.entries[i].key, key_sys_fam) == 0) {
+                        snprintf(pkg_out, pkg_out_size, "%s", g_registry_cache.entries[i].value);
+                        return;
+                    }
+                }
+            }
         }
     }
 }
@@ -330,7 +423,7 @@ bool is_tool_installed_dynamic(const char *source_dir, const char *tool)
             const char *plugin_path = entry + 7;
             char expanded[STOW_PATH_LARGE];
             expand_tilde_path(plugin_path, expanded, sizeof(expanded));
-            if (access(expanded, R_OK) == 0) {
+            if (FS_ACCESS(expanded, R_OK) == 0) {
                 installed = true;
                 break;
             }

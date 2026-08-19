@@ -90,48 +90,82 @@ static void build_install_command(const char *source_dir,
     }
 }
 
-static void parse_item_selections(const char *input, size_t count, bool default_all, bool *selected)
+static void parse_item_exclusions(const char *input, const StringArray *items, bool *selected)
 {
-    if (!selected || count == 0) {
+    if (!selected || !items || items->count == 0) {
         return;
     }
+    size_t count = items->count;
+
     char buf[256];
     snprintf(buf, sizeof(buf), "%s", input ? input : "");
     char *trimmed = trim_whitespace(buf);
 
-    if (trimmed[0] == '\0') {
-        for (size_t i = 0; i < count; i++) {
-            selected[i] = default_all;
-        }
-        return;
-    }
-
-    if (strcmp(trimmed, "all") == 0 || strcmp(trimmed, "a") == 0 || strcmp(trimmed, "y") == 0 ||
-        strcmp(trimmed, "Y") == 0 || strcmp(trimmed, "yes") == 0) {
+    // 1. Default: Install ALL
+    if (trimmed[0] == '\0' || strcmp(trimmed, "all") == 0 || strcmp(trimmed, "a") == 0 ||
+        strcmp(trimmed, "y") == 0 || strcmp(trimmed, "Y") == 0 || strcmp(trimmed, "yes") == 0) {
         for (size_t i = 0; i < count; i++) {
             selected[i] = true;
         }
         return;
     }
 
+    // 2. Exclude all / Cancel installation
     if (strcmp(trimmed, "none") == 0 || strcmp(trimmed, "n") == 0 || strcmp(trimmed, "N") == 0 ||
-        strcmp(trimmed, "no") == 0 || strcmp(trimmed, "0") == 0) {
+        strcmp(trimmed, "no") == 0 || strcmp(trimmed, "cancel") == 0 || strcmp(trimmed, "0") == 0) {
         for (size_t i = 0; i < count; i++) {
             selected[i] = false;
         }
         return;
     }
 
-    for (size_t i = 0; i < count; i++) {
-        selected[i] = false;
+    // Check if user explicitly wrote "only ..." or "include ..." (inclusion mode override)
+    bool is_only_mode = false;
+    if (strncmp(trimmed, "only ", 5) == 0) {
+        is_only_mode = true;
+        trimmed = trim_whitespace(trimmed + 5);
+    } else if (strncmp(trimmed, "include ", 8) == 0) {
+        is_only_mode = true;
+        trimmed = trim_whitespace(trimmed + 8);
+    } else if (strncmp(trimmed, "except ", 7) == 0) {
+        trimmed = trim_whitespace(trimmed + 7);
+    } else if (strncmp(trimmed, "exclude ", 8) == 0) {
+        trimmed = trim_whitespace(trimmed + 8);
+    } else if (strncmp(trimmed, "skip ", 5) == 0) {
+        trimmed = trim_whitespace(trimmed + 5);
+    }
+
+    if (is_only_mode) {
+        for (size_t i = 0; i < count; i++) {
+            selected[i] = false;
+        }
+    } else {
+        // Default assumption: ALL packages are selected for installation
+        for (size_t i = 0; i < count; i++) {
+            selected[i] = true;
+        }
     }
 
     char *saveptr = NULL;
     char *token = strtok_r(trimmed, " ,;\t", &saveptr);
     while (token != NULL) {
-        long idx = strtol(token, NULL, 10);
-        if (idx > 0 && (size_t)idx <= count) {
-            selected[(size_t)idx - 1] = true;
+        char *tok = trim_whitespace(token);
+        while (*tok == '!' || *tok == '^' || *tok == '-') {
+            tok++;
+        }
+        if (*tok != '\0') {
+            char *endptr = NULL;
+            long idx = strtol(tok, &endptr, 10);
+            if (endptr && *endptr == '\0' && idx > 0 && (size_t)idx <= count) {
+                selected[(size_t)idx - 1] = is_only_mode ? true : false;
+            } else {
+                for (size_t i = 0; i < count; i++) {
+                    if (strcasecmp(items->items[i], tok) == 0) {
+                        selected[i] = is_only_mode ? true : false;
+                        break;
+                    }
+                }
+            }
         }
         token = strtok_r(NULL, " ,;\t", &saveptr);
     }
@@ -173,48 +207,73 @@ static void handle_missing_dependencies(const char *source_dir,
            COLOR_RESET);
 
     if (dry_run) {
-        log_info("[DRY-RUN] Would prompt/execute installation command: %s", install_cmd);
-    } else if (auto_install) {
+        log_info("[DRY-RUN] Preview mode: Dependency installation skipped.");
+        return;
+    }
+
+    if (auto_install) {
+        log_info("Auto-installing %s dependencies via %s...",
+                 is_required ? "required" : "optional",
+                 mgr_name);
         run_system_cmd(install_cmd);
-    } else {
-        log_info(
-            "Hint: Run 'symdep deps install' or 'symdep link -y' to install missing dependencies.");
+        return;
+    }
+
+    if (!isatty(STDIN_FILENO)) {
+        log_warn("Non-interactive environment detected. Skipping active installation of missing "
+                 "dependencies.");
+        return;
+    }
+
+    printf("Execute dependency installation command now? [Y/n] ");
+    fflush(stdout);
+    int c = getchar();
+    if (c != '\n' && c != EOF) {
+        flush_stdin();
+    }
+    if (c == 'y' || c == 'Y' || c == '\n') {
+        run_system_cmd(install_cmd);
     }
 }
 
 static void collect_package_missing_deps(const char *source_dir,
                                          const char *target_pkg,
-                                         StringArray *missing_req,
-                                         StringArray *missing_opt)
+                                         StringArray *out_missing_req,
+                                         StringArray *out_missing_opt)
 {
     StringArray all_pkgs;
     str_array_init(&all_pkgs);
-    if (target_pkg && strcmp(target_pkg, "all") != 0) {
-        str_array_append(&all_pkgs, target_pkg);
-    } else {
+
+    if (!target_pkg || strcmp(target_pkg, "all") == 0) {
         get_all_packages(source_dir, &all_pkgs);
+    } else {
+        str_array_append(&all_pkgs, target_pkg);
     }
 
     for (size_t i = 0; i < all_pkgs.count; i++) {
-        const char *pkg_name = all_pkgs.items[i];
+        const char *pkg = all_pkgs.items[i];
         PackageManifest manifest;
-        manifest_init(&manifest, pkg_name);
-        manifest_load(&manifest, source_dir);
+        manifest_init(&manifest, pkg);
 
-        for (size_t r = 0; r < manifest.required.count; r++) {
-            const char *tool = manifest.required.items[r];
-            if (!is_tool_installed_dynamic(source_dir, tool)) {
-                if (!str_array_contains(missing_req, tool)) {
-                    str_array_append(missing_req, tool);
+        if (!manifest_load(&manifest, source_dir)) {
+            manifest_free(&manifest);
+            continue;
+        }
+
+        for (size_t j = 0; j < manifest.required.count; j++) {
+            const char *dep = manifest.required.items[j];
+            if (!is_tool_installed_dynamic(source_dir, dep)) {
+                if (!str_array_contains(out_missing_req, dep)) {
+                    str_array_append(out_missing_req, dep);
                 }
             }
         }
 
-        for (size_t o = 0; o < manifest.optional.count; o++) {
-            const char *tool = manifest.optional.items[o];
-            if (!is_tool_installed_dynamic(source_dir, tool)) {
-                if (!str_array_contains(missing_opt, tool)) {
-                    str_array_append(missing_opt, tool);
+        for (size_t j = 0; j < manifest.optional.count; j++) {
+            const char *dep = manifest.optional.items[j];
+            if (!is_tool_installed_dynamic(source_dir, dep)) {
+                if (!str_array_contains(out_missing_opt, dep)) {
+                    str_array_append(out_missing_opt, dep);
                 }
             }
         }
@@ -259,7 +318,13 @@ int install_package_dependencies(const char *source_dir,
 
         printf("\n%sRequired Dependencies (%s):%s\n", COLOR_BOLD, mgr_name, COLOR_RESET);
         for (size_t i = 0; i < missing_req.count; i++) {
-            printf("  %s✗%s %s\n", COLOR_RED, COLOR_RESET, missing_req.items[i]);
+            printf("  %s[%zu]%s %s✗%s %s\n",
+                   COLOR_CYAN,
+                   i + 1,
+                   COLOR_RESET,
+                   COLOR_RED,
+                   COLOR_RESET,
+                   missing_req.items[i]);
         }
         printf("Command: %s%s%s\n\n", COLOR_CYAN, install_cmd, COLOR_RESET);
 
@@ -269,14 +334,36 @@ int install_package_dependencies(const char *source_dir,
             log_info("Installing required dependencies via %s...", mgr_name);
             run_system_cmd(install_cmd);
         } else if (isatty(STDIN_FILENO)) {
-            printf("Install missing REQUIRED dependencies now? [Y/n] ");
+            printf("Install missing REQUIRED dependencies now? [Y/n] (or enter numbers/names to "
+                   "EXCLUDE): ");
             fflush(stdout);
-            int c = getchar();
-            if (c != '\n' && c != EOF) {
-                flush_stdin();
-            }
-            if (c == 'y' || c == 'Y' || c == '\n') {
-                run_system_cmd(install_cmd);
+            char response[256] = {0};
+            if (fgets(response, sizeof(response), stdin)) {
+                bool *selected = (bool *)calloc(missing_req.count, sizeof(bool));
+                if (selected) {
+                    parse_item_exclusions(response, &missing_req, selected);
+                    StringArray selected_pkgs;
+                    str_array_init(&selected_pkgs);
+                    for (size_t i = 0; i < missing_req.count; i++) {
+                        if (selected[i]) {
+                            str_array_append(&selected_pkgs, missing_req.items[i]);
+                        }
+                    }
+                    if (selected_pkgs.count > 0) {
+                        char sel_cmd[4096];
+                        build_install_command(source_dir,
+                                              &selected_pkgs,
+                                              sel_cmd,
+                                              sizeof(sel_cmd),
+                                              mgr_name,
+                                              sizeof(mgr_name),
+                                              auto_install,
+                                              dry_run);
+                        run_system_cmd(sel_cmd);
+                    }
+                    str_array_free(&selected_pkgs);
+                    free(selected);
+                }
             }
         } else {
             log_error("Non-interactive environment detected. Pass -y / --install to confirm.");
@@ -299,7 +386,13 @@ int install_package_dependencies(const char *source_dir,
 
         printf("\n%sOptional Plugins & Tools (%s):%s\n", COLOR_BOLD, mgr_name, COLOR_RESET);
         for (size_t i = 0; i < missing_opt.count; i++) {
-            printf("  %s⚡%s %s\n", COLOR_YELLOW, COLOR_RESET, missing_opt.items[i]);
+            printf("  %s[%zu]%s %s⚡%s %s\n",
+                   COLOR_CYAN,
+                   i + 1,
+                   COLOR_RESET,
+                   COLOR_YELLOW,
+                   COLOR_RESET,
+                   missing_opt.items[i]);
         }
         printf("Command: %s%s%s\n\n", COLOR_CYAN, install_cmd, COLOR_RESET);
 
@@ -309,13 +402,14 @@ int install_package_dependencies(const char *source_dir,
             log_info("Installing optional dependencies via %s...", mgr_name);
             run_system_cmd(install_cmd);
         } else if (isatty(STDIN_FILENO)) {
-            printf("Select missing optional tools to install (e.g. 'all', 'none', '1,3') [none]: ");
+            printf("Install optional dependencies? [Y/n] (or enter numbers/names to EXCLUDE, e.g. "
+                   "'1,3') [all]: ");
             fflush(stdout);
             char response[256] = {0};
             if (fgets(response, sizeof(response), stdin)) {
                 bool *selected = (bool *)calloc(missing_opt.count, sizeof(bool));
                 if (selected) {
-                    parse_item_selections(response, missing_opt.count, false, selected);
+                    parse_item_exclusions(response, &missing_opt, selected);
                     StringArray selected_pkgs;
                     str_array_init(&selected_pkgs);
                     for (size_t i = 0; i < missing_opt.count; i++) {

@@ -25,6 +25,7 @@
 #include "utils/path.h"
 #include "utils/str.h"
 
+#include <ctype.h>
 #include <dirent.h>
 #include <limits.h>
 #include <pwd.h>
@@ -32,6 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/utsname.h>
 #include <unistd.h>
 
 typedef struct {
@@ -284,6 +286,40 @@ bool app_env_resolve(AppEnvironment *env,
     return true;
 }
 
+static bool parse_os_release_id(const char *path, char *buf, size_t buf_size)
+{
+    if (!path || *path == '\0' || !buf || buf_size == 0) {
+        return false;
+    }
+    FILE *fp = fopen(path, "r");
+    if (!fp) {
+        return false;
+    }
+
+    char line[256];
+    bool found = false;
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "ID=", 3) == 0) {
+            char *val = line + 3;
+            if (*val == '"' || *val == '\'') {
+                val++;
+            }
+            char *trimmed = trim_whitespace(val);
+            size_t len = strlen(trimmed);
+            if (len > 0 && (trimmed[len - 1] == '"' || trimmed[len - 1] == '\'')) {
+                trimmed[len - 1] = '\0';
+            }
+            if (*trimmed != '\0') {
+                snprintf(buf, buf_size, "%s", trimmed);
+                found = true;
+                break;
+            }
+        }
+    }
+    fclose(fp);
+    return found;
+}
+
 void get_distro_id(char *buf, size_t buf_size)
 {
     if (!buf || buf_size == 0) {
@@ -291,31 +327,102 @@ void get_distro_id(char *buf, size_t buf_size)
     }
     buf[0] = '\0';
 
-    FILE *fp = fopen("/etc/os-release", "r");
-    if (!fp) {
-        fp = fopen("/usr/lib/os-release", "r");
+    // 1. Explicit environment variable override
+    const char *env_distro = getenv("SYMDEP_DISTRO");
+    if (!env_distro || *env_distro == '\0') {
+        env_distro = getenv("DISTRO_ID");
     }
-    if (fp) {
-        char line[256];
-        while (fgets(line, sizeof(line), fp)) {
-            if (strncmp(line, "ID=", 3) == 0) {
-                char *val = line + 3;
-                if (*val == '"' || *val == '\'') {
-                    val++;
-                }
-                char *trimmed = trim_whitespace(val);
-                size_t len = strlen(trimmed);
-                if (len > 0 && (trimmed[len - 1] == '"' || trimmed[len - 1] == '\'')) {
-                    trimmed[len - 1] = '\0';
-                }
-                snprintf(buf, buf_size, "%s", trimmed);
-                fclose(fp);
-                return;
-            }
-        }
-        fclose(fp);
+    if (env_distro && *env_distro != '\0') {
+        snprintf(buf, buf_size, "%s", env_distro);
+        return;
     }
 
+    // 2. Prefix / Termux / Android environment
+    const char *prefix = getenv("PREFIX");
+    if (prefix && *prefix != '\0') {
+        char prefix_os_release[STOW_PATH_MAX];
+        join_path(prefix_os_release, sizeof(prefix_os_release), prefix, "etc/os-release");
+        if (parse_os_release_id(prefix_os_release, buf, buf_size)) {
+            return;
+        }
+        if (strstr(prefix, "com.termux")) {
+            snprintf(buf, buf_size, "termux");
+            return;
+        }
+    }
+
+    if (getenv("ANDROID_ROOT") || getenv("ANDROID_DATA") ||
+        (access("/system/bin/sh", F_OK) == 0 && access("/system/etc/seccomp_policy", F_OK) == 0)) {
+        snprintf(buf, buf_size, "android");
+        return;
+    }
+
+    // 3. Freedesktop / Systemd os-release standard paths
+    static const char *const os_release_paths[] = {"/etc/os-release",
+                                                   "/usr/lib/os-release",
+                                                   "/usr/share/os-release",
+                                                   "/etc/initrd-release",
+                                                   NULL};
+
+    for (size_t i = 0; os_release_paths[i] != NULL; i++) {
+        if (parse_os_release_id(os_release_paths[i], buf, buf_size)) {
+            return;
+        }
+    }
+
+    // 4. Legacy Linux Distribution release files
+    static const struct {
+        const char *file;
+        const char *distro_id;
+    } legacy_distros[] = {{"/etc/arch-release", "arch"},
+                          {"/etc/debian_version", "debian"},
+                          {"/etc/fedora-release", "fedora"},
+                          {"/etc/redhat-release", "rhel"},
+                          {"/etc/centos-release", "centos"},
+                          {"/etc/alpine-release", "alpine"},
+                          {"/etc/void-release", "void"},
+                          {"/etc/gentoo-release", "gentoo"},
+                          {"/etc/SuSE-release", "suse"},
+                          {"/etc/slackware-version", "slackware"},
+                          {NULL, NULL}};
+
+    for (size_t i = 0; legacy_distros[i].file != NULL; i++) {
+        if (access(legacy_distros[i].file, F_OK) == 0) {
+            snprintf(buf, buf_size, "%s", legacy_distros[i].distro_id);
+            return;
+        }
+    }
+
+    // 5. Native OS Preprocessor Macros & POSIX uname() fallback
+#if defined(__APPLE__)
+    snprintf(buf, buf_size, "macos");
+    return;
+#elif defined(__FreeBSD__)
+    snprintf(buf, buf_size, "freebsd");
+    return;
+#elif defined(__OpenBSD__)
+    snprintf(buf, buf_size, "openbsd");
+    return;
+#elif defined(__NetBSD__)
+    snprintf(buf, buf_size, "netbsd");
+    return;
+#elif defined(__DragonFly__)
+    snprintf(buf, buf_size, "dragonfly");
+    return;
+#endif
+
+    struct utsname u;
+    if (uname(&u) == 0 && u.sysname[0] != '\0') {
+        char sys_lower[64];
+        snprintf(sys_lower, sizeof(sys_lower), "%s", u.sysname);
+        for (char *p = sys_lower; *p != '\0'; p++) {
+            *p = (char)tolower((unsigned char)*p);
+        }
+        snprintf(buf, buf_size, "%s", sys_lower);
+        return;
+    }
+
+    // 6. Catch-all fallback
     snprintf(buf, buf_size, "unix");
 }
 
@@ -363,7 +470,7 @@ bool find_executable_in_path(const char *executable, char *out_path, size_t out_
     out_path[0] = '\0';
 
     if (strchr(executable, '/') != NULL) {
-        if (access(executable, X_OK) == 0) {
+        if (FS_ACCESS(executable, X_OK) == 0) {
             snprintf(out_path, out_path_size, "%s", executable);
             return true;
         }
@@ -376,7 +483,7 @@ bool find_executable_in_path(const char *executable, char *out_path, size_t out_
     for (size_t i = 0; i < g_path_dirs.count; i++) {
         int len = snprintf(candidate, sizeof(candidate), "%s/%s", g_path_dirs.items[i], executable);
         if (len > 0 && (size_t)len < sizeof(candidate)) {
-            if (access(candidate, X_OK) == 0) {
+            if (FS_ACCESS(candidate, X_OK) == 0) {
                 snprintf(out_path, out_path_size, "%s", candidate);
                 return true;
             }

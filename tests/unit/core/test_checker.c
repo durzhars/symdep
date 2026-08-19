@@ -106,3 +106,29 @@ void test_symlink_health_check_clean(void)
     cleanup_test_dir(tmp_dotfiles);
     cleanup_test_dir(tmp_target);
 }
+
+void test_install_package_dependencies(void)
+{
+    char tmp_dotfiles[PATH_MAX];
+    ASSERT(create_test_tmp_dir(tmp_dotfiles, sizeof(tmp_dotfiles), "install_dep") != NULL,
+           "Should create temporary dotfiles directory");
+
+    char pkg_dir[PATH_MAX];
+    snprintf(pkg_dir, sizeof(pkg_dir), "%s/mypkg", tmp_dotfiles);
+    ASSERT(mkdir(pkg_dir, 0755) == 0, "Should create mypkg directory");
+
+    manifest_add_dep(tmp_dotfiles, "mypkg", "nonexistent_tool_1", "--required");
+    manifest_add_dep(tmp_dotfiles, "mypkg", "nonexistent_tool_2", "--optional");
+
+    // Dry run install should identify dependencies and succeed
+    int res = install_package_dependencies(tmp_dotfiles, "mypkg", false, true);
+    ASSERT(res == 0, "install_package_dependencies dry-run should succeed");
+
+    // Install on package with zero missing dependencies should succeed immediately
+    manifest_remove_dep(tmp_dotfiles, "mypkg", "nonexistent_tool_1");
+    manifest_remove_dep(tmp_dotfiles, "mypkg", "nonexistent_tool_2");
+    res = install_package_dependencies(tmp_dotfiles, "mypkg", false, true);
+    ASSERT(res == 0, "install_package_dependencies with 0 missing should return 0");
+
+    cleanup_test_dir(tmp_dotfiles);
+}

@@ -52,6 +52,15 @@ void test_registry_parsing(void)
     registry_get_distro_pkg(tmp_dir, "tool_a", "ubuntu", distro_pkg, sizeof(distro_pkg));
     ASSERT_STR_EQ(distro_pkg, "pkg_a_ubuntu");
 
+    // Family alias test: querying with "apt" or "debian" should automatically resolve tool_a@ubuntu
+    char apt_pkg[256];
+    registry_get_distro_pkg(tmp_dir, "tool_a", "apt", apt_pkg, sizeof(apt_pkg));
+    ASSERT_STR_EQ(apt_pkg, "pkg_a_ubuntu");
+
+    char debian_pkg[256];
+    registry_get_distro_pkg(tmp_dir, "tool_a", "debian", debian_pkg, sizeof(debian_pkg));
+    ASSERT_STR_EQ(debian_pkg, "pkg_a_ubuntu");
+
     cleanup_test_dir(tmp_dir);
 }
 

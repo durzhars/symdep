@@ -42,6 +42,7 @@ void test_cmd_config_ops(void);
 
 /* Prototypes for core tests */
 void test_check_package_dependencies(void);
+void test_install_package_dependencies(void);
 void test_symlink_health_check(void);
 void test_symlink_health_check_clean(void);
 void test_pkg_manager_builtins(void);
@@ -103,6 +104,7 @@ void test_linker_ops_invalid_package(void);
 void test_xdg_paths(void);
 void test_expand_env_vars(void);
 void test_degraded_env_path_resolution(void);
+void test_get_distro_id(void);
 void test_logger_output(void);
 void test_logger_file_logging_and_filtering(void);
 void test_logger_level_switching(void);
@@ -176,6 +178,7 @@ int main(void)
 
     // --- core ---
     RUN_TEST(test_check_package_dependencies);
+    RUN_TEST(test_install_package_dependencies);
     RUN_TEST(test_symlink_health_check);
     RUN_TEST(test_symlink_health_check_clean);
     RUN_TEST(test_pkg_manager_builtins);
@@ -237,6 +240,7 @@ int main(void)
     RUN_TEST(test_xdg_paths);
     RUN_TEST(test_expand_env_vars);
     RUN_TEST(test_degraded_env_path_resolution);
+    RUN_TEST(test_get_distro_id);
     RUN_TEST(test_logger_output);
     RUN_TEST(test_logger_file_logging_and_filtering);
     RUN_TEST(test_logger_level_switching);

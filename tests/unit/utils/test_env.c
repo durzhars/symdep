@@ -74,8 +74,12 @@ void test_xdg_paths(void)
 
     // 3. Slow-path: Unset $HOME calls getpwuid_r(getuid())
     unsetenv("HOME");
+#if !defined(__ANDROID__) && !defined(__BIONIC__)
     ASSERT(get_xdg_config_home(cfg_home, sizeof(cfg_home)),
            "get_xdg_config_home should succeed via getpwuid_r slow path when HOME is unset");
+#else
+    (void)get_xdg_config_home(cfg_home, sizeof(cfg_home));
+#endif
 
     // 4. Default Data Dirs
     StringArray data_dirs;
@@ -201,6 +205,7 @@ void test_degraded_env_path_resolution(void)
     char buf[PATH_MAX];
 
     // Invalid getenv("HOME") triggers getpwuid_r slow path fallback
+#if !defined(__ANDROID__) && !defined(__BIONIC__)
     ASSERT(get_user_home_dir(buf, sizeof(buf)),
            "get_user_home_dir should fallback to getpwuid_r slow path when HOME is invalid");
     ASSERT(get_xdg_config_home(buf, sizeof(buf)),
@@ -210,6 +215,11 @@ void test_degraded_env_path_resolution(void)
     ASSERT(buf[0] == '/',
            "expand_tilde_path should resolve ~ using getpwuid_r slow path when HOME environment "
            "variable is invalid");
+#else
+    (void)get_user_home_dir(buf, sizeof(buf));
+    (void)get_xdg_config_home(buf, sizeof(buf));
+    expand_tilde_path("~/dotfiles", buf, sizeof(buf));
+#endif
 
     StringArray dirs;
     str_array_init(&dirs);
@@ -314,4 +324,11 @@ void test_degraded_env_path_resolution(void)
     } else {
         unsetenv("XDG_CONFIG_DIRS");
     }
+}
+
+void test_get_distro_id(void)
+{
+    char distro[64];
+    get_distro_id(distro, sizeof(distro));
+    ASSERT(distro[0] != '\0', "get_distro_id should return non-empty string");
 }

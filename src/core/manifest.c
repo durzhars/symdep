@@ -380,7 +380,7 @@ void package_remove(const char *source_dir,
 
     log_warn("Removing package directory '%s'...", pkg_dir);
     cleanup_temp_dir_contents(pkg_dir);
-    if (rmdir(pkg_dir) == 0) {
+    if (FS_RMDIR(pkg_dir) == 0) {
         log_success("Successfully removed package '%s'.", pkg_name);
     } else {
         log_error("Failed to remove package directory '%s'.", pkg_dir);

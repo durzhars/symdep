@@ -135,7 +135,7 @@ void walk_target_dir_symlinks_targeted(const char *target_dir,
         join_path(target_path, sizeof(target_path), target_dir, rel);
 
         struct stat st;
-        if (lstat(target_path, &st) == 0) {
+        if (FS_LSTAT(target_path, &st) == 0) {
             if (S_ISLNK(st.st_mode)) {
                 if (str_set_add(&state.visited_paths, target_path)) {
                     state.cb(target_path, state.user_data);
@@ -199,7 +199,7 @@ static void unfold_symlink_cb(const char *symlink_path, void *user_data)
 
             struct stat target_st;
             mode_t target_mode = 0755;
-            if (stat(target, &target_st) == 0) {
+            if (FS_STAT(target, &target_st) == 0) {
                 target_mode = target_st.st_mode & 0777;
             }
 
@@ -223,7 +223,7 @@ static void unfold_symlink_cb(const char *symlink_path, void *user_data)
                         join_path(child_src, sizeof(child_src), target, entry->d_name);
                         join_path(child_dst, sizeof(child_dst), tmp_dir, entry->d_name);
 
-                        if (symlink(child_src, child_dst) != 0) {
+                        if (FS_SYMLINK(child_src, child_dst) != 0) {
                             log_error("Failed to symlink unfolded child '%s'", child_dst);
                             copy_success = false;
                             break;
@@ -239,10 +239,10 @@ static void unfold_symlink_cb(const char *symlink_path, void *user_data)
                         }
                     } else {
                         cleanup_temp_dir_contents(tmp_dir);
-                        rmdir(tmp_dir);
+                        FS_RMDIR(tmp_dir);
                     }
                 } else {
-                    rmdir(tmp_dir);
+                    FS_RMDIR(tmp_dir);
                 }
             }
             unregister_temp_path(tmp_dir);

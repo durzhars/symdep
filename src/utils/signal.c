@@ -1,5 +1,6 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
+ * POSIX Signal Handling & Atomic Cleanup Utilities Implementation
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #define _GNU_SOURCE
 #define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
@@ -103,9 +103,9 @@ void cleanup_temp_paths(void)
 
         if (is_dir(p)) {
             cleanup_temp_dir_contents(p);
-            rmdir(p);
+            FS_RMDIR(p);
         } else if (file_exists(p) || is_symlink(p)) {
-            unlink(p);
+            FS_UNLINK(p);
         }
     }
     str_array_free(&g_temp_paths);
@@ -129,8 +129,8 @@ void cleanup_temp_paths_signal_safe(void)
                 }
                 closedir(dir);
             }
-            (void)unlink(p);
-            (void)rmdir(p);
+            (void)FS_UNLINK(p);
+            (void)FS_RMDIR(p);
         }
     }
 }

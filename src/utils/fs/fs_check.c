@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Filesystem Validation & Inspection Submodule
  * Copyright (C) 2026 durzhars
  *
@@ -16,19 +16,18 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #include "utils/fs/internal.h"
 
 bool file_exists(const char *path)
 {
     struct stat st;
-    return (lstat(path, &st) == 0);
+    return (FS_LSTAT(path, &st) == 0);
 }
 
 bool is_dir(const char *path)
 {
     struct stat st;
-    if (stat(path, &st) == 0) {
+    if (FS_STAT(path, &st) == 0) {
         return S_ISDIR(st.st_mode);
     }
     return false;
@@ -37,7 +36,7 @@ bool is_dir(const char *path)
 bool is_symlink(const char *path)
 {
     struct stat st;
-    if (lstat(path, &st) == 0) {
+    if (FS_LSTAT(path, &st) == 0) {
         return S_ISLNK(st.st_mode);
     }
     return false;
@@ -54,7 +53,7 @@ PathSanityResult verify_path_sanity(const char *path)
     }
 
     struct stat st;
-    if (stat(path, &st) != 0) {
+    if (FS_STAT(path, &st) != 0) {
         return ERR_INSUFFICIENT_PERMS;
     }
 
@@ -70,7 +69,7 @@ PathSanityResult verify_path_sanity(const char *path)
         return ERR_WORLD_WRITABLE;
     }
 
-    if (access(path, R_OK | W_OK | X_OK) != 0) {
+    if (FS_ACCESS(path, R_OK | W_OK | X_OK) != 0) {
         return ERR_INSUFFICIENT_PERMS;
     }
 
@@ -83,7 +82,7 @@ const char *path_sanity_strerror(PathSanityResult res, const char *path)
     const char *p = (path && *path) ? path : "<empty>";
 
     struct stat st;
-    int has_stat = (path && stat(path, &st) == 0);
+    int has_stat = (path && FS_STAT(path, &st) == 0);
 
     switch (res) {
     case PATH_VALID:

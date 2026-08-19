@@ -277,7 +277,7 @@ TargetResolveResult resolve_target_conflict_or_replace(const char *target_path,
                                                        const char *rel_path)
 {
     struct stat st;
-    if (lstat(target_path, &st) != 0) {
+    if (FS_LSTAT(target_path, &st) != 0) {
         return TARGET_RESOLVE_PROCEED_LINK;
     }
 
@@ -299,12 +299,12 @@ TargetResolveResult resolve_target_conflict_or_replace(const char *target_path,
          * condition */
         char tmp_symlink[STOW_PATH_HUGE];
         snprintf(tmp_symlink, sizeof(tmp_symlink), "%s.symdep_tmp_%d", target_path, (int)getpid());
-        if (symlink(pkg_file_path, tmp_symlink) == 0) {
+        if (FS_SYMLINK(pkg_file_path, tmp_symlink) == 0) {
             if (fs_atomic_swap_or_replace(tmp_symlink, target_path, false)) {
                 log_info("LINK: %s => %s", rel_path, pkg_file_path);
                 return TARGET_RESOLVE_REPLACED;
             }
-            unlink(tmp_symlink);
+            FS_UNLINK(tmp_symlink);
         }
         return TARGET_RESOLVE_ERROR;
     }
@@ -313,7 +313,7 @@ TargetResolveResult resolve_target_conflict_or_replace(const char *target_path,
     build_unique_backup_path(target_path, backup_path, sizeof(backup_path));
 
     log_warn("Conflict! Backing up file: %s -> %s", target_path, backup_path);
-    if (rename(target_path, backup_path) != 0) {
+    if (FS_RENAME(target_path, backup_path) != 0) {
         log_error("Failed to backup conflicting file: %s: %s", target_path, strerror(errno));
         return TARGET_RESOLVE_ERROR;
     }

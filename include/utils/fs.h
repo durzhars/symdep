@@ -1,5 +1,6 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
+ * Filesystem Validation, Traversal & Symlink Safety Subsystem Header
  * Copyright (C) 2026 durzhars
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,13 +19,117 @@
 #ifndef SYMDEP_UTILS_FS_H
 #define SYMDEP_UTILS_FS_H
 
+#include <fcntl.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
+#include "utils/defs.h"
 #include "utils/str.h"
+
+#ifndef AT_FDCWD
+#define AT_FDCWD (-100)
+#endif
+#ifndef AT_SYMLINK_NOFOLLOW
+#define AT_SYMLINK_NOFOLLOW 0x100
+#endif
+#ifndef AT_REMOVEDIR
+#define AT_REMOVEDIR 0x200
+#endif
+#ifndef AT_EACCESS
+#define AT_EACCESS 0x200
+#endif
+
+#include <stdarg.h>
+
+/**
+ * @name Dual-Driver Filesystem & Syscall Abstraction Macros
+ *
+ * Modern seccomp kernels and 64-bit architectures (AArch64, RISC-V 64) omit
+ * or filter legacy direct filesystem syscalls (failing with SIGSYS / error 31).
+ * On modern kernels, operations route via directory-relative '*at' syscalls
+ * with AT_FDCWD (symlinkat, unlinkat, mkdirat, renameat, readlinkat, fstatat,
+ * openat, faccessat, fchmodat, fchownat).
+ *
+ * On legacy kernels or when SYMDEP_LEGACY_SYSCALLS / USE_LEGACY_SYSCALLS is
+ * defined, operations route via classic POSIX syscalls.
+ * @{
+ */
+#if defined(SYMDEP_LEGACY_SYSCALLS) || defined(USE_LEGACY_SYSCALLS) || defined(NO_AT_SYSCALLS)
+
+/* Legacy kernel filesystem syscalls */
+#define FS_SYMLINK(target, linkpath) symlink((target), (linkpath))
+#define FS_UNLINK(path) unlink(path)
+#define FS_RMDIR(path) rmdir(path)
+#define FS_MKDIR(path, mode) mkdir((path), (mode))
+#define FS_RENAME(oldpath, newpath) rename((oldpath), (newpath))
+#define FS_READLINK(path, buf, bufsiz) readlink((path), (buf), (bufsiz))
+#define FS_STAT(path, statbuf) stat((path), (statbuf))
+#define FS_LSTAT(path, statbuf) lstat((path), (statbuf))
+#define FS_ACCESS(path, mode) access((path), (mode))
+#define FS_CHMOD(path, mode) chmod((path), (mode))
+#define FS_CHOWN(path, owner, group) chown((path), (owner), (group))
+
+static inline int fs_open(const char *path, int flags, ...)
+{
+    mode_t mode = 0;
+    if (flags & O_CREAT) {
+        va_list args;
+        va_start(args, flags);
+        mode = (mode_t)va_arg(args, int);
+        va_end(args);
+    }
+    return open(path, flags, mode);
+}
+
+#else
+
+/* Modern kernel *at filesystem syscalls (seccomp & modern ABI safe) */
+#define FS_SYMLINK(target, linkpath) symlinkat((target), AT_FDCWD, (linkpath))
+#define FS_UNLINK(path) unlinkat(AT_FDCWD, (path), 0)
+#define FS_RMDIR(path) unlinkat(AT_FDCWD, (path), AT_REMOVEDIR)
+#define FS_MKDIR(path, mode) mkdirat(AT_FDCWD, (path), (mode))
+#define FS_RENAME(oldpath, newpath) renameat(AT_FDCWD, (oldpath), AT_FDCWD, (newpath))
+#define FS_READLINK(path, buf, bufsiz) readlinkat(AT_FDCWD, (path), (buf), (bufsiz))
+#define FS_STAT(path, statbuf) fstatat(AT_FDCWD, (path), (statbuf), 0)
+#define FS_LSTAT(path, statbuf) fstatat(AT_FDCWD, (path), (statbuf), AT_SYMLINK_NOFOLLOW)
+#define FS_ACCESS(path, mode) faccessat(AT_FDCWD, (path), (mode), 0)
+#define FS_CHMOD(path, mode) fchmodat(AT_FDCWD, (path), (mode), 0)
+#define FS_CHOWN(path, owner, group) fchownat(AT_FDCWD, (path), (owner), (group), 0)
+
+static inline int fs_open(const char *path, int flags, ...)
+{
+    mode_t mode = 0;
+    if (flags & O_CREAT) {
+        va_list args;
+        va_start(args, flags);
+        mode = (mode_t)va_arg(args, int);
+        va_end(args);
+    }
+    return openat(AT_FDCWD, path, flags, mode);
+}
+
+#endif
+
+#define FS_OPEN fs_open
+
+/* Lowercase aliases for convenience */
+#define fs_symlink(target, linkpath) FS_SYMLINK(target, linkpath)
+#define fs_unlink(path) FS_UNLINK(path)
+#define fs_rmdir(path) FS_RMDIR(path)
+#define fs_mkdir(path, mode) FS_MKDIR(path, mode)
+#define fs_rename(oldpath, newpath) FS_RENAME(oldpath, newpath)
+#define fs_readlink(path, buf, bufsiz) FS_READLINK(path, buf, bufsiz)
+#define fs_stat(path, statbuf) FS_STAT(path, statbuf)
+#define fs_lstat(path, statbuf) FS_LSTAT(path, statbuf)
+#define fs_access(path, mode) FS_ACCESS(path, mode)
+#define fs_chmod(path, mode) FS_CHMOD(path, mode)
+#define fs_chown(path, owner, group) FS_CHOWN(path, owner, group)
+/** @} */
 
 /**
  * @enum PathSanityResult

@@ -138,6 +138,7 @@ void test_mkdir_p_file_collision(void);
 void test_fs_resource_management(void);
 void test_symlink_helpers(void);
 void test_is_symlink_pointing_to(void);
+void test_fs_syscall_macros(void);
 void test_walk_dir_files_and_cleanup(void);
 
 int main(void)
@@ -271,6 +272,7 @@ int main(void)
     RUN_TEST(test_fs_resource_management);
     RUN_TEST(test_symlink_helpers);
     RUN_TEST(test_is_symlink_pointing_to);
+    RUN_TEST(test_fs_syscall_macros);
     RUN_TEST(test_walk_dir_files_and_cleanup);
 
     if (created_sandbox) {

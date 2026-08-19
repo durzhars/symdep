@@ -481,7 +481,7 @@ static bool is_binary_writable_by_user(const char *binary)
         char *last_slash = strrchr(full_path, '/');
         if (last_slash) {
             *last_slash = '\0';
-            if (access(full_path, W_OK) == 0) {
+            if (FS_ACCESS(full_path, W_OK) == 0) {
                 return true;
             }
         }

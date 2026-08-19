@@ -1,19 +1,141 @@
+/*
+ * Symlink & Dependency Manager (symdep)
+ * Linux io_uring Asynchronous Batch Symlink Backend Implementation
+ * Copyright (C) 2026 durzhars
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "utils/io_uring_backend.h"
 
 #include <errno.h>
 #include <fcntl.h>
+#include <setjmp.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "utils/fs.h"
 #include "utils/logger.h"
 #include "utils/mem.h"
 #include "utils/path.h"
 
 #ifdef __linux__
 
+#if defined(__has_include)
+#if __has_include(<linux/io_uring.h>)
 #include <linux/io_uring.h>
+#define HAVE_LINUX_IO_URING_H 1
+#endif
+#endif
+
+#ifndef HAVE_LINUX_IO_URING_H
+struct io_sqring_offsets {
+    uint32_t head;
+    uint32_t tail;
+    uint32_t ring_mask;
+    uint32_t ring_entries;
+    uint32_t flags;
+    uint32_t dropped;
+    uint32_t array;
+    uint32_t resv1;
+    uint64_t resv2;
+};
+
+struct io_cqring_offsets {
+    uint32_t head;
+    uint32_t tail;
+    uint32_t ring_mask;
+    uint32_t ring_entries;
+    uint32_t overflow;
+    uint32_t cqes;
+    uint32_t flags;
+    uint32_t resv1;
+    uint64_t resv2;
+};
+
+struct io_uring_params {
+    uint32_t sq_entries;
+    uint32_t cq_entries;
+    uint32_t flags;
+    uint32_t sq_thread_cpu;
+    uint32_t sq_thread_idle;
+    uint32_t features;
+    uint32_t wq_fd;
+    uint32_t resv[3];
+    struct io_sqring_offsets sq_off;
+    struct io_cqring_offsets cq_off;
+};
+
+struct io_uring_sqe {
+    uint8_t opcode;
+    uint8_t flags;
+    uint16_t ioprio;
+    int32_t fd;
+    union {
+        uint64_t off;
+        uint64_t addr2;
+    };
+    union {
+        uint64_t addr;
+        uint64_t splice_off_in;
+    };
+    uint32_t len;
+    union {
+        uint32_t rw_flags;
+        uint32_t fsync_flags;
+        uint16_t poll_events;
+        uint32_t poll32_events;
+        uint32_t sync_range_flags;
+        uint32_t msg_flags;
+        uint32_t timeout_flags;
+        uint32_t accept_flags;
+        uint32_t cancel_flags;
+        uint32_t open_flags;
+        uint32_t statx_flags;
+        uint32_t fadvise_advice;
+        uint32_t splice_flags;
+        uint32_t rename_flags;
+        uint32_t unlink_flags;
+        uint32_t hardlink_flags;
+        uint32_t xattr_flags;
+        uint32_t msg_ring_flags;
+        uint32_t uring_cmd_flags;
+    };
+    uint64_t user_data;
+    union {
+        struct {
+            union {
+                uint16_t buf_index;
+                uint16_t buf_group;
+            };
+            uint16_t personality;
+            int32_t splice_fd_in;
+        };
+        uint64_t __pad2[3];
+    };
+};
+
+struct io_uring_cqe {
+    uint64_t user_data;
+    int32_t res;
+    uint32_t flags;
+};
+#endif
+
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -34,18 +156,65 @@
 #define IORING_OP_SYMLINKAT 38
 #endif
 
+#ifndef IORING_ENTER_GETEVENTS
+#define IORING_ENTER_GETEVENTS (1U << 0)
+#endif
+
+#ifndef IORING_OFF_SQ_RING
+#define IORING_OFF_SQ_RING 0ULL
+#endif
+
+#ifndef IORING_OFF_CQ_RING
+#define IORING_OFF_CQ_RING 0x8000000ULL
+#endif
+
+#ifndef IORING_OFF_SQES
+#define IORING_OFF_SQES 0x10000000ULL
+#endif
+
+static sigjmp_buf g_probe_sigsys_jmp;
+static volatile sig_atomic_t g_probe_sigsys_caught = 0;
+
+static void probe_sigsys_handler(int signo)
+{
+    (void)signo;
+    g_probe_sigsys_caught = 1;
+    siglongjmp(g_probe_sigsys_jmp, 1);
+}
+
+static bool is_running_on_android(void)
+{
+#if defined(__ANDROID__)
+    return true;
+#else
+    if (getenv("ANDROID_ROOT") || getenv("ANDROID_DATA") || getenv("ANDROID_STORAGE")) {
+        return true;
+    }
+    const char *prefix = getenv("PREFIX");
+    if (prefix && strstr(prefix, "com.termux")) {
+        return true;
+    }
+    if (access("/system/bin/sh", F_OK) == 0 && access("/system/etc/seccomp_policy", F_OK) == 0) {
+        return true;
+    }
+    return false;
+#endif
+}
+
 typedef struct {
     int ring_fd;
     void *sq_ptr;
-    size_t sq_size;
     void *cq_ptr;
-    size_t cq_size;
     struct io_uring_sqe *sqes;
+    size_t sq_size;
+    size_t cq_size;
     size_t sqes_size;
+
     uint32_t *sq_head;
     uint32_t *sq_tail;
     uint32_t *sq_ring_mask;
     uint32_t *sq_array;
+
     uint32_t *cq_head;
     uint32_t *cq_tail;
     uint32_t *cq_ring_mask;
@@ -127,45 +296,86 @@ static void free_io_uring(IoUringRing *ring)
 
 bool io_uring_is_supported(void)
 {
-    IoUringRing ring;
-    if (!init_io_uring(&ring, 4)) {
+    if (is_running_on_android()) {
+        /* Android App / Zygote Seccomp policy strictly blocks io_uring with SIGSYS */
         return false;
     }
 
-    const char *test_src = "/tmp/.symdep_uring_probe_src";
-    const char *test_tgt = "/tmp/.symdep_uring_probe_tgt";
-    unlink(test_tgt);
-    unlink(test_src);
+    struct sigaction sa, old_sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = probe_sigsys_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
 
-    int fd = open(test_src, O_CREAT | O_WRONLY, 0644);
-    if (fd >= 0) {
-        close(fd);
+    g_probe_sigsys_caught = 0;
+    if (sigaction(SIGSYS, &sa, &old_sa) != 0) {
+        return false;
     }
 
-    struct io_uring_sqe *sqe = &ring.sqes[0];
-    memset(sqe, 0, sizeof(*sqe));
-    sqe->opcode = IORING_OP_SYMLINKAT;
-    sqe->fd = AT_FDCWD;
-    sqe->addr = (uint64_t)test_src;
-    sqe->addr2 = (uint64_t)test_tgt;
+    volatile bool supported = false;
+    if (sigsetjmp(g_probe_sigsys_jmp, 1) == 0) {
+        IoUringRing ring;
+        if (init_io_uring(&ring, 4)) {
+            const char *tmp = getenv("TMPDIR");
+            static char termux_tmp[STOW_PATH_LARGE];
+            if (!tmp || *tmp == '\0') {
+                tmp = getenv("PREFIX");
+                if (tmp) {
+                    join_path(termux_tmp, sizeof(termux_tmp), tmp, "tmp");
+                    tmp = termux_tmp;
+                }
+            }
+            if (!tmp || access(tmp, W_OK) != 0) {
+                tmp = "/tmp";
+            }
 
-    ring.sq_array[0] = 0;
-    atomic_store_explicit((_Atomic uint32_t *)ring.sq_tail, 1, memory_order_release);
+            char test_src[STOW_PATH_LARGE];
+            char test_tgt[STOW_PATH_LARGE];
+            char fname_src[64];
+            char fname_tgt[64];
+            snprintf(fname_src, sizeof(fname_src), ".symdep_uring_probe_src_%d", (int)getpid());
+            snprintf(fname_tgt, sizeof(fname_tgt), ".symdep_uring_probe_tgt_%d", (int)getpid());
+            join_path(test_src, sizeof(test_src), tmp, fname_src);
+            join_path(test_tgt, sizeof(test_tgt), tmp, fname_tgt);
 
-    int ret =
-        (int)syscall(__NR_io_uring_enter, ring.ring_fd, 1, 1, IORING_ENTER_GETEVENTS, NULL, 0);
-    bool supported = false;
-    if (ret >= 0 && *ring.cq_head != *ring.cq_tail) {
-        struct io_uring_cqe *cqe = &ring.cqes[*ring.cq_head & *ring.cq_ring_mask];
-        if (cqe->res == 0) {
-            supported = true;
+            FS_UNLINK(test_tgt);
+            FS_UNLINK(test_src);
+
+            int fd = FS_OPEN(test_src, O_CREAT | O_WRONLY, 0644);
+            if (fd >= 0) {
+                close(fd);
+
+                struct io_uring_sqe *sqe = &ring.sqes[0];
+                memset(sqe, 0, sizeof(*sqe));
+                sqe->opcode = IORING_OP_SYMLINKAT;
+                sqe->fd = AT_FDCWD;
+                sqe->addr = (uint64_t)test_src;
+                sqe->addr2 = (uint64_t)test_tgt;
+
+                ring.sq_array[0] = 0;
+                atomic_store_explicit((_Atomic uint32_t *)ring.sq_tail, 1, memory_order_release);
+
+                int ret = (int)syscall(
+                    __NR_io_uring_enter, ring.ring_fd, 1, 1, IORING_ENTER_GETEVENTS, NULL, 0);
+                if (ret >= 0 && *ring.cq_head != *ring.cq_tail) {
+                    struct io_uring_cqe *cqe = &ring.cqes[*ring.cq_head & *ring.cq_ring_mask];
+                    if (cqe->res == 0) {
+                        supported = true;
+                    }
+                }
+
+                FS_UNLINK(test_src);
+                FS_UNLINK(test_tgt);
+            }
+            free_io_uring(&ring);
         }
+    } else {
+        /* SIGSYS was caught during probe -> seccomp blocked io_uring */
+        supported = false;
     }
 
-    unlink(test_src);
-    unlink(test_tgt);
-    free_io_uring(&ring);
-    return supported;
+    sigaction(SIGSYS, &old_sa, NULL);
+    return supported && !g_probe_sigsys_caught;
 }
 
 static inline void fast_path_join(char *out, const char *dir, size_t dlen, const char *rel)
@@ -217,7 +427,7 @@ int io_uring_link_batch(const PkgFileList *files, PackageContext *ctx)
     }
     PendingLink *batch = g_tls_batch;
 
-    int target_dfd = open(ctx->target_dir, O_RDONLY | O_DIRECTORY);
+    int target_dfd = FS_OPEN(ctx->target_dir, O_RDONLY | O_DIRECTORY);
     if (target_dfd < 0) {
         target_dfd = AT_FDCWD;
     }

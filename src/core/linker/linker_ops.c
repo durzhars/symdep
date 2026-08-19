@@ -91,7 +91,7 @@ static void native_link_cb(const char *file_path, const char *rel_path, void *us
     /* Parent directory is pre-created in Pass 1 upfront */
 
     PerfTimer op_timer = perf_timer_start("symlink");
-    int sym_res = symlink(pkg_file_path, target_path);
+    int sym_res = FS_SYMLINK(pkg_file_path, target_path);
     double op_us = perf_timer_elapsed_us(&op_timer);
 
     if (sym_res == 0) {
@@ -141,7 +141,7 @@ static void native_unlink_cb(const char *file_path, const char *rel_path, void *
             ctx->unlinked_count++;
         } else {
             PerfTimer op_timer = perf_timer_start("unlink");
-            int unl_res = unlink(target_path);
+            int unl_res = FS_UNLINK(target_path);
             double op_us = perf_timer_elapsed_us(&op_timer);
 
             if (unl_res == 0) {
@@ -170,7 +170,7 @@ static void native_unlink_cb(const char *file_path, const char *rel_path, void *
                     *last_slash = '\0';
                 }
                 while (strlen(parent) > target_len && is_path_prefix(parent, ctx->target_dir)) {
-                    if (rmdir(parent) != 0) {
+                    if (FS_RMDIR(parent) != 0) {
                         break;
                     }
                     last_slash = strrchr(parent, '/');

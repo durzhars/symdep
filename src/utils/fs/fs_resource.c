@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Application Resource File Resolution Submodule
  * Copyright (C) 2026 durzhars
  *
@@ -16,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #include "utils/fs/internal.h"
 
 static inline const char *get_system_datadir(void)

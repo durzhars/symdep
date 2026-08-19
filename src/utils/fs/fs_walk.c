@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Directory Walking & Creation Submodule
  * Copyright (C) 2026 durzhars
  *
@@ -16,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #include "utils/fs/internal.h"
 
 int mkdir_p(const char *path, mode_t mode)
@@ -42,10 +41,10 @@ int mkdir_p(const char *path, mode_t mode)
         if (*p == '/') {
             *p = '\0';
 
-            if (mkdir(tmp, mode) != 0) {
+            if (FS_MKDIR(tmp, mode) != 0) {
                 if (errno == EEXIST) {
                     struct stat st;
-                    if (stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
+                    if (FS_STAT(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
                         errno = ENOTDIR;
                         return -1;
                     }
@@ -57,10 +56,10 @@ int mkdir_p(const char *path, mode_t mode)
         }
     }
 
-    if (mkdir(tmp, mode) != 0) {
+    if (FS_MKDIR(tmp, mode) != 0) {
         if (errno == EEXIST) {
             struct stat st;
-            if (stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
+            if (FS_STAT(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
                 errno = ENOTDIR;
                 return -1;
             }
@@ -241,9 +240,9 @@ void cleanup_temp_dir_contents(const char *dir_path)
 
         if (is_dir(child_path) && !is_symlink(child_path)) {
             cleanup_temp_dir_contents(child_path);
-            rmdir(child_path);
+            FS_RMDIR(child_path);
         } else {
-            unlink(child_path);
+            FS_UNLINK(child_path);
         }
     }
 

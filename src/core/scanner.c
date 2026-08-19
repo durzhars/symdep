@@ -75,14 +75,14 @@ static bool is_package_tool_executable(const char *source_dir, const char *pkg_n
     char path[STOW_PATH_LARGE];
     join_path(path, sizeof(path), source_dir, pkg_name);
     join_path(path, sizeof(path), path, pkg_name);
-    if (file_exists(path) && access(path, X_OK) == 0) {
+    if (file_exists(path) && FS_ACCESS(path, X_OK) == 0) {
         return true;
     }
 
     join_path(path, sizeof(path), source_dir, pkg_name);
     join_path(path, sizeof(path), path, "bin");
     join_path(path, sizeof(path), path, pkg_name);
-    if (file_exists(path) && access(path, X_OK) == 0) {
+    if (file_exists(path) && FS_ACCESS(path, X_OK) == 0) {
         return true;
     }
 

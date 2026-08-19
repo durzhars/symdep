@@ -1,5 +1,5 @@
 /*
- * Dotfiles Stow Manager (stow-manager)
+ * Symlink & Dependency Manager (symdep)
  * Symlink Resolution & Inspection Submodule
  * Copyright (C) 2026 durzhars
  *
@@ -16,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #include "utils/fs/internal.h"
 
 char *read_symlink_target(const char *path)
@@ -26,7 +25,7 @@ char *read_symlink_target(const char *path)
     }
 
     char target[STOW_PATH_LARGE];
-    ssize_t len = readlink(path, target, sizeof(target) - 1);
+    ssize_t len = FS_READLINK(path, target, sizeof(target) - 1);
     if (len == -1) {
         return NULL;
     }
@@ -69,7 +68,7 @@ bool is_symlink_pointing_to(const char *symlink_path,
     }
 
     char raw_link[STOW_PATH_MAX];
-    ssize_t len = readlink(symlink_path, raw_link, sizeof(raw_link) - 1);
+    ssize_t len = FS_READLINK(symlink_path, raw_link, sizeof(raw_link) - 1);
     if (len == -1) {
         return false;
     }
@@ -151,7 +150,23 @@ bool is_symlink_pointing_to(const char *symlink_path,
 #include <fcntl.h>
 #include <sys/syscall.h>
 #ifndef SYS_renameat2
+#if defined(__x86_64__)
 #define SYS_renameat2 316
+#elif defined(__i386__)
+#define SYS_renameat2 353
+#elif defined(__aarch64__)
+#define SYS_renameat2 276
+#elif defined(__arm__)
+#define SYS_renameat2 382
+#elif defined(__riscv) || defined(__riscv__)
+#define SYS_renameat2 276
+#elif defined(__mips__)
+#define SYS_renameat2 4351
+#elif defined(__powerpc__) || defined(__ppc__)
+#define SYS_renameat2 357
+#elif defined(__s390x__) || defined(__s390__)
+#define SYS_renameat2 347
+#endif
 #endif
 #ifndef RENAME_EXCHANGE
 #define RENAME_EXCHANGE (1 << 1)
@@ -168,24 +183,24 @@ bool fs_atomic_swap_or_replace(const char *src_tmp,
 
     if (!is_dir_over_symlink) {
         /* Standard non-directory (symlink-to-symlink, file-to-file) replacement */
-        return (rename(src_tmp, dst_target) == 0);
+        return (FS_RENAME(src_tmp, dst_target) == 0);
     }
 
 #if defined(__linux__) && defined(SYS_renameat2)
     /* Tier 1: Linux raw kernel dentry exchange (0-window physical atomicity) */
     if (syscall(SYS_renameat2, AT_FDCWD, src_tmp, AT_FDCWD, dst_target, RENAME_EXCHANGE) == 0) {
-        unlink(src_tmp); /* Clean up old symlink swapped into src_tmp */
+        FS_UNLINK(src_tmp); /* Clean up old symlink swapped into src_tmp */
         return true;
     }
 #elif defined(__APPLE__)
     /* Tier 1: Darwin / macOS APFS atomic dentry exchange */
     if (renameatx_np(AT_FDCWD, src_tmp, AT_FDCWD, dst_target, RENAME_EXCHANGE) == 0) {
-        unlink(src_tmp);
+        FS_UNLINK(src_tmp);
         return true;
     }
 #endif
 
     /* Tier 2: Generic POSIX fallback (unlink + rename) */
-    unlink(dst_target);
-    return (rename(src_tmp, dst_target) == 0);
+    FS_UNLINK(dst_target);
+    return (FS_RENAME(src_tmp, dst_target) == 0);
 }
